@@ -211,6 +211,87 @@ public struct PostgresAdmin: Sendable {
         return names
     }
 
+    // MARK: - Security
+
+    /// List all non-system roles.
+    public func listRoles() async throws -> [PostgresRoleInfo] {
+        let sql = """
+            SELECT
+                rolname,
+                rolsuper::text,
+                rolcreaterole::text,
+                rolcreatedb::text,
+                rolcanlogin::text,
+                rolreplication::text,
+                rolinherit::text,
+                rolconnlimit::text,
+                rolvaliduntil::text
+            FROM pg_catalog.pg_roles
+            WHERE rolname !~ '^pg_'
+            ORDER BY rolname
+            """
+        var results: [PostgresRoleInfo] = []
+        let rows = try await client.simpleQuery(sql)
+        for try await values in rows.decode((String, String, String, String, String, String, String, String, String?).self) {
+            results.append(PostgresRoleInfo(
+                name: values.0,
+                isSuperuser: values.1 == "t",
+                canCreateRole: values.2 == "t",
+                canCreateDB: values.3 == "t",
+                canLogin: values.4 == "t",
+                isReplication: values.5 == "t",
+                inherit: values.6 == "t",
+                connectionLimit: Int(values.7) ?? -1,
+                validUntil: values.8
+            ))
+        }
+        return results
+    }
+
+    /// List all non-system schemas with their owners.
+    public func listSchemas() async throws -> [PostgresSchemaInfo] {
+        let sql = """
+            SELECT n.nspname, r.rolname
+            FROM pg_catalog.pg_namespace n
+            JOIN pg_catalog.pg_roles r ON n.nspowner = r.oid
+            WHERE n.nspname !~ '^pg_' AND n.nspname != 'information_schema'
+            ORDER BY n.nspname
+            """
+        var results: [PostgresSchemaInfo] = []
+        let rows = try await client.simpleQuery(sql)
+        for try await values in rows.decode((String, String).self) {
+            results.append(PostgresSchemaInfo(
+                name: values.0,
+                owner: values.1
+            ))
+        }
+        return results
+    }
+
+    /// List role memberships, optionally filtered to a specific role.
+    public func listRoleMemberships(role: String? = nil) async throws -> [PostgresRoleMembership] {
+        var sql = """
+            SELECT r.rolname, m.rolname, am.admin_option::text
+            FROM pg_catalog.pg_auth_members am
+            JOIN pg_catalog.pg_roles r ON am.roleid = r.oid
+            JOIN pg_catalog.pg_roles m ON am.member = m.oid
+            """
+        if let role {
+            sql += " WHERE r.rolname = \(quoteLiteral(role)) OR m.rolname = \(quoteLiteral(role))"
+        }
+        sql += " ORDER BY r.rolname, m.rolname"
+        var results: [PostgresRoleMembership] = []
+        let rows = try await client.simpleQuery(sql)
+        for try await values in rows.decode((String, String, String).self) {
+            results.append(PostgresRoleMembership(
+                roleName: values.0,
+                memberName: values.1,
+                adminOption: values.2 == "t"
+            ))
+        }
+        return results
+    }
+
     // MARK: - Helpers
     private func execUpdate(_ sql: String) async throws -> Int {
         try await client.withConnection { conn in
@@ -265,5 +346,30 @@ public enum PostgresAdminError: Error, LocalizedError {
         case .notFound(let msg): return msg
         }
     }
+}
+
+// MARK: - Security Models
+
+public struct PostgresRoleInfo: Sendable {
+    public let name: String
+    public let isSuperuser: Bool
+    public let canCreateRole: Bool
+    public let canCreateDB: Bool
+    public let canLogin: Bool
+    public let isReplication: Bool
+    public let inherit: Bool
+    public let connectionLimit: Int
+    public let validUntil: String?
+}
+
+public struct PostgresSchemaInfo: Sendable {
+    public let name: String
+    public let owner: String
+}
+
+public struct PostgresRoleMembership: Sendable {
+    public let roleName: String
+    public let memberName: String
+    public let adminOption: Bool
 }
 

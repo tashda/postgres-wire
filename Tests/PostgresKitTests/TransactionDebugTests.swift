@@ -10,6 +10,9 @@ final class TransactionDebugTests: XCTestCase {
     override func setUp() async throws {
         TestEnv.loadDotEnv()
         try await super.setUp()
+        guard ProcessInfo.processInfo.environment["POSTGRES_HOST"] != nil else {
+            throw XCTSkip("POSTGRES_HOST not set; skipping integration test")
+        }
         testLogger = Logger(label: "transaction-debug-tests")
 
         let config = PostgresConfiguration(
@@ -46,7 +49,7 @@ final class TransactionDebugTests: XCTestCase {
             // Count immediately
             let countRows1 = try await conn.simpleQuery("SELECT COUNT(*)::text FROM debug_tx")
             var count1 = 0
-            for try await (countStr,) in countRows1.decode(String.self) {
+            for try await countStr in countRows1.decode(String.self) {
                 if let intVal = Int(countStr) {
                     count1 = intVal
                 }
@@ -71,7 +74,7 @@ final class TransactionDebugTests: XCTestCase {
             // Count again
             let countRows2 = try await conn.simpleQuery("SELECT COUNT(*)::text FROM debug_tx")
             var count2 = 0
-            for try await (countStr,) in countRows2.decode(String.self) {
+            for try await countStr in countRows2.decode(String.self) {
                 if let intVal = Int(countStr) {
                     count2 = intVal
                 }
@@ -112,7 +115,7 @@ final class TransactionDebugTests: XCTestCase {
             // Count inside transaction (before commit)
             let countBefore = try await conn.simpleQuery("SELECT COUNT(*)::text FROM iso_tx")
             var beforeCount = 0
-            for try await (countStr,) in countBefore.decode(String.self) {
+            for try await countStr in countBefore.decode(String.self) {
                 if let intVal = Int(countStr) {
                     beforeCount = intVal
                 }
@@ -126,7 +129,7 @@ final class TransactionDebugTests: XCTestCase {
             // Count after commit
             let countAfter = try await conn.simpleQuery("SELECT COUNT(*)::text FROM iso_tx")
             var afterCount = 0
-            for try await (countStr,) in countAfter.decode(String.self) {
+            for try await countStr in countAfter.decode(String.self) {
                 if let intVal = Int(countStr) {
                     afterCount = intVal
                 }
@@ -157,7 +160,7 @@ final class TransactionDebugTests: XCTestCase {
             // Count inside transaction (before rollback)
             let countBefore = try await conn.simpleQuery("SELECT COUNT(*)::text FROM rollback_tx")
             var beforeCount = 0
-            for try await (countStr,) in countBefore.decode(String.self) {
+            for try await countStr in countBefore.decode(String.self) {
                 if let intVal = Int(countStr) {
                     beforeCount = intVal
                 }
@@ -171,7 +174,7 @@ final class TransactionDebugTests: XCTestCase {
             // Count after rollback (table should still exist but be empty)
             let countAfter = try await conn.simpleQuery("SELECT COUNT(*)::text FROM rollback_tx")
             var afterCount = 0
-            for try await (countStr,) in countAfter.decode(String.self) {
+            for try await countStr in countAfter.decode(String.self) {
                 if let intVal = Int(countStr) {
                     afterCount = intVal
                 }

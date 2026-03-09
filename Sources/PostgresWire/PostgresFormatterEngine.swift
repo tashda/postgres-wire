@@ -123,13 +123,13 @@ public actor PostgresFormatterEngine {
     private func formatIntegerCell(_ data: Data) -> String {
         switch data.count {
         case 2:
-            let value = data.withUnsafeBytes { $0.load(as: Int16.self) }
+            let value = data.withUnsafeBytes { $0.loadUnaligned(as: Int16.self) }
             return String(value)
         case 4:
-            let value = data.withUnsafeBytes { $0.load(as: Int32.self) }
+            let value = data.withUnsafeBytes { $0.loadUnaligned(as: Int32.self) }
             return String(value)
         case 8:
-            let value = data.withUnsafeBytes { $0.load(as: Int64.self) }
+            let value = data.withUnsafeBytes { $0.loadUnaligned(as: Int64.self) }
             return String(value)
         default:
             return configuration.nullValueDisplay
@@ -140,10 +140,10 @@ public actor PostgresFormatterEngine {
         // Try to decode as various numeric types
         switch data.count {
         case 4:
-            let value = data.withUnsafeBytes { $0.load(as: Float32.self) }
+            let value = data.withUnsafeBytes { $0.loadUnaligned(as: Float32.self) }
             return formatNumericValue(Double(value))
         case 8:
-            let value = data.withUnsafeBytes { $0.load(as: Float64.self) }
+            let value = data.withUnsafeBytes { $0.loadUnaligned(as: Float64.self) }
             return formatNumericValue(Double(value))
         default:
             // For numeric/decimal types, we need to handle PostgreSQL's binary format
@@ -165,7 +165,7 @@ public actor PostgresFormatterEngine {
             return String(data: data, encoding: .utf8) ?? data.base64EncodedString()
         }
 
-        let microsecondsSincePostgresEpoch = data.withUnsafeBytes { $0.load(as: Int64.self) }
+        let microsecondsSincePostgresEpoch = data.withUnsafeBytes { $0.loadUnaligned(as: Int64.self) }
 
         // PostgreSQL epoch starts at 2000-01-01 00:00:00 UTC
         let postgresEpochInterval = TimeInterval(946684800) // Unix timestamp for 2000-01-01 00:00:00 UTC
@@ -180,7 +180,7 @@ public actor PostgresFormatterEngine {
             return data.base64EncodedString()
         }
 
-        let uuid = UUID(uuid: data.withUnsafeBytes { $0.load(as: uuid_t.self) })
+        let uuid = UUID(uuid: data.withUnsafeBytes { $0.loadUnaligned(as: uuid_t.self) })
         return uuid.uuidString
     }
 

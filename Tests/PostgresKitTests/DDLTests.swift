@@ -240,7 +240,7 @@ final class DDLTests: XCTestCase {
         // Count employees using PostgresClient API
         let countRows = try await client.simpleQuery("SELECT COUNT(*)::text FROM employees")
         var count = 0
-        for try await (countStr,) in countRows.decode(String.self) {
+        for try await countStr in countRows.decode(String.self) {
             if let intVal = Int(countStr) {
                 count = intVal
             }
@@ -399,7 +399,7 @@ final class DDLTests: XCTestCase {
             EXPLAIN (FORMAT JSON) SELECT * FROM index_test WHERE name = 'User 42'
         """)
 
-        for try await (plan) in explainRows.decode(String.self) {
+        for try await plan in explainRows.decode(String.self) {
             print("Query plan: \(plan)")
         }
 
@@ -480,7 +480,7 @@ final class DDLTests: XCTestCase {
             // Verify initial state
             let initialCountRows = try await conn.simpleQuery("SELECT COUNT(*)::text FROM books")
             var initialCount = 0
-            for try await (countStr,) in initialCountRows.decode(String.self) {
+            for try await countStr in initialCountRows.decode(String.self) {
                 if let intVal = Int(countStr) {
                     initialCount = intVal
                 }
@@ -491,7 +491,7 @@ final class DDLTests: XCTestCase {
             // Count books before delete operations
             let beforeCountRows = try await conn.simpleQuery("SELECT COUNT(*)::text FROM books")
             var beforeCount = 0
-            for try await (countStr,) in beforeCountRows.decode(String.self) {
+            for try await countStr in beforeCountRows.decode(String.self) {
                 if let intVal = Int(countStr) {
                     beforeCount = intVal
                 }
@@ -507,7 +507,7 @@ final class DDLTests: XCTestCase {
             // Count remaining books after both operations
             let afterCountRows = try await conn.simpleQuery("SELECT COUNT(*)::text FROM books")
             var afterCount = 0
-            for try await (countStr,) in afterCountRows.decode(String.self) {
+            for try await countStr in afterCountRows.decode(String.self) {
                 if let intVal = Int(countStr) {
                     afterCount = intVal
                 }
@@ -545,7 +545,7 @@ final class DDLTests: XCTestCase {
             // Verify table exists
             let beforeCount = try await conn.simpleQuery("SELECT COUNT(*)::text FROM drop_test")
             var before = 0
-            for try await (countStr,) in beforeCount.decode(String.self) {
+            for try await countStr in beforeCount.decode(String.self) {
                 if let intVal = Int(countStr) {
                     before = intVal
                 }

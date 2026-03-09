@@ -1,0 +1,46 @@
+{
+  "configurations" : [
+    {
+      "id" : "429AB1DC-C2F8-443B-9860-24F6AE94B830",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "environmentVariableEntries" : [
+      {
+        "key" : "POSTGRES_PORT",
+        "value" : "5430"
+      },
+      {
+        "key" : "POSTGRES_PASSWORD",
+        "value" : "K3nn3th5"
+      },
+      {
+        "key" : "POSTGRES_USERNAME",
+        "value" : "k"
+      },
+      {
+        "key" : "POSTGRES_DATABASE",
+        "value" : "employees"
+      },
+      {
+        "key" : "POSTGRES_HOST",
+        "value" : "192.168.1.200"
+      }
+    ],
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:",
+        "identifier" : "PostgresKitTests",
+        "name" : "PostgresKitTests"
+      }
+    }
+  ],
+  "version" : 1
+}

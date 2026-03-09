@@ -1,0 +1,439 @@
+{
+  "version" : 1,
+  "configurations" : [
+    {
+      "id" : "54a54008-6ca9-43ba-8619-474c9b0c66e8",
+      "name" : "Comprehensive Tests",
+      "options" : {
+
+      },
+      "schemeConfiguration" : {
+        "commandLineArguments" : [
+
+        ],
+        "environmentVariables" : [
+          {
+            "key" : "PGKIT_HOST",
+            "value" : "$(PGKIT_HOST)"
+          },
+          {
+            "key" : "PGKIT_PORT",
+            "value" : "$(PGKIT_PORT)"
+          },
+          {
+            "key" : "PGKIT_DATABASE",
+            "value" : "$(PGKIT_DATABASE)"
+          },
+          {
+            "key" : "PGKIT_USERNAME",
+            "value" : "$(PGKIT_USERNAME)"
+          },
+          {
+            "key" : "PGKIT_PASSWORD",
+            "value" : "$(PGKIT_PASSWORD)"
+          },
+          {
+            "key" : "PGKIT_TLS",
+            "value" : "$(PGKIT_TLS)"
+          },
+          {
+            "key" : "PGKIT_ENABLE_PERF_TESTS",
+            "value" : "$(PGKIT_ENABLE_PERF_TESTS)"
+          },
+          {
+            "key" : "PGKIT_ENABLE_STRESS_TESTS",
+            "value" : "$(PGKIT_ENABLE_STRESS_TESTS)"
+          },
+          {
+            "key" : "PGKIT_PARALLEL_TESTS",
+            "value" : "$(PGKIT_PARALLEL_TESTS)"
+          }
+        ],
+        "language" : "swift",
+        "region" : "en_US"
+      },
+      "selectedTests" : [
+        {
+          "kind" : "testClass",
+          "className" : "PostgresClientComprehensiveTests"
+        },
+        {
+          "kind" : "testClass",
+          "className" : "ConnectionManagementTests"
+        },
+        {
+          "kind" : "testClass",
+          "className" : "TransactionConcurrencyTests"
+        },
+        {
+          "kind" : "testClass",
+          "className" : "StreamingAPITests"
+        },
+        {
+          "kind" : "testClass",
+          "className" : "MetadataAPITests"
+        }
+      ],
+      "testTargets" : [
+        {
+          "target" : {
+            "id" : {
+              "projectPath" : "PostgresWire.xcodeproj",
+              "targetName" : "PostgresKitPackageTests"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id" : "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      "name" : "Quick Tests",
+      "options" : {
+
+      },
+      "schemeConfiguration" : {
+        "commandLineArguments" : [
+
+        ],
+        "environmentVariables" : [
+          {
+            "key" : "PGKIT_HOST",
+            "value" : "$(PGKIT_HOST)"
+          },
+          {
+            "key" : "PGKIT_PORT",
+            "value" : "$(PGKIT_PORT)"
+          },
+          {
+            "key" : "PGKIT_DATABASE",
+            "value" : "$(PGKIT_DATABASE)"
+          },
+          {
+            "key" : "PGKIT_USERNAME",
+            "value" : "$(PGKIT_USERNAME)"
+          },
+          {
+            "key" : "PGKIT_PASSWORD",
+            "value" : "$(PGKIT_PASSWORD)"
+          },
+          {
+            "key" : "PGKIT_ENABLE_PERF_TESTS",
+            "value" : "false"
+          },
+          {
+            "key" : "PGKIT_ENABLE_STRESS_TESTS",
+            "value" : "false"
+          }
+        ],
+        "language" : "swift",
+        "region" : "en_US"
+      },
+      "selectedTests" : [
+        {
+          "kind" : "testClass",
+          "className" : "PostgresClientComprehensiveTests",
+          "tests" : [
+            "testClientConnection",
+            "testSimpleQuery",
+            "testAllPostgresDataTypes",
+            "testSimpleTransaction",
+            "testBasicStreamingQuery",
+            "testListDatabases"
+          ]
+        },
+        {
+          "kind" : "testClass",
+          "className" : "ConnectionManagementTests",
+          "tests" : [
+            "testConnectionEstablishment",
+            "testConnectionReuse",
+            "testConcurrentConnectionUsage"
+          ]
+        }
+      ],
+      "testTargets" : [
+        {
+          "target" : {
+            "id" : {
+              "projectPath" : "PostgresWire.xcodeproj",
+              "targetName" : "PostgresKitPackageTests"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id" : "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+      "name" : "Performance Tests",
+      "options" : {
+
+      },
+      "schemeConfiguration" : {
+        "commandLineArguments" : [
+
+        ],
+        "environmentVariables" : [
+          {
+            "key" : "PGKIT_HOST",
+            "value" : "$(PGKIT_HOST)"
+          },
+          {
+            "key" : "PGKIT_PORT",
+            "value" : "$(PGKIT_PORT)"
+          },
+          {
+            "key" : "PGKIT_DATABASE",
+            "value" : "$(PGKIT_DATABASE)"
+          },
+          {
+            "key" : "PGKIT_USERNAME",
+            "value" : "$(PGKIT_USERNAME)"
+          },
+          {
+            "key" : "PGKIT_PASSWORD",
+            "value" : "$(PGKIT_PASSWORD)"
+          },
+          {
+            "key" : "PGKIT_ENABLE_PERF_TESTS",
+            "value" : "true"
+          },
+          {
+            "key" : "PGKIT_ENABLE_STRESS_TESTS",
+            "value" : "false"
+          }
+        ],
+        "language" : "swift",
+        "region" : "en_US"
+      },
+      "selectedTests" : [
+        {
+          "kind" : "testClass",
+          "className" : "PostgresClientComprehensiveTests",
+          "tests" : [
+            "testLargeDatasetHandling",
+            "testBatchInsertPerformance"
+          ]
+        },
+        {
+          "kind" : "testClass",
+          "className" : "TransactionConcurrencyTests",
+          "tests" : [
+            "testTransactionPerformance",
+            "testBatchInsertInTransaction"
+          ]
+        },
+        {
+          "kind" : "testClass",
+          "className" : "StreamingAPITests",
+          "tests" : [
+            "testStreamingPerformance",
+            "testCursorStreamingPerformance"
+          ]
+        },
+        {
+          "kind" : "testClass",
+          "className" : "MetadataAPITests",
+          "tests" : [
+            "testMetadataQueryPerformance",
+            "testSchemaSummaryPerformance"
+          ]
+        }
+      ],
+      "testTargets" : [
+        {
+          "target" : {
+            "id" : {
+              "projectPath" : "PostgresWire.xcodeproj",
+              "targetName" : "PostgresKitPackageTests"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id" : "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+      "name" : "Stress Tests",
+      "options" : {
+
+      },
+      "schemeConfiguration" : {
+        "commandLineArguments" : [
+
+        ],
+        "environmentVariables" : [
+          {
+            "key" : "PGKIT_HOST",
+            "value" : "$(PGKIT_HOST)"
+          },
+          {
+            "key" : "PGKIT_PORT",
+            "value" : "$(PGKIT_PORT)"
+          },
+          {
+            "key" : "PGKIT_DATABASE",
+            "value" : "$(PGKIT_DATABASE)"
+          },
+          {
+            "key" : "PGKIT_USERNAME",
+            "value" : "$(PGKIT_USERNAME)"
+          },
+          {
+            "key" : "PGKIT_PASSWORD",
+            "value" : "$(PGKIT_PASSWORD)"
+          },
+          {
+            "key" : "PGKIT_ENABLE_PERF_TESTS",
+            "value" : "true"
+          },
+          {
+            "key" : "PGKIT_ENABLE_STRESS_TESTS",
+            "value" : "true"
+          },
+          {
+            "key" : "PGKIT_PARALLEL_TESTS",
+            "value" : "true"
+          }
+        ],
+        "language" : "swift",
+        "region" : "en_US"
+      },
+      "selectedTests" : [
+        {
+          "kind" : "testClass",
+          "className" : "PostgresClientComprehensiveTests",
+          "tests" : [
+            "testConcurrentQueries",
+            "testStressMultipleConnectionsAndQueries",
+            "testMemoryManagementLargeResultSet"
+          ]
+        },
+        {
+          "kind" : "testClass",
+          "className" : "TransactionConcurrencyTests",
+          "tests" : [
+            "testConcurrentTransactions",
+            "testHighConcurrencyTransactions"
+          ]
+        },
+        {
+          "kind" : "testClass",
+          "className" : "StreamingAPITests",
+          "tests" : [
+            "testStreamingWithLargeDataset",
+            "testCursorStreamingWithLargeDataset"
+          ]
+        }
+      ],
+      "testTargets" : [
+        {
+          "target" : {
+            "id" : {
+              "projectPath" : "PostgresWire.xcodeproj",
+              "targetName" : "PostgresKitPackageTests"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id" : "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f9a",
+      "name" : "Error Handling Tests",
+      "options" : {
+
+      },
+      "schemeConfiguration" : {
+        "commandLineArguments" : [
+
+        ],
+        "environmentVariables" : [
+          {
+            "key" : "PGKIT_HOST",
+            "value" : "$(PGKIT_HOST)"
+          },
+          {
+            "key" : "PGKIT_PORT",
+            "value" : "$(PGKIT_PORT)"
+          },
+          {
+            "key" : "PGKIT_DATABASE",
+            "value" : "$(PGKIT_DATABASE)"
+          },
+          {
+            "key" : "PGKIT_USERNAME",
+            "value" : "$(PGKIT_USERNAME)"
+          },
+          {
+            "key" : "PGKIT_PASSWORD",
+            "value" : "$(PGKIT_PASSWORD)"
+          },
+          {
+            "key" : "PGKIT_ENABLE_PERF_TESTS",
+            "value" : "false"
+          },
+          {
+            "key" : "PGKIT_ENABLE_STRESS_TESTS",
+            "value" : "false"
+          }
+        ],
+        "language" : "swift",
+        "region" : "en_US"
+      },
+      "selectedTests" : [
+        {
+          "kind" : "testClass",
+          "className" : "PostgresClientComprehensiveTests",
+          "tests" : [
+            "testQueryErrorHandling",
+            "testParameterBindingError",
+            "testConnectionErrorHandling"
+          ]
+        },
+        {
+          "kind" : "testClass",
+          "className" : "ConnectionManagementTests",
+          "tests" : [
+            "testConnectionWithInvalidCredentials",
+            "testConnectionWithInvalidHost",
+            "testConnectionWithEmptyDatabaseName"
+          ]
+        },
+        {
+          "kind" : "testClass",
+          "className" : "TransactionConcurrencyTests",
+          "tests" : [
+            "testTransactionWithErrors",
+            "testDeadlockScenario"
+          ]
+        },
+        {
+          "kind" : "testClass",
+          "className" : "StreamingAPITests",
+          "tests" : [
+            "testStreamingWithInvalidQuery",
+            "testStreamingCancellation",
+            "testStreamingWithConnectionError"
+          ]
+        },
+        {
+          "kind" : "testClass",
+          "className" : "MetadataAPITests",
+          "tests" : [
+            "testMetadataWithNonExistentSchema",
+            "testMetadataWithNonExistentTable",
+            "testMetadataWithPermissionIssues"
+          ]
+        }
+      ],
+      "testTargets" : [
+        {
+          "target" : {
+            "id" : {
+              "projectPath" : "PostgresWire.xcodeproj",
+              "targetName" : "PostgresKitPackageTests"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

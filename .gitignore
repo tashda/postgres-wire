@@ -1,0 +1,13 @@
+.DS_Store
+.build/
+build/
+*.o
+*.d
+DerivedData/
+*.xcuserstate
+.swiftpm/
+*.log
+
+.env
+.claude/
+.swift-docc-build/

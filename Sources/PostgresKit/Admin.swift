@@ -220,15 +220,15 @@ public struct PostgresAdmin: Sendable {
         let sql = """
             SELECT
                 r.rolname,
-                r.rolsuper::text,
-                r.rolcreaterole::text,
-                r.rolcreatedb::text,
-                r.rolcanlogin::text,
-                r.rolreplication::text,
-                r.rolinherit::text,
+                r.rolsuper,
+                r.rolcreaterole,
+                r.rolcreatedb,
+                r.rolcanlogin,
+                r.rolreplication,
+                r.rolinherit,
                 r.rolconnlimit::text,
                 r.rolvaliduntil::text,
-                r.rolbypassrls::text,
+                r.rolbypassrls,
                 r.oid::text
             FROM pg_catalog.pg_roles r
             WHERE r.rolname !~ '^pg_'

@@ -612,12 +612,16 @@ public final class PostgresDatabaseClient: @unchecked Sendable {
         return try await executeDDL(parts.joined(separator: " "))
     }
 
-    /// Grant role membership
+    /// Grant role membership with optional ADMIN, INHERIT, and SET options.
     @discardableResult
-    public func grantRole(role: String, to: String, admin: Bool = false) async throws -> Int {
+    public func grantRole(role: String, to: String, admin: Bool = false, inherit: Bool? = nil, set: Bool? = nil) async throws -> Int {
         var parts: [String] = ["GRANT \(quoteIdentifier(role))"]
         parts.append("TO \(quoteIdentifier(to))")
-        if admin { parts.append("WITH ADMIN OPTION") }
+        var options: [String] = []
+        if admin { options.append("ADMIN TRUE") } else { options.append("ADMIN FALSE") }
+        if let inherit { options.append("INHERIT \(inherit ? "TRUE" : "FALSE")") }
+        if let set { options.append("SET \(set ? "TRUE" : "FALSE")") }
+        if !options.isEmpty { parts.append("WITH \(options.joined(separator: ", "))") }
         return try await executeDDL(parts.joined(separator: " "))
     }
 

@@ -316,7 +316,9 @@ public struct PostgresAdmin: Sendable {
     /// List roles that a given role is a member of.
     public func listMemberOf(role: String) async throws -> [PostgresRoleMembership] {
         let sql = """
-            SELECT r.rolname, m.rolname, am.admin_option::text
+            SELECT r.rolname, m.rolname, am.admin_option::text,
+                   COALESCE(am.inherit_option, true)::text,
+                   COALESCE(am.set_option, true)::text
             FROM pg_catalog.pg_auth_members am
             JOIN pg_catalog.pg_roles r ON am.roleid = r.oid
             JOIN pg_catalog.pg_roles m ON am.member = m.oid
@@ -325,11 +327,13 @@ public struct PostgresAdmin: Sendable {
             """
         var results: [PostgresRoleMembership] = []
         let rows = try await client.simpleQuery(sql)
-        for try await values in rows.decode((String, String, String).self) {
+        for try await values in rows.decode((String, String, String, String, String).self) {
             results.append(PostgresRoleMembership(
                 roleName: values.0,
                 memberName: values.1,
-                adminOption: values.2 == "t"
+                adminOption: values.2 == "t",
+                inheritOption: values.3 == "t",
+                setOption: values.4 == "t"
             ))
         }
         return results
@@ -338,7 +342,9 @@ public struct PostgresAdmin: Sendable {
     /// List roles that are members of a given role (i.e. which roles contain this role as a member).
     public func listMembers(of role: String) async throws -> [PostgresRoleMembership] {
         let sql = """
-            SELECT r.rolname, m.rolname, am.admin_option::text
+            SELECT r.rolname, m.rolname, am.admin_option::text,
+                   COALESCE(am.inherit_option, true)::text,
+                   COALESCE(am.set_option, true)::text
             FROM pg_catalog.pg_auth_members am
             JOIN pg_catalog.pg_roles r ON am.roleid = r.oid
             JOIN pg_catalog.pg_roles m ON am.member = m.oid
@@ -347,11 +353,13 @@ public struct PostgresAdmin: Sendable {
             """
         var results: [PostgresRoleMembership] = []
         let rows = try await client.simpleQuery(sql)
-        for try await values in rows.decode((String, String, String).self) {
+        for try await values in rows.decode((String, String, String, String, String).self) {
             results.append(PostgresRoleMembership(
                 roleName: values.0,
                 memberName: values.1,
-                adminOption: values.2 == "t"
+                adminOption: values.2 == "t",
+                inheritOption: values.3 == "t",
+                setOption: values.4 == "t"
             ))
         }
         return results
@@ -380,7 +388,9 @@ public struct PostgresAdmin: Sendable {
     /// List role memberships, optionally filtered to a specific role.
     public func listRoleMemberships(role: String? = nil) async throws -> [PostgresRoleMembership] {
         var sql = """
-            SELECT r.rolname, m.rolname, am.admin_option::text
+            SELECT r.rolname, m.rolname, am.admin_option::text,
+                   COALESCE(am.inherit_option, true)::text,
+                   COALESCE(am.set_option, true)::text
             FROM pg_catalog.pg_auth_members am
             JOIN pg_catalog.pg_roles r ON am.roleid = r.oid
             JOIN pg_catalog.pg_roles m ON am.member = m.oid
@@ -391,14 +401,45 @@ public struct PostgresAdmin: Sendable {
         sql += " ORDER BY r.rolname, m.rolname"
         var results: [PostgresRoleMembership] = []
         let rows = try await client.simpleQuery(sql)
-        for try await values in rows.decode((String, String, String).self) {
+        for try await values in rows.decode((String, String, String, String, String).self) {
             results.append(PostgresRoleMembership(
                 roleName: values.0,
                 memberName: values.1,
-                adminOption: values.2 == "t"
+                adminOption: values.2 == "t",
+                inheritOption: values.3 == "t",
+                setOption: values.4 == "t"
             ))
         }
         return results
+    }
+
+    /// Fetch the comment on a role from pg_shdescription.
+    public func fetchRoleComment(role: String) async throws -> String? {
+        let sql = """
+            SELECT d.description
+            FROM pg_catalog.pg_shdescription d
+            JOIN pg_catalog.pg_authid a ON a.oid = d.objoid
+            WHERE d.classoid = 'pg_catalog.pg_authid'::regclass
+              AND a.rolname = \(quoteLiteral(role))
+            """
+        let rows = try await client.simpleQuery(sql)
+        for try await values in rows.decode(String.self) {
+            return values
+        }
+        return nil
+    }
+
+    /// Set or clear the comment on a role.
+    public func setRoleComment(role: String, comment: String?) async throws {
+        let ident = client.quoteIdentifier(role)
+        let sql: String
+        if let comment, !comment.isEmpty {
+            sql = "COMMENT ON ROLE \(ident) IS \(quoteLiteral(comment))"
+        } else {
+            sql = "COMMENT ON ROLE \(ident) IS NULL"
+        }
+        let rows = try await client.simpleQuery(sql)
+        for try await _ in rows { }
     }
 
     // MARK: - Helpers
@@ -523,5 +564,15 @@ public struct PostgresRoleMembership: Sendable {
     public let roleName: String
     public let memberName: String
     public let adminOption: Bool
+    public let inheritOption: Bool
+    public let setOption: Bool
+
+    public init(roleName: String, memberName: String, adminOption: Bool, inheritOption: Bool = true, setOption: Bool = true) {
+        self.roleName = roleName
+        self.memberName = memberName
+        self.adminOption = adminOption
+        self.inheritOption = inheritOption
+        self.setOption = setOption
+    }
 }
 

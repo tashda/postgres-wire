@@ -22,7 +22,7 @@ Add `postgres-wire` to your `Package.swift` dependencies:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/YOUR_GITHUB_USERNAME/postgres-wire.git", from: "1.0.0")
+    .package(url: "https://github.com/tashda/postgres-wire.git", from: "1.0.0")
 ]
 ```
 
@@ -53,21 +53,20 @@ import PostgresKit
 let config = PostgresConfiguration(
     host: "localhost",
     port: 5432,
+    database: "my_db",
     username: "postgres",
     password: "password",
-    database: "my_db",
-    tls: .disable
+    useTLS: false
 )
 
 // 2. Connect
-let client = try await PostgresClient.connect(configuration: config)
+let client = try await PostgresDatabaseClient.connect(configuration: config)
+defer { client.close() }
 
 // 3. Query
-let rows = try await client.query("SELECT id, name FROM users WHERE active = \\(true)")
+let rows = try await client.simpleQuery("SELECT id, name FROM users WHERE active = true")
 for try await row in rows {
-    let id: Int = try row.decode(column: "id")
-    let name: String = try row.decode(column: "name")
-    print("User: \\(id) - \\(name)")
+    print("User: \(row)")
 }
 ```
 

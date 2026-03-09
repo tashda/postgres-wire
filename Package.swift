@@ -12,7 +12,7 @@ let package = Package(
         .package(url: "https://github.com/vapor/postgres-nio.git", from: "1.29.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.6.0"),
         .package(url: "https://github.com/apple/swift-metrics.git", from: "2.3.0"),
-        .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.4.3")
+        .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.5")
     ],
     targets: [
         .target(

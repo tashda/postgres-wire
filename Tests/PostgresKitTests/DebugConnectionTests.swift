@@ -94,7 +94,7 @@ final class DebugConnectionTests: XCTestCase {
             try? await client.simpleQuery("DROP TABLE IF EXISTS debug_test_table")
 
             // Create table
-            try await client.simpleQuery("""
+            _ = try await client.simpleQuery("""
                 CREATE TABLE debug_test_table (
                     id SERIAL PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -104,7 +104,7 @@ final class DebugConnectionTests: XCTestCase {
             print("✅ Table creation successful!")
 
             // Insert data
-            try await client.simpleQuery("INSERT INTO debug_test_table (name) VALUES ('test')")
+            _ = try await client.simpleQuery("INSERT INTO debug_test_table (name) VALUES ('test')")
             print("✅ Insert successful!")
 
             // Query data
@@ -116,7 +116,7 @@ final class DebugConnectionTests: XCTestCase {
             }
 
             // Clean up
-            try await client.simpleQuery("DROP TABLE debug_test_table")
+            _ = try await client.simpleQuery("DROP TABLE debug_test_table")
             print("✅ Cleanup successful!")
 
         } catch {

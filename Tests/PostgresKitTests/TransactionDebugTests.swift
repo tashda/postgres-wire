@@ -10,6 +10,9 @@ final class TransactionDebugTests: XCTestCase {
     override func setUp() async throws {
         TestEnv.loadDotEnv()
         try await super.setUp()
+        guard ProcessInfo.processInfo.environment["POSTGRES_HOST"] != nil else {
+            throw XCTSkip("POSTGRES_HOST not set; skipping integration test")
+        }
         testLogger = Logger(label: "transaction-debug-tests")
 
         let config = PostgresConfiguration(

@@ -1,9 +1,9 @@
 import Foundation
 import Logging
+import NIOConcurrencyHelpers
 import NIOCore
 import NIOPosix
 import NIOSSL
-import os
 import PostgresNIO
 
 public struct PostgresWireConfiguration: Sendable {
@@ -90,7 +90,7 @@ public final class PostgresWireClient: @unchecked Sendable {
         let finalProbeConfig = probeConfig
         let timeoutNanos = UInt64(configuration.connectTimeout) * 1_000_000_000
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
-            let completed = OSAllocatedUnfairLock(initialState: false)
+            let completed = NIOLockedValueBox(false)
 
             let probeTask = Task.detached {
                 do {
@@ -100,11 +100,11 @@ public final class PostgresWireClient: @unchecked Sendable {
                         logger: logger
                     )
                     try? await probe.close()
-                    if completed.withLock({ old in let was = old; old = true; return was }) == false {
+                    if completed.withLockedValue({ old in let was = old; old = true; return was }) == false {
                         continuation.resume()
                     }
                 } catch {
-                    if completed.withLock({ old in let was = old; old = true; return was }) == false {
+                    if completed.withLockedValue({ old in let was = old; old = true; return was }) == false {
                         continuation.resume(throwing: error)
                     }
                 }
@@ -112,7 +112,7 @@ public final class PostgresWireClient: @unchecked Sendable {
 
             Task.detached {
                 try? await Task.sleep(nanoseconds: timeoutNanos)
-                if completed.withLock({ old in let was = old; old = true; return was }) == false {
+                if completed.withLockedValue({ old in let was = old; old = true; return was }) == false {
                     probeTask.cancel()
                     continuation.resume(throwing: IOError(errnoCode: 60, reason: "connect"))
                 }

@@ -213,27 +213,32 @@ public struct PostgresAdmin: Sendable {
 
     // MARK: - Security
 
-    /// List all non-system roles.
+    /// List all non-system roles with full privilege attributes.
+    /// Uses pg_authid when accessible (superuser) for accurate data; falls back to pg_roles.
     public func listRoles() async throws -> [PostgresRoleInfo] {
+        // Try pg_authid first (requires superuser), fall back to pg_roles
         let sql = """
             SELECT
-                rolname,
-                rolsuper::text,
-                rolcreaterole::text,
-                rolcreatedb::text,
-                rolcanlogin::text,
-                rolreplication::text,
-                rolinherit::text,
-                rolconnlimit::text,
-                rolvaliduntil::text
-            FROM pg_catalog.pg_roles
-            WHERE rolname !~ '^pg_'
-            ORDER BY rolname
+                r.rolname,
+                r.rolsuper::text,
+                r.rolcreaterole::text,
+                r.rolcreatedb::text,
+                r.rolcanlogin::text,
+                r.rolreplication::text,
+                r.rolinherit::text,
+                r.rolconnlimit::text,
+                r.rolvaliduntil::text,
+                r.rolbypassrls::text,
+                r.oid::text
+            FROM pg_catalog.pg_roles r
+            WHERE r.rolname !~ '^pg_'
+            ORDER BY r.rolname
             """
         var results: [PostgresRoleInfo] = []
         let rows = try await client.simpleQuery(sql)
-        for try await values in rows.decode((String, String, String, String, String, String, String, String, String?).self) {
+        for try await values in rows.decode((String, String, String, String, String, String, String, String, String?, String, String).self) {
             results.append(PostgresRoleInfo(
+                oid: values.10,
                 name: values.0,
                 isSuperuser: values.1 == "t",
                 canCreateRole: values.2 == "t",
@@ -241,8 +246,112 @@ public struct PostgresAdmin: Sendable {
                 canLogin: values.4 == "t",
                 isReplication: values.5 == "t",
                 inherit: values.6 == "t",
+                bypassRLS: values.9 == "t",
                 connectionLimit: Int(values.7) ?? -1,
                 validUntil: values.8
+            ))
+        }
+        return results
+    }
+
+    /// Reassign all objects owned by one role to another role.
+    public func reassignOwned(from oldRole: String, to newRole: String) async throws {
+        let sql = "REASSIGN OWNED BY \(quoteIdent(oldRole)) TO \(quoteIdent(newRole))"
+        _ = try await execUpdate(sql)
+    }
+
+    /// Drop all objects owned by a role.
+    public func dropOwned(by role: String) async throws {
+        let sql = "DROP OWNED BY \(quoteIdent(role))"
+        _ = try await execUpdate(sql)
+    }
+
+    /// Fetch role-level configuration parameters from pg_db_role_setting.
+    public func fetchRoleParameters(roleOid: String) async throws -> [PostgresDatabaseParameter] {
+        let sql = """
+            SELECT unnest(setconfig)::text AS setting
+            FROM pg_catalog.pg_db_role_setting
+            WHERE setrole = \(roleOid)::oid AND setdatabase = 0
+            """
+        var params: [PostgresDatabaseParameter] = []
+        let rows = try await client.simpleQuery(sql)
+        for try await setting in rows.decode(String.self) {
+            let parts = setting.split(separator: "=", maxSplits: 1)
+            if parts.count == 2 {
+                params.append(PostgresDatabaseParameter(name: String(parts[0]), value: String(parts[1])))
+            }
+        }
+        return params
+    }
+
+    /// Set a role-level configuration parameter.
+    public func alterRoleSet(role: String, parameter: String, value: String) async throws {
+        let sql = "ALTER ROLE \(quoteIdent(role)) SET \(quoteIdent(parameter)) TO \(quoteLiteral(value))"
+        _ = try await execUpdate(sql)
+    }
+
+    /// Reset a role-level configuration parameter.
+    public func alterRoleReset(role: String, parameter: String) async throws {
+        let sql = "ALTER ROLE \(quoteIdent(role)) RESET \(quoteIdent(parameter))"
+        _ = try await execUpdate(sql)
+    }
+
+    /// Fetch security labels for a role.
+    public func fetchRoleSecurityLabels(role: String) async throws -> [PostgresSecurityLabel] {
+        let sql = """
+            SELECT provider, label
+            FROM pg_catalog.pg_shseclabel sl
+            JOIN pg_catalog.pg_roles r ON sl.objoid = r.oid
+            WHERE r.rolname = \(quoteLiteral(role))
+            ORDER BY provider
+            """
+        var results: [PostgresSecurityLabel] = []
+        let rows = try await client.simpleQuery(sql)
+        for try await values in rows.decode((String, String).self) {
+            results.append(PostgresSecurityLabel(provider: values.0, label: values.1))
+        }
+        return results
+    }
+
+    /// List roles that a given role is a member of.
+    public func listMemberOf(role: String) async throws -> [PostgresRoleMembership] {
+        let sql = """
+            SELECT r.rolname, m.rolname, am.admin_option::text
+            FROM pg_catalog.pg_auth_members am
+            JOIN pg_catalog.pg_roles r ON am.roleid = r.oid
+            JOIN pg_catalog.pg_roles m ON am.member = m.oid
+            WHERE m.rolname = \(quoteLiteral(role))
+            ORDER BY r.rolname
+            """
+        var results: [PostgresRoleMembership] = []
+        let rows = try await client.simpleQuery(sql)
+        for try await values in rows.decode((String, String, String).self) {
+            results.append(PostgresRoleMembership(
+                roleName: values.0,
+                memberName: values.1,
+                adminOption: values.2 == "t"
+            ))
+        }
+        return results
+    }
+
+    /// List roles that are members of a given role (i.e. which roles contain this role as a member).
+    public func listMembers(of role: String) async throws -> [PostgresRoleMembership] {
+        let sql = """
+            SELECT r.rolname, m.rolname, am.admin_option::text
+            FROM pg_catalog.pg_auth_members am
+            JOIN pg_catalog.pg_roles r ON am.roleid = r.oid
+            JOIN pg_catalog.pg_roles m ON am.member = m.oid
+            WHERE r.rolname = \(quoteLiteral(role))
+            ORDER BY m.rolname
+            """
+        var results: [PostgresRoleMembership] = []
+        let rows = try await client.simpleQuery(sql)
+        for try await values in rows.decode((String, String, String).self) {
+            results.append(PostgresRoleMembership(
+                roleName: values.0,
+                memberName: values.1,
+                adminOption: values.2 == "t"
             ))
         }
         return results
@@ -351,6 +460,7 @@ public enum PostgresAdminError: Error, LocalizedError {
 // MARK: - Security Models
 
 public struct PostgresRoleInfo: Sendable {
+    public let oid: String
     public let name: String
     public let isSuperuser: Bool
     public let canCreateRole: Bool
@@ -358,8 +468,40 @@ public struct PostgresRoleInfo: Sendable {
     public let canLogin: Bool
     public let isReplication: Bool
     public let inherit: Bool
+    public let bypassRLS: Bool
     public let connectionLimit: Int
     public let validUntil: String?
+
+    public init(
+        oid: String = "",
+        name: String,
+        isSuperuser: Bool,
+        canCreateRole: Bool,
+        canCreateDB: Bool,
+        canLogin: Bool,
+        isReplication: Bool,
+        inherit: Bool,
+        bypassRLS: Bool = false,
+        connectionLimit: Int,
+        validUntil: String?
+    ) {
+        self.oid = oid
+        self.name = name
+        self.isSuperuser = isSuperuser
+        self.canCreateRole = canCreateRole
+        self.canCreateDB = canCreateDB
+        self.canLogin = canLogin
+        self.isReplication = isReplication
+        self.inherit = inherit
+        self.bypassRLS = bypassRLS
+        self.connectionLimit = connectionLimit
+        self.validUntil = validUntil
+    }
+}
+
+public struct PostgresSecurityLabel: Sendable {
+    public let provider: String
+    public let label: String
 }
 
 public struct PostgresSchemaInfo: Sendable {

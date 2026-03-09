@@ -461,6 +461,8 @@ public final class PostgresDatabaseClient: @unchecked Sendable {
         login: Bool = true,
         encrypted: Bool = true,
         inherit: Bool = true,
+        replication: Bool = false,
+        bypassRLS: Bool = false,
         validUntil: String? = nil,
         inRole: [String] = [],
         role: [String] = [],
@@ -478,6 +480,8 @@ public final class PostgresDatabaseClient: @unchecked Sendable {
         if createRole { parts.append("CREATEROLE") } else { parts.append("NOCREATEROLE") }
         if login { parts.append("LOGIN") } else { parts.append("NOLOGIN") }
         if inherit { parts.append("INHERIT") } else { parts.append("NOINHERIT") }
+        if replication { parts.append("REPLICATION") } else { parts.append("NOREPLICATION") }
+        if bypassRLS { parts.append("BYPASSRLS") } else { parts.append("NOBYPASSRLS") }
 
         if let validUntil {
             parts.append("VALID UNTIL '\(validUntil)'")
@@ -518,6 +522,8 @@ public final class PostgresDatabaseClient: @unchecked Sendable {
         createRole: Bool? = nil,
         login: Bool? = nil,
         inherit: Bool? = nil,
+        replication: Bool? = nil,
+        bypassRLS: Bool? = nil,
         validUntil: String? = nil,
         rename: String? = nil
     ) async throws -> Int {
@@ -550,6 +556,14 @@ public final class PostgresDatabaseClient: @unchecked Sendable {
 
             if let inherit {
                 parts.append(inherit ? "INHERIT" : "NOINHERIT")
+            }
+
+            if let replication {
+                parts.append(replication ? "REPLICATION" : "NOREPLICATION")
+            }
+
+            if let bypassRLS {
+                parts.append(bypassRLS ? "BYPASSRLS" : "NOBYPASSRLS")
             }
 
             if let validUntil {

@@ -431,7 +431,7 @@ public struct PostgresAdmin: Sendable {
 
     /// Set or clear the comment on a role.
     public func setRoleComment(role: String, comment: String?) async throws {
-        let ident = client.quoteIdentifier(role)
+        let ident = quoteIdent(role)
         let sql: String
         if let comment, !comment.isEmpty {
             sql = "COMMENT ON ROLE \(ident) IS \(quoteLiteral(comment))"

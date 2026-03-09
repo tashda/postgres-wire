@@ -1,7 +1,7 @@
 import Foundation
 import Logging
 
-public struct PostgresAdmin {
+public struct PostgresAdmin: Sendable {
     private let client: PostgresDatabaseClient
     private let logger: Logger
 

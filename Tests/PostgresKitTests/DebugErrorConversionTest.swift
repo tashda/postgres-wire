@@ -33,7 +33,7 @@ final class DebugErrorConversionTest: XCTestCase {
                 let postgresError = PostgresKit.PostgresError(from: psqLError)
                 print("✅ Created PostgresError: \(type(of: postgresError))")
                 print("Message: \(postgresError.message)")
-            } else if let nsError = error as? NSError, nsError.domain == "PostgresNIO.PSQLError" {
+            } else if case let nsError as NSError = error, nsError.domain == "PostgresNIO.PSQLError" {
                 print("✅ Detected PSQLError wrapped in NSError, converting...")
                 let postgresError = PostgresKit.PostgresError(message: nsError.localizedDescription)
                 print("✅ Created PostgresError: \(type(of: postgresError))")
@@ -43,12 +43,9 @@ final class DebugErrorConversionTest: XCTestCase {
                 print("Available types: \(type(of: error))")
 
                 // Let's see what we can cast it to
-                if error is NSError {
-                    print("✅ Can cast to NSError")
-                    let nsError = error as! NSError
-                    print("Domain: \(nsError.domain)")
-                    print("Code: \(nsError.code)")
-                }
+                let nsError = error as NSError
+                print("Domain: \(nsError.domain)")
+                print("Code: \(nsError.code)")
             }
         }
     }

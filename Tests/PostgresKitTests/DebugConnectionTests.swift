@@ -73,7 +73,7 @@ final class DebugConnectionTests: XCTestCase {
             let result = try await client.simpleQuery("SELECT 1 as test_value")
             print("✅ Basic query successful!")
 
-            for try await (value,) in result.decode(Int.self) {
+            for try await value in result.decode(Int.self) {
                 print("Query result: \(value)")
                 XCTAssertEqual(value, 1)
                 break
@@ -94,7 +94,7 @@ final class DebugConnectionTests: XCTestCase {
             try? await client.simpleQuery("DROP TABLE IF EXISTS debug_test_table")
 
             // Create table
-            try await client.simpleQuery("""
+            _ = try await client.simpleQuery("""
                 CREATE TABLE debug_test_table (
                     id SERIAL PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -104,19 +104,19 @@ final class DebugConnectionTests: XCTestCase {
             print("✅ Table creation successful!")
 
             // Insert data
-            try await client.simpleQuery("INSERT INTO debug_test_table (name) VALUES ('test')")
+            _ = try await client.simpleQuery("INSERT INTO debug_test_table (name) VALUES ('test')")
             print("✅ Insert successful!")
 
             // Query data
             let result = try await client.simpleQuery("SELECT COUNT(*)::text FROM debug_test_table")
-            for try await (count,) in result.decode(String.self) {
+            for try await count in result.decode(String.self) {
                 print("Record count: \(count)")
                 XCTAssertEqual(count, "1")
                 break
             }
 
             // Clean up
-            try await client.simpleQuery("DROP TABLE debug_test_table")
+            _ = try await client.simpleQuery("DROP TABLE debug_test_table")
             print("✅ Cleanup successful!")
 
         } catch {
@@ -155,7 +155,7 @@ final class DebugConnectionTests: XCTestCase {
 
             // Test query
             let result = try await client.simpleQuery("SELECT COUNT(*)::text FROM debug_api_test")
-            for try await (count,) in result.decode(String.self) {
+            for try await count in result.decode(String.self) {
                 print("API test record count: \(count)")
                 XCTAssertEqual(count, "1")
                 break

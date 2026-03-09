@@ -7,6 +7,9 @@ final class MetadataIntegrationTests: XCTestCase {
 
     override func setUp() async throws {
         TestEnv.loadDotEnv()
+        guard ProcessInfo.processInfo.environment["POSTGRES_HOST"] != nil else {
+            throw XCTSkip("POSTGRES_HOST not set; skipping integration test")
+        }
         let logger = Logger(label: "postgres-kit-tests")
         let config = PostgresConfiguration(
             host: TestEnv.host,

@@ -1,5 +1,5 @@
 {
-  "originHash" : "8e80d143a36d5f7ee85f3f5406b39ceea669a615a6cb5891b697c9fcffee564c",
+  "originHash" : "6230741e59e60843b954d18bd63bb50afd731cb9d749e8b0fbdb126bac1f8b4c",
   "pins" : [
     {
       "identity" : "postgres-nio",
@@ -58,7 +58,7 @@
     {
       "identity" : "swift-docc-plugin",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-docc-plugin",
+      "location" : "https://github.com/swiftlang/swift-docc-plugin",
       "state" : {
         "revision" : "e977f65879f82b375a044c8837597f690c067da6",
         "version" : "1.4.6"

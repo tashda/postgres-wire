@@ -1,0 +1,49 @@
+name: Build and Test
+
+on:
+  push:
+    branches: ["dev"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    
+    # Optional: Setup services if your tests need a real PostgreSQL database
+    # services:
+    #   postgres:
+    #     image: postgres:15
+    #     env:
+    #       POSTGRES_PASSWORD: test_password
+    #       POSTGRES_DB: postgres_wire_test
+    #       POSTGRES_USER: test_user
+    #     ports:
+    #       - 5432:5432
+    #     options: >-
+    #       --health-cmd pg_isready
+    #       --health-interval 10s
+    #       --health-timeout 5s
+    #       --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: '6.0'
+
+      - name: Build
+        run: swift build
+
+      - name: Run Tests
+        # Provide any necessary environment variables for your tests here
+        # env:
+        #   TEST_POSTGRES_HOST: localhost
+        #   TEST_POSTGRES_PORT: 5432
+        #   TEST_POSTGRES_DB: postgres_wire_test
+        #   TEST_POSTGRES_USER: test_user
+        #   TEST_POSTGRES_PASSWORD: test_password
+        run: swift test

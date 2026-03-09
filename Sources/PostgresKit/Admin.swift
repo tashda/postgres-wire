@@ -284,6 +284,44 @@ public struct PostgresAdmin: Sendable {
         return params
     }
 
+    /// Fetch all server settings that can be configured at the role level (context = 'user' or 'superuser').
+    public func fetchRoleConfigurableSettings() async throws -> [PostgresSettingDefinition] {
+        let sql = """
+            SELECT name, vartype, min_val, max_val,
+                   coalesce(enumvals::text, ''),
+                   boot_val, coalesce(unit, ''),
+                   short_desc, context, category
+            FROM pg_catalog.pg_settings
+            WHERE context IN ('user', 'superuser')
+            ORDER BY category, name
+            """
+        var results: [PostgresSettingDefinition] = []
+        let rows = try await client.simpleQuery(sql)
+        for try await values in rows.decode((String, String, String, String, String, String, String, String, String, String).self) {
+            let enumVals: [String]
+            if !values.4.isEmpty {
+                // pg returns format like {val1,val2,val3}
+                let trimmed = values.4.trimmingCharacters(in: CharacterSet(charactersIn: "{}"))
+                enumVals = trimmed.split(separator: ",").map { String($0) }
+            } else {
+                enumVals = []
+            }
+            results.append(PostgresSettingDefinition(
+                name: values.0,
+                vartype: values.1,
+                minVal: values.2,
+                maxVal: values.3,
+                enumVals: enumVals,
+                bootVal: values.5,
+                unit: values.6,
+                shortDesc: values.7,
+                context: values.8,
+                category: values.9
+            ))
+        }
+        return results
+    }
+
     /// Set a role-level configuration parameter.
     public func alterRoleSet(role: String, parameter: String, value: String) async throws {
         let sql = "ALTER ROLE \(quoteIdent(role)) SET \(quoteIdent(parameter)) TO \(quoteLiteral(value))"
@@ -490,6 +528,47 @@ public struct PostgresDatabaseParameter: Sendable {
     public init(name: String, value: String) {
         self.name = name
         self.value = value
+    }
+}
+
+/// Describes a PostgreSQL server setting that can be configured at the role level.
+public struct PostgresSettingDefinition: Sendable {
+    /// Parameter name (e.g. "work_mem", "statement_timeout").
+    public let name: String
+    /// Data type: "bool", "enum", "integer", "real", or "string".
+    public let vartype: String
+    /// Minimum value for numeric types, empty for others.
+    public let minVal: String
+    /// Maximum value for numeric types, empty for others.
+    public let maxVal: String
+    /// Allowed values for enum types, empty array for others.
+    public let enumVals: [String]
+    /// Current server-wide default (boot_val).
+    public let bootVal: String
+    /// Unit (e.g. "kB", "ms", "s", "min"), empty if unitless.
+    public let unit: String
+    /// Short description of the parameter.
+    public let shortDesc: String
+    /// The context in which this setting can be changed ("user" or "superuser").
+    public let context: String
+    /// Category for grouping (e.g. "Query Tuning / Planner Cost Constants").
+    public let category: String
+
+    public init(
+        name: String, vartype: String, minVal: String, maxVal: String,
+        enumVals: [String], bootVal: String, unit: String,
+        shortDesc: String, context: String, category: String
+    ) {
+        self.name = name
+        self.vartype = vartype
+        self.minVal = minVal
+        self.maxVal = maxVal
+        self.enumVals = enumVals
+        self.bootVal = bootVal
+        self.unit = unit
+        self.shortDesc = shortDesc
+        self.context = context
+        self.category = category
     }
 }
 

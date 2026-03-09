@@ -445,6 +445,11 @@ public struct PostgresDatabaseProperties: Sendable {
 public struct PostgresDatabaseParameter: Sendable {
     public let name: String
     public let value: String
+
+    public init(name: String, value: String) {
+        self.name = name
+        self.value = value
+    }
 }
 
 public enum PostgresAdminError: Error, LocalizedError {
@@ -502,6 +507,11 @@ public struct PostgresRoleInfo: Sendable {
 public struct PostgresSecurityLabel: Sendable {
     public let provider: String
     public let label: String
+
+    public init(provider: String, label: String) {
+        self.provider = provider
+        self.label = label
+    }
 }
 
 public struct PostgresSchemaInfo: Sendable {

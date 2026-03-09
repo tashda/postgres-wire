@@ -429,7 +429,11 @@ extension PostgresWireClient {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 var hints = addrinfo()
+                #if canImport(Darwin)
                 hints.ai_socktype = SOCK_STREAM
+                #else
+                hints.ai_socktype = Int32(SOCK_STREAM.rawValue)
+                #endif
                 hints.ai_family = AF_UNSPEC
 
                 var result: UnsafeMutablePointer<addrinfo>?

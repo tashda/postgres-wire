@@ -84,7 +84,7 @@ final class SimpleInsertTest: XCTestCase {
             print("Running COUNT query...")
             let countRows = try await conn.simpleQuery("SELECT COUNT(*)::text as count FROM single_test")
             var count = 0
-            for try await (countStr,) in countRows.decode(String.self) {
+            for try await countStr in countRows.decode(String.self) {
                 print("COUNT query returned: '\(countStr)'")
                 if let intVal = Int(countStr) {
                     count = intVal
@@ -96,7 +96,7 @@ final class SimpleInsertTest: XCTestCase {
             print("Running SELECT query...")
             let dataRows = try await conn.simpleQuery("SELECT name FROM single_test")
             var actualCount = 0
-            for try await (name,) in dataRows.decode(String.self) {
+            for try await name in dataRows.decode(String.self) {
                 actualCount += 1
                 print("Found name: '\(name)'")
             }

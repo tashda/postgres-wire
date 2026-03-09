@@ -73,7 +73,7 @@ final class DebugConnectionTests: XCTestCase {
             let result = try await client.simpleQuery("SELECT 1 as test_value")
             print("✅ Basic query successful!")
 
-            for try await (value,) in result.decode(Int.self) {
+            for try await value in result.decode(Int.self) {
                 print("Query result: \(value)")
                 XCTAssertEqual(value, 1)
                 break
@@ -109,7 +109,7 @@ final class DebugConnectionTests: XCTestCase {
 
             // Query data
             let result = try await client.simpleQuery("SELECT COUNT(*)::text FROM debug_test_table")
-            for try await (count,) in result.decode(String.self) {
+            for try await count in result.decode(String.self) {
                 print("Record count: \(count)")
                 XCTAssertEqual(count, "1")
                 break
@@ -155,7 +155,7 @@ final class DebugConnectionTests: XCTestCase {
 
             // Test query
             let result = try await client.simpleQuery("SELECT COUNT(*)::text FROM debug_api_test")
-            for try await (count,) in result.decode(String.self) {
+            for try await count in result.decode(String.self) {
                 print("API test record count: \(count)")
                 XCTAssertEqual(count, "1")
                 break

@@ -159,7 +159,7 @@ final class BasicTests: XCTestCase {
 
             // Count the rows using a simple approach
             let countRows = try await conn.simpleQuery("SELECT COUNT(*)::text FROM test_tx")
-            for try await (countStr,) in countRows.decode(String.self) {
+            for try await countStr in countRows.decode(String.self) {
                 if let intVal = Int(countStr) {
                     insertCount = intVal
                 }
@@ -186,7 +186,7 @@ final class BasicTests: XCTestCase {
 
             // Count the rows using a simple approach
             let countRows = try await conn.simpleQuery("SELECT COUNT(*)::text FROM test_rollback")
-            for try await (countStr,) in countRows.decode(String.self) {
+            for try await countStr in countRows.decode(String.self) {
                 if let intVal = Int(countStr) {
                     rollbackCount = intVal
                 }

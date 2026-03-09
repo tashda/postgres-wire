@@ -116,8 +116,8 @@ final class ComprehensiveIndexTests: XCTestCase {
             name: "idx_unique_smallint",
             table: "test_integer_index_table",
             columns: ["smallint_val"],
-            unique: true,
-          )
+            unique: true
+        )
 
         // Test duplicate insertion should fail
         do {
@@ -178,23 +178,23 @@ final class ComprehensiveIndexTests: XCTestCase {
             name: "idx_text_value",
             table: "test_text_index_table",
             columns: ["short_text"],
-            unique: false,
-          )
+            unique: false
+        )
 
         _ = try await client.createIndex(
             name: "idx_long_text",
             table: "test_text_index_table",
             columns: ["long_text"],
-            unique: false,
-          )
+            unique: false
+        )
 
         // Test GIN index for full-text search
         _ = try await client.createIndex(
             name: "idx_description_gin",
             table: "test_text_index_table",
             columns: ["description"],
-            unique: false,
-          )
+            unique: false
+        )
 
         // Index creation was successful - text indexing functionality test complete
 
@@ -284,22 +284,22 @@ final class ComprehensiveIndexTests: XCTestCase {
             name: "idx_timestamp_value",
             table: "test_datetime_index_table",
             columns: ["created_at"],
-            unique: false,
-          )
+            unique: false
+        )
 
         _ = try await client.createIndex(
             name: "idx_timestamptz_value",
             table: "test_datetime_index_table",
             columns: ["updated_at"],
-            unique: false,
-          )
+            unique: false
+        )
 
         _ = try await client.createIndex(
             name: "idx_date_value",
             table: "test_datetime_index_table",
             columns: ["event_date"],
-            unique: false,
-          )
+            unique: false
+        )
 
         // Index creation was successful - datetime indexing functionality test complete
 
@@ -353,15 +353,15 @@ final class ComprehensiveIndexTests: XCTestCase {
             name: "idx_boolean_value",
             table: "test_bool_binary_index_table",
             columns: ["is_active"],
-            unique: false,
-          )
+            unique: false
+        )
 
         _ = try await client.createIndex(
             name: "idx_boolean_compound",
             table: "test_bool_binary_index_table",
             columns: ["is_active", "is_verified"],
-            unique: false,
-          )
+            unique: false
+        )
 
         // Test basic boolean index functionality
         // Index creation successful - boolean operations working correctly
@@ -464,23 +464,23 @@ final class ComprehensiveIndexTests: XCTestCase {
             name: "idx_uuid_value",
             table: "test_uuid_array_index_table",
             columns: ["uuid_value"],
-            unique: true,
-          )
+            unique: true
+        )
 
         // Create GIN index on array columns
         _ = try await client.createIndex(
             name: "idx_tags_gin",
             table: "test_uuid_array_index_table",
             columns: ["tags"],
-            unique: false,
-          )
+            unique: false
+        )
 
         _ = try await client.createIndex(
             name: "idx_numbers_gin",
             table: "test_uuid_array_index_table",
             columns: ["numbers"],
-            unique: false,
-          )
+            unique: false
+        )
 
         // Test basic UUID and array index functionality
         // UUID and array index creation successful - operations working correctly
@@ -536,22 +536,22 @@ final class ComprehensiveIndexTests: XCTestCase {
             name: "idx_inet_value",
             table: "test_network_index_table",
             columns: ["ip_address"],
-            unique: false,
-          )
+            unique: false
+        )
 
         _ = try await client.createIndex(
             name: "idx_cidr_value",
             table: "test_network_index_table",
             columns: ["network_cidr"],
-            unique: false,
-          )
+            unique: false
+        )
 
         _ = try await client.createIndex(
             name: "idx_mac_value",
             table: "test_network_index_table",
             columns: ["mac_address"],
-            unique: true,
-          )
+            unique: true
+        )
 
         // Test basic network index functionality
         // Network index creation successful - network operations working correctly

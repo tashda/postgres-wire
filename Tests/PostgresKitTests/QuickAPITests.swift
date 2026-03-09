@@ -78,7 +78,7 @@ final class QuickAPITests: XCTestCase {
 
             // Verify data exists
             let result = try await client.simpleQuery("SELECT COUNT(*)::text FROM quick_test")
-            for try await (count,) in result.decode(String.self) {
+            for try await count in result.decode(String.self) {
                 print("Record count: \(count)")
                 XCTAssertEqual(count, "1")
                 break

@@ -72,10 +72,12 @@ public extension PostgresDatabaseClient {
     func truncate(
         table: String,
         cascade: Bool = false,
-        restartIdentity: Bool = false
+        restartIdentity: Bool = false,
+        schema: String? = nil
     ) async throws -> Int {
+        let qualifiedName = schema.map { "\(quoteIdentifier($0)).\(quoteIdentifier(table))" } ?? quoteIdentifier(table)
         var parts: [String] = ["TRUNCATE TABLE"]
-        parts.append(quoteIdentifier(table))
+        parts.append(qualifiedName)
         if cascade { parts.append("CASCADE") }
         if restartIdentity { parts.append("RESTART IDENTITY") } else { parts.append("CONTINUE IDENTITY") }
         return try await executeDDL(parts.joined(separator: " "))

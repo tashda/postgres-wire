@@ -31,10 +31,11 @@ public extension PostgresDatabaseClient {
 
     /// Drop an existing table.
     @discardableResult
-    func dropTable(name: String, ifExists: Bool = false, cascade: Bool = false) async throws -> Int {
+    func dropTable(name: String, ifExists: Bool = false, cascade: Bool = false, schema: String? = nil) async throws -> Int {
+        let qualifiedName = schema.map { "\(quoteIdentifier($0)).\(quoteIdentifier(name))" } ?? quoteIdentifier(name)
         var parts: [String] = ["DROP TABLE"]
         if ifExists { parts.append("IF EXISTS") }
-        parts.append(quoteIdentifier(name))
+        parts.append(qualifiedName)
         if cascade { parts.append("CASCADE") }
         return try await executeDDL(parts.joined(separator: " "))
     }

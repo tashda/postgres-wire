@@ -1,5 +1,4 @@
 import XCTest
-import PostgresNIO
 @testable import PostgresKit
 
 /// Unit tests for PostgresError creation, conversion, SQL state detection,

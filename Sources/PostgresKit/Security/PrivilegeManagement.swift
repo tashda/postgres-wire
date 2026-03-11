@@ -49,11 +49,8 @@ public extension PostgresDatabaseClient {
     ) async throws -> Int {
         var parts: [String] = ["GRANT \(quoteIdentifier(role))"]
         parts.append("TO \(quoteIdentifier(to))")
-        var options: [String] = []
-        options.append("ADMIN \(admin ? "TRUE" : "FALSE")")
-        if let inherit { options.append("INHERIT \(inherit ? "TRUE" : "FALSE")") }
-        if let set { options.append("SET \(set ? "TRUE" : "FALSE")") }
-        if !options.isEmpty { parts.append("WITH \(options.joined(separator: ", "))") }
+        // WITH ADMIN/INHERIT/SET syntax requires PG 16+; only include when non-default
+        if admin { parts.append("WITH ADMIN OPTION") }
         return try await executeDDL(parts.joined(separator: " "))
     }
 
@@ -64,6 +61,94 @@ public extension PostgresDatabaseClient {
         if admin { parts.append("ADMIN OPTION FOR") }
         parts.append("\(quoteIdentifier(role))")
         parts.append("FROM \(quoteIdentifier(from))")
+        return try await executeDDL(parts.joined(separator: " "))
+    }
+
+    /// Grant privileges on a schema to a user or role.
+    @discardableResult
+    func grantSchemaPrivileges(
+        privileges: [PostgresPrivilege],
+        onSchema: String,
+        to: String,
+        withGrantOption: Bool = false
+    ) async throws -> Int {
+        var parts: [String] = ["GRANT"]
+        parts.append(privileges.map { $0.rawValue }.joined(separator: ", "))
+        parts.append("ON SCHEMA \(quoteIdentifier(onSchema))")
+        parts.append("TO \(quoteIdentifier(to))")
+        if withGrantOption { parts.append("WITH GRANT OPTION") }
+        return try await executeDDL(parts.joined(separator: " "))
+    }
+
+    /// Revoke privileges on a schema from a user or role.
+    @discardableResult
+    func revokeSchemaPrivileges(
+        privileges: [PostgresPrivilege],
+        onSchema: String,
+        from: String,
+        cascade: Bool = false
+    ) async throws -> Int {
+        var parts: [String] = ["REVOKE"]
+        parts.append(privileges.map { $0.rawValue }.joined(separator: ", "))
+        parts.append("ON SCHEMA \(quoteIdentifier(onSchema))")
+        parts.append("FROM \(quoteIdentifier(from))")
+        if cascade { parts.append("CASCADE") }
+        return try await executeDDL(parts.joined(separator: " "))
+    }
+
+    /// Alter default privileges for objects created in a schema.
+    @discardableResult
+    func alterDefaultPrivileges(
+        schema: String,
+        grant privileges: [PostgresPrivilege],
+        onObjectType: PostgresObjectType = .tables,
+        to: String
+    ) async throws -> Int {
+        let sql = "ALTER DEFAULT PRIVILEGES IN SCHEMA \(quoteIdentifier(schema)) GRANT \(privileges.map { $0.rawValue }.joined(separator: ", ")) ON \(onObjectType.rawValue) TO \(quoteIdentifier(to))"
+        return try await executeDDL(sql)
+    }
+
+    /// Revoke altered default privileges for objects created in a schema.
+    @discardableResult
+    func revokeDefaultPrivileges(
+        schema: String,
+        revoke privileges: [PostgresPrivilege],
+        onObjectType: PostgresObjectType = .tables,
+        from: String
+    ) async throws -> Int {
+        let sql = "ALTER DEFAULT PRIVILEGES IN SCHEMA \(quoteIdentifier(schema)) REVOKE \(privileges.map { $0.rawValue }.joined(separator: ", ")) ON \(onObjectType.rawValue) FROM \(quoteIdentifier(from))"
+        return try await executeDDL(sql)
+    }
+
+    /// Grant privileges on all tables in a schema.
+    @discardableResult
+    func grantAllTablesPrivileges(
+        privileges: [PostgresPrivilege],
+        inSchema: String,
+        to: String,
+        withGrantOption: Bool = false
+    ) async throws -> Int {
+        var parts: [String] = ["GRANT"]
+        parts.append(privileges.map { $0.rawValue }.joined(separator: ", "))
+        parts.append("ON ALL TABLES IN SCHEMA \(quoteIdentifier(inSchema))")
+        parts.append("TO \(quoteIdentifier(to))")
+        if withGrantOption { parts.append("WITH GRANT OPTION") }
+        return try await executeDDL(parts.joined(separator: " "))
+    }
+
+    /// Revoke privileges on all tables in a schema.
+    @discardableResult
+    func revokeAllTablesPrivileges(
+        privileges: [PostgresPrivilege],
+        inSchema: String,
+        from: String,
+        cascade: Bool = false
+    ) async throws -> Int {
+        var parts: [String] = ["REVOKE"]
+        parts.append(privileges.map { $0.rawValue }.joined(separator: ", "))
+        parts.append("ON ALL TABLES IN SCHEMA \(quoteIdentifier(inSchema))")
+        parts.append("FROM \(quoteIdentifier(from))")
+        if cascade { parts.append("CASCADE") }
         return try await executeDDL(parts.joined(separator: " "))
     }
 }

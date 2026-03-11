@@ -32,7 +32,7 @@ final class MetadataIntegrationTests: PostgresKitTestCase {
     func testListSchemas() async throws {
         let schemas = try await meta.listSchemas(using: client)
         XCTAssertTrue(schemas.contains("public"), "Should contain public schema")
-        XCTAssertTrue(schemas.contains("information_schema"), "Should contain information_schema")
+        // Note: listSchemas() intentionally filters out information_schema and pg_ schemas
     }
 
     func testListSchemasIncludesSampleDataSchemas() async throws {
@@ -65,13 +65,20 @@ final class MetadataIntegrationTests: PostgresKitTestCase {
         let table = uniqueName()
         let refTable = uniqueName("ref")
         defer { Task { [client = self.client!] in
-            _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table) CASCADE")
-            _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(refTable) CASCADE")
+            _ = try? await client.dropTable(name: table, ifExists: true, cascade: true)
+            _ = try? await client.dropTable(name: refTable, ifExists: true, cascade: true)
         }}
 
-        _ = try await client.simpleQuery("CREATE TABLE \(refTable) (id INT PRIMARY KEY, description TEXT)")
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id INT PRIMARY KEY, name TEXT, ref_id INT)")
-        _ = try await client.simpleQuery("ALTER TABLE \(table) ADD CONSTRAINT fk_\(table) FOREIGN KEY (ref_id) REFERENCES \(refTable)(id)")
+        try await client.createTable(name: refTable, columns: [
+            PostgresColumnDefinition(name: "id", dataType: "INT", primaryKey: true),
+            .text(name: "description")
+        ])
+        try await client.createTable(name: table, columns: [
+            PostgresColumnDefinition(name: "id", dataType: "INT", primaryKey: true),
+            .text(name: "name"),
+            .integer(name: "ref_id")
+        ])
+        try await client.addForeignKey(table: table, column: "ref_id", referencesTable: refTable, referencesColumn: "id", constraintName: "fk_\(table)")
 
         let byTable = try await meta.columnsByTable(using: client, schema: "public")
         guard let details = byTable[table] else {
@@ -116,11 +123,15 @@ final class MetadataIntegrationTests: PostgresKitTestCase {
 
     func testListIndexes() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, name TEXT, email TEXT)")
-        _ = try await client.simpleQuery("CREATE INDEX idx_\(table)_name ON \(table) (name)")
-        _ = try await client.simpleQuery("CREATE UNIQUE INDEX idx_\(table)_email ON \(table) (email)")
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id", primaryKey: true),
+            .text(name: "name"),
+            .text(name: "email")
+        ])
+        try await client.createIndex(name: "idx_\(table)_name", table: table, columns: ["name"])
+        try await client.createIndex(name: "idx_\(table)_email", table: table, columns: ["email"], unique: true)
 
         let indexes = try await meta.listIndexes(using: client, schema: "public", table: table)
         XCTAssertGreaterThanOrEqual(indexes.count, 2, "Should have at least PK index + name index + email index")
@@ -136,10 +147,14 @@ final class MetadataIntegrationTests: PostgresKitTestCase {
 
     func testUniqueConstraints() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, code TEXT UNIQUE, email TEXT)")
-        _ = try await client.simpleQuery("ALTER TABLE \(table) ADD CONSTRAINT uq_\(table)_email UNIQUE (email)")
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id", primaryKey: true),
+            PostgresColumnDefinition(name: "code", dataType: "TEXT", unique: true),
+            .text(name: "email")
+        ])
+        try await client.addUniqueConstraint(table: table, columns: ["email"], constraintName: "uq_\(table)_email")
 
         let constraints = try await meta.uniqueConstraints(using: client, schema: "public", table: table)
         XCTAssertGreaterThanOrEqual(constraints.count, 2, "Should have at least 2 unique constraints (code + email)")

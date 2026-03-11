@@ -92,10 +92,14 @@ final class ArrayOperationsTests: PostgresKitTestCase {
 
     func testArrayContainsOperator() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, tags TEXT[])")
-        _ = try await client.simpleQuery("INSERT INTO \(table) (tags) VALUES (ARRAY['swift', 'ios', 'macos']), (ARRAY['python', 'django']), (ARRAY['swift', 'vapor'])")
+        try await client.createTable(name: table, columns: [.serial(name: "id", primaryKey: true), .array(name: "tags", elementType: "TEXT")])
+        try await client.insert(into: table, columns: ["tags"], values: [
+            [.array(["swift", "ios", "macos"])],
+            [.array(["python", "django"])],
+            [.array(["swift", "vapor"])]
+        ])
 
         // @> contains
         let rows = try await client.simpleQuery("SELECT id FROM \(table) WHERE tags @> ARRAY['swift']")
@@ -106,10 +110,14 @@ final class ArrayOperationsTests: PostgresKitTestCase {
 
     func testArrayContainedByOperator() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, nums INTEGER[])")
-        _ = try await client.simpleQuery("INSERT INTO \(table) (nums) VALUES (ARRAY[1, 2]), (ARRAY[1, 2, 3, 4, 5]), (ARRAY[1])")
+        try await client.createTable(name: table, columns: [.serial(name: "id", primaryKey: true), .array(name: "nums", elementType: "INTEGER")])
+        try await client.insert(into: table, columns: ["nums"], values: [
+            [.array([1, 2])],
+            [.array([1, 2, 3, 4, 5])],
+            [.array([1])]
+        ])
 
         // <@ contained by
         let rows = try await client.simpleQuery("SELECT id FROM \(table) WHERE nums <@ ARRAY[1, 2, 3]")
@@ -120,10 +128,14 @@ final class ArrayOperationsTests: PostgresKitTestCase {
 
     func testArrayOverlapOperator() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, tags TEXT[])")
-        _ = try await client.simpleQuery("INSERT INTO \(table) (tags) VALUES (ARRAY['a', 'b']), (ARRAY['c', 'd']), (ARRAY['b', 'c'])")
+        try await client.createTable(name: table, columns: [.serial(name: "id", primaryKey: true), .array(name: "tags", elementType: "TEXT")])
+        try await client.insert(into: table, columns: ["tags"], values: [
+            [.array(["a", "b"])],
+            [.array(["c", "d"])],
+            [.array(["b", "c"])]
+        ])
 
         // && overlap
         let rows = try await client.simpleQuery("SELECT id FROM \(table) WHERE tags && ARRAY['b']")
@@ -152,10 +164,10 @@ final class ArrayOperationsTests: PostgresKitTestCase {
 
     func testUnnest() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, nums INTEGER[])")
-        _ = try await client.simpleQuery("INSERT INTO \(table) (nums) VALUES (ARRAY[10, 20, 30])")
+        try await client.createTable(name: table, columns: [.serial(name: "id", primaryKey: true), .array(name: "nums", elementType: "INTEGER")])
+        try await client.insert(into: table, columns: ["nums"], values: [[.array([10, 20, 30])]])
 
         let rows = try await client.simpleQuery("SELECT unnest(nums) FROM \(table)")
         var values: [Int64] = []
@@ -165,13 +177,16 @@ final class ArrayOperationsTests: PostgresKitTestCase {
 
     func testArrayAgg() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, category TEXT, value INTEGER)")
-        _ = try await client.simpleQuery("""
-            INSERT INTO \(table) (category, value) VALUES
-            ('a', 1), ('a', 2), ('a', 3), ('b', 10), ('b', 20)
-        """)
+        try await client.createTable(name: table, columns: [.serial(name: "id", primaryKey: true), .text(name: "category"), .integer(name: "value")])
+        try await client.insert(into: table, columns: ["category", "value"], values: [
+            ["a", 1],
+            ["a", 2],
+            ["a", 3],
+            ["b", 10],
+            ["b", 20]
+        ])
 
         let rows = try await client.simpleQuery("""
             SELECT category, array_agg(value ORDER BY value)::text FROM \(table) GROUP BY category ORDER BY category
@@ -230,10 +245,10 @@ final class ArrayOperationsTests: PostgresKitTestCase {
 
     func testInsertAndReadIntegerArray() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, nums INTEGER[])")
-        _ = try await client.simpleQuery("INSERT INTO \(table) (nums) VALUES (ARRAY[100, 200, 300])")
+        try await client.createTable(name: table, columns: [.serial(name: "id", primaryKey: true), .array(name: "nums", elementType: "INTEGER")])
+        try await client.insert(into: table, columns: ["nums"], values: [[.array([100, 200, 300])]])
 
         let rows = try await client.simpleQuery("SELECT nums::text FROM \(table)")
         var result: String?
@@ -243,10 +258,10 @@ final class ArrayOperationsTests: PostgresKitTestCase {
 
     func testInsertAndReadTextArray() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, words TEXT[])")
-        _ = try await client.simpleQuery("INSERT INTO \(table) (words) VALUES (ARRAY['hello', 'world', 'test'])")
+        try await client.createTable(name: table, columns: [.serial(name: "id", primaryKey: true), .array(name: "words", elementType: "TEXT")])
+        try await client.insert(into: table, columns: ["words"], values: [[.array(["hello", "world", "test"])]])
 
         let rows = try await client.simpleQuery("SELECT words::text FROM \(table)")
         var result: String?
@@ -256,10 +271,10 @@ final class ArrayOperationsTests: PostgresKitTestCase {
 
     func testInsertAndReadEmptyArray() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, items TEXT[])")
-        _ = try await client.simpleQuery("INSERT INTO \(table) (items) VALUES ('{}')")
+        try await client.createTable(name: table, columns: [.serial(name: "id", primaryKey: true), .array(name: "items", elementType: "TEXT")])
+        try await client.insert(into: table, columns: ["items"], values: [[.emptyArray(elementType: "TEXT")]])
 
         let rows = try await client.simpleQuery("SELECT items::text FROM \(table)")
         var result: String?
@@ -269,10 +284,10 @@ final class ArrayOperationsTests: PostgresKitTestCase {
 
     func testInsertAndReadNullArray() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, items INTEGER[])")
-        _ = try await client.simpleQuery("INSERT INTO \(table) (items) VALUES (NULL)")
+        try await client.createTable(name: table, columns: [.serial(name: "id", primaryKey: true), .array(name: "items", elementType: "INTEGER")])
+        try await client.insert(into: table, columns: ["items"], values: [[nil]])
 
         let rows = try await client.simpleQuery("SELECT items IS NULL AS is_null FROM \(table)")
         var isNull: Bool?
@@ -284,16 +299,17 @@ final class ArrayOperationsTests: PostgresKitTestCase {
 
     func testGINIndexOnArrayColumn() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, tags TEXT[])")
-        _ = try await client.simpleQuery("CREATE INDEX idx_\(table)_tags ON \(table) USING GIN (tags)")
+        try await client.createTable(name: table, columns: [.serial(name: "id", primaryKey: true), .array(name: "tags", elementType: "TEXT")])
+        try await client.createAdvancedIndex(name: "idx_\(table)_tags", table: table, columns: [PostgresIndexColumn(name: "tags")], indexType: .gin)
 
         // Insert data
-        _ = try await client.simpleQuery("""
-            INSERT INTO \(table) (tags) VALUES
-            (ARRAY['swift', 'ios']), (ARRAY['python', 'django']), (ARRAY['swift', 'vapor'])
-        """)
+        try await client.insert(into: table, columns: ["tags"], values: [
+            [.array(["swift", "ios"])],
+            [.array(["python", "django"])],
+            [.array(["swift", "vapor"])]
+        ])
 
         // Verify GIN index exists
         let indexRows = try await client.simpleQuery("""

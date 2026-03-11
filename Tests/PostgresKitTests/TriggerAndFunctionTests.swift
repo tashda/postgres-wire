@@ -41,7 +41,7 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
         try await Task.sleep(nanoseconds: 100_000_000) // 100ms
 
         // Update the user's bio
-        _ = try await client.simpleQuery("UPDATE app.users SET bio = 'Updated bio at \(Date())' WHERE id = \(uid)")
+        _ = try await client.update(table: "app.users", set: ["bio": "Updated bio at \(Date())"], whereClause: "id = \(uid)")
 
         // Check updated_at changed
         let afterRows = try await client.simpleQuery("SELECT updated_at::text FROM app.users WHERE id = \(uid)")
@@ -70,7 +70,7 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
 
         // Update title with a unique word
         let uniqueWord = "xylophonetest\(UInt32.random(in: 0..<UInt32.max))"
-        _ = try await client.simpleQuery("UPDATE app.posts SET title = 'Testing \(uniqueWord) feature' WHERE id = \(pid)")
+        _ = try await client.update(table: "app.posts", set: ["title": "Testing \(uniqueWord) feature"], whereClause: "id = \(pid)")
 
         // Verify search_vector contains the unique word
         let searchRows = try await client.simpleQuery("SELECT search_vector::text FROM app.posts WHERE id = \(pid)")
@@ -88,13 +88,11 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
 
     func testAuditTriggerLogsInsert() async throws {
         // Clear audit log for clean test
-        _ = try await client.simpleQuery("DELETE FROM audit.change_log WHERE table_name = 'users' AND operation = 'INSERT'")
+        _ = try await client.delete(from: "audit.change_log", whereClause: "table_name = 'users' AND operation = 'INSERT'")
 
         // Insert a new user (triggers audit.log_change)
         let username = uniqueName("audituser")
-        _ = try await client.simpleQuery("""
-            INSERT INTO app.users (username, email, password_hash) VALUES ('\(username)', '\(username)@example.com', 'hash123')
-        """)
+        _ = try await client.insert(into: "app.users", columns: ["username", "email", "password_hash"], values: [[username, "\(username)@example.com", "hash123"]])
 
         // Check audit log
         let rows = try await client.simpleQuery("""
@@ -110,7 +108,7 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
         XCTAssertTrue(found, "Audit trigger should log INSERT")
 
         // Cleanup
-        _ = try await client.simpleQuery("DELETE FROM app.users WHERE username = '\(username)'")
+        _ = try await client.delete(from: "app.users", whereClause: "username = '\(username)'")
     }
 
     func testAuditTriggerLogsUpdate() async throws {
@@ -220,12 +218,16 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
         let trigName = uniqueName("tr")
         defer { Task { [client = self.client!] in
             _ = try? await client.dropTrigger(name: trigName, table: table, ifExists: true)
-            _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)")
+            _ = try? await client.dropTable(name: table, ifExists: true)
             _ = try? await client.dropFunction(name: fnName, ifExists: true)
         }}
 
         // Create table
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, name TEXT, updated_at TIMESTAMPTZ DEFAULT NOW())")
+        _ = try await client.createTable(name: table, columns: [
+            .serial(name: "id", primaryKey: true),
+            .text(name: "name"),
+            PostgresColumnDefinition(name: "updated_at", dataType: "TIMESTAMPTZ", defaultValue: "NOW()")
+        ])
 
         // Create trigger function
         _ = try await client.createFunction(
@@ -251,9 +253,9 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
         )
 
         // Insert and update to test trigger
-        _ = try await client.simpleQuery("INSERT INTO \(table) (name) VALUES ('test')")
+        _ = try await client.insert(into: table, columns: ["name"], values: [["test"]])
         try await Task.sleep(nanoseconds: 100_000_000)
-        _ = try await client.simpleQuery("UPDATE \(table) SET name = 'updated'")
+        _ = try await client.update(table: table, set: ["name": "updated"])
 
         // Drop trigger
         _ = try await client.dropTrigger(name: trigName, table: table)

@@ -59,3 +59,12 @@ public enum PostgresCollation: Sendable {
     case posix
     case custom(String)
 }
+
+/// PostgreSQL object types for privilege management.
+public enum PostgresObjectType: String, Sendable {
+    case tables = "TABLES"
+    case sequences = "SEQUENCES"
+    case functions = "FUNCTIONS"
+    case types = "TYPES"
+    case schemas = "SCHEMAS"
+}

@@ -140,8 +140,7 @@ final class UniqueConstraintTests: PostgresKitTestCase {
         _ = try await client.addUniqueConstraint(table: table, columns: ["code"], constraintName: "\(table)_uk")
 
         // PostgreSQL allows multiple NULLs in unique columns
-        _ = try await client.simpleQuery("INSERT INTO \(table) (code) VALUES (NULL)")
-        _ = try await client.simpleQuery("INSERT INTO \(table) (code) VALUES (NULL)")
+        _ = try await client.insert(into: table, columns: ["code"], values: [[nil], [nil]])
 
         let rows = try await client.simpleQuery("SELECT count(*) FROM \(table) WHERE code IS NULL")
         var count: Int64 = 0
@@ -161,10 +160,10 @@ final class UniqueConstraintTests: PostgresKitTestCase {
         ])
         _ = try await client.addUniqueConstraint(table: table, columns: ["mac"], constraintName: "\(table)_uk")
 
-        _ = try await client.simpleQuery("INSERT INTO \(table) (mac) VALUES ('00:11:22:33:44:55'::macaddr)")
+        _ = try await client.insert(into: table, columns: ["mac"], values: [[MACAddress(string: "00:11:22:33:44:55")]])
 
         do {
-            _ = try await client.simpleQuery("INSERT INTO \(table) (mac) VALUES ('00:11:22:33:44:55'::macaddr)")
+            _ = try await client.insert(into: table, columns: ["mac"], values: [[MACAddress(string: "00:11:22:33:44:55")]])
             XCTFail("Expected unique constraint violation on macaddr")
         } catch {
             let pgError = PostgresError.from(error)
@@ -182,11 +181,10 @@ final class UniqueConstraintTests: PostgresKitTestCase {
         ])
         _ = try await client.addUniqueConstraint(table: table, columns: ["ip"], constraintName: "\(table)_uk")
 
-        _ = try await client.simpleQuery("INSERT INTO \(table) (ip) VALUES ('192.168.1.1'::inet)")
-        _ = try await client.simpleQuery("INSERT INTO \(table) (ip) VALUES ('10.0.0.1'::inet)")
+        _ = try await client.insert(into: table, columns: ["ip"], values: [[.inet("192.168.1.1")], [.inet("10.0.0.1")]])
 
         do {
-            _ = try await client.simpleQuery("INSERT INTO \(table) (ip) VALUES ('192.168.1.1'::inet)")
+            _ = try await client.insert(into: table, columns: ["ip"], values: [[.inet("192.168.1.1")]])
             XCTFail("Expected unique constraint violation on inet")
         } catch {
             let pgError = PostgresError.from(error)

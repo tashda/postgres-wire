@@ -260,9 +260,9 @@ final class DataTypeRoundTripTests: PostgresKitTestCase {
 
     func testInsertAndReadBackInteger() async throws {
         let table = "rt_int_\(UInt32.random(in: 0..<UInt32.max))"
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (val INTEGER)")
+        try await client.createTable(name: table, columns: [.integer(name: "val")])
         _ = try await client.insert(into: table, columns: ["val"], values: [[42]])
 
         let rows = try await client.simpleQuery("SELECT val FROM \(table)")
@@ -276,9 +276,9 @@ final class DataTypeRoundTripTests: PostgresKitTestCase {
 
     func testInsertAndReadBackText() async throws {
         let table = "rt_text_\(UInt32.random(in: 0..<UInt32.max))"
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (val TEXT)")
+        try await client.createTable(name: table, columns: [.text(name: "val")])
         _ = try await client.insert(into: table, columns: ["val"], values: [["Hello 日本語 🎉"]])
 
         let rows = try await client.simpleQuery("SELECT val FROM \(table)")
@@ -292,10 +292,10 @@ final class DataTypeRoundTripTests: PostgresKitTestCase {
 
     func testInsertAndReadBackUUID() async throws {
         let table = "rt_uuid_\(UInt32.random(in: 0..<UInt32.max))"
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in try? await client.dropTable(name: table, ifExists: true) } }
 
         let uuid = UUID()
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (val UUID)")
+        try await client.createTable(name: table, columns: [.uuid(name: "val")])
         _ = try await client.insert(into: table, columns: ["val"], values: [[uuid]])
 
         let rows = try await client.simpleQuery("SELECT val FROM \(table)")
@@ -309,9 +309,9 @@ final class DataTypeRoundTripTests: PostgresKitTestCase {
 
     func testInsertAndReadBackBoolean() async throws {
         let table = "rt_bool_\(UInt32.random(in: 0..<UInt32.max))"
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (val BOOLEAN)")
+        try await client.createTable(name: table, columns: [.boolean(name: "val")])
         _ = try await client.insert(into: table, columns: ["val"], values: [[true], [false]])
 
         let rows = try await client.simpleQuery("SELECT val FROM \(table) ORDER BY val")
@@ -322,9 +322,9 @@ final class DataTypeRoundTripTests: PostgresKitTestCase {
 
     func testInsertAndReadBackDate() async throws {
         let table = "rt_date_\(UInt32.random(in: 0..<UInt32.max))"
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (val DATE)")
+        try await client.createTable(name: table, columns: [.date(name: "val")])
         _ = try await client.insert(into: table, columns: ["val"], values: [[Date(timeIntervalSince1970: 0)]])
 
         let rows = try await client.simpleQuery("SELECT val::text FROM \(table)")
@@ -358,17 +358,18 @@ final class DataTypeRoundTripTests: PostgresKitTestCase {
     }
 
     func testAllNullRow() async throws {
-        // The second row in all_data_types has only col_smallint=1, everything else NULL
+        // The second row in all_data_types has only col_smallint=1; col_integer/col_varchar are NULL,
+        // but col_boolean has DEFAULT false and col_uuid has DEFAULT uuid_generate_v4().
         let rows = try await client.simpleQuery("""
-            SELECT col_integer, col_varchar, col_boolean, col_uuid FROM public.all_data_types
+            SELECT col_integer, col_varchar, col_text, col_bigint FROM public.all_data_types
             WHERE col_smallint = 1 AND col_integer IS NULL
         """)
         var found = false
-        for try await (i, v, b, u) in rows.decode((Int32?, String?, Bool?, UUID?).self) {
+        for try await (i, v, t, b) in rows.decode((Int32?, String?, String?, Int64?).self) {
             XCTAssertNil(i)
             XCTAssertNil(v)
+            XCTAssertNil(t)
             XCTAssertNil(b)
-            XCTAssertNil(u)
             found = true
         }
         XCTAssertTrue(found)

@@ -110,7 +110,7 @@ public extension PostgresDatabaseClient {
 
         if let when { parts.append("WHEN (\(when))") }
         parts.append("FOR EACH \(forEach.rawValue)")
-        parts.append("EXECUTE PROCEDURE \(quoteIdentifier(procedure))")
+        parts.append("EXECUTE FUNCTION \(procedure)")
 
         return try await executeDDL(parts.joined(separator: " "))
     }

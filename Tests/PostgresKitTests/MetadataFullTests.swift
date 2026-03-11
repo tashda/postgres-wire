@@ -58,14 +58,14 @@ final class MetadataFullTests: PostgresKitTestCase {
 
     func testListColumns() async throws {
         let table = "pgwire_meta_col_\(UInt32.random(in: 0..<UInt32.max))"
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, name TEXT NOT NULL, score INTEGER DEFAULT 0)")
-        }
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id", primaryKey: true),
+            .text(name: "name", nullable: false),
+            .integer(name: "score", defaultValue: 0)
+        ])
         defer {
-            Task.detached { [client, table] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                }
+            Task { [client = self.client!] in
+                _ = try? await client.dropTable(name: table, ifExists: true)
             }
         }
 
@@ -88,16 +88,16 @@ final class MetadataFullTests: PostgresKitTestCase {
     func testListIndexes() async throws {
         let table = "pgwire_meta_idx_\(UInt32.random(in: 0..<UInt32.max))"
         let idx = "pgwire_meta_idx_name_\(UInt32.random(in: 0..<UInt32.max))"
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, name TEXT, score INTEGER)")
-            _ = try await conn.simpleQuery("CREATE INDEX \(idx) ON \(table)(name)")
-            _ = try await conn.simpleQuery("CREATE UNIQUE INDEX \(idx)_unique ON \(table)(score)")
-        }
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id", primaryKey: true),
+            .text(name: "name"),
+            .integer(name: "score")
+        ])
+        try await client.createIndex(name: idx, table: table, columns: ["name"])
+        try await client.createIndex(name: "\(idx)_unique", table: table, columns: ["score"], unique: true)
         defer {
-            Task.detached { [client, table] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                }
+            Task { [client = self.client!] in
+                _ = try? await client.dropTable(name: table, ifExists: true)
             }
         }
 
@@ -121,14 +121,13 @@ final class MetadataFullTests: PostgresKitTestCase {
 
     func testPrimaryKey() async throws {
         let table = "pgwire_meta_pk_\(UInt32.random(in: 0..<UInt32.max))"
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, val TEXT)")
-        }
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id", primaryKey: true),
+            .text(name: "val")
+        ])
         defer {
-            Task.detached { [client, table] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                }
+            Task { [client = self.client!] in
+                _ = try? await client.dropTable(name: table, ifExists: true)
             }
         }
 
@@ -139,14 +138,12 @@ final class MetadataFullTests: PostgresKitTestCase {
 
     func testPrimaryKeyNone() async throws {
         let table = "pgwire_meta_nopk_\(UInt32.random(in: 0..<UInt32.max))"
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (val TEXT)")
-        }
+        try await client.createTable(name: table, columns: [
+            .text(name: "val")
+        ])
         defer {
-            Task.detached { [client, table] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                }
+            Task { [client = self.client!] in
+                _ = try? await client.dropTable(name: table, ifExists: true)
             }
         }
 
@@ -159,16 +156,19 @@ final class MetadataFullTests: PostgresKitTestCase {
     func testForeignKeys() async throws {
         let parent = "pgwire_meta_fkp_\(UInt32.random(in: 0..<UInt32.max))"
         let child = "pgwire_meta_fkc_\(UInt32.random(in: 0..<UInt32.max))"
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(parent) (id SERIAL PRIMARY KEY, name TEXT)")
-            _ = try await conn.simpleQuery("CREATE TABLE \(child) (id SERIAL PRIMARY KEY, parent_id INTEGER REFERENCES \(parent)(id))")
-        }
+        try await client.createTable(name: parent, columns: [
+            .serial(name: "id", primaryKey: true),
+            .text(name: "name")
+        ])
+        try await client.createTable(name: child, columns: [
+            .serial(name: "id", primaryKey: true),
+            .integer(name: "parent_id")
+        ])
+        try await client.addForeignKey(table: child, column: "parent_id", referencesTable: parent, referencesColumn: "id")
         defer {
-            Task.detached { [client, child, parent] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(child)")
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(parent)")
-                }
+            Task { [client = self.client!] in
+                _ = try? await client.dropTable(name: child, ifExists: true, cascade: true)
+                _ = try? await client.dropTable(name: parent, ifExists: true, cascade: true)
             }
         }
 
@@ -185,14 +185,15 @@ final class MetadataFullTests: PostgresKitTestCase {
     func testUniqueConstraints() async throws {
         let table = "pgwire_meta_uq_\(UInt32.random(in: 0..<UInt32.max))"
         let uqName = "uq_code_\(UInt32.random(in: 0..<UInt32.max))"
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, email TEXT UNIQUE, code TEXT, CONSTRAINT \(uqName) UNIQUE (code))")
-        }
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id", primaryKey: true),
+            PostgresColumnDefinition(name: "email", dataType: "TEXT", unique: true),
+            .text(name: "code")
+        ])
+        try await client.addUniqueConstraint(table: table, columns: ["code"], constraintName: uqName)
         defer {
-            Task.detached { [client, table] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                }
+            Task { [client = self.client!] in
+                _ = try? await client.dropTable(name: table, ifExists: true)
             }
         }
 
@@ -208,16 +209,18 @@ final class MetadataFullTests: PostgresKitTestCase {
     func testDependencies() async throws {
         let parent = "pgwire_meta_dep_p_\(UInt32.random(in: 0..<UInt32.max))"
         let child = "pgwire_meta_dep_c_\(UInt32.random(in: 0..<UInt32.max))"
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(parent) (id SERIAL PRIMARY KEY)")
-            _ = try await conn.simpleQuery("CREATE TABLE \(child) (id SERIAL PRIMARY KEY, pid INTEGER REFERENCES \(parent)(id))")
-        }
+        try await client.createTable(name: parent, columns: [
+            .serial(name: "id", primaryKey: true)
+        ])
+        try await client.createTable(name: child, columns: [
+            .serial(name: "id", primaryKey: true),
+            .integer(name: "pid")
+        ])
+        try await client.addForeignKey(table: child, column: "pid", referencesTable: parent, referencesColumn: "id")
         defer {
-            Task.detached { [client, child, parent] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(child)")
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(parent)")
-                }
+            Task { [client = self.client!] in
+                _ = try? await client.dropTable(name: child, ifExists: true, cascade: true)
+                _ = try? await client.dropTable(name: parent, ifExists: true, cascade: true)
             }
         }
 
@@ -233,16 +236,15 @@ final class MetadataFullTests: PostgresKitTestCase {
     func testViewDefinition() async throws {
         let table = "pgwire_meta_vw_t_\(UInt32.random(in: 0..<UInt32.max))"
         let view = "pgwire_meta_vw_\(UInt32.random(in: 0..<UInt32.max))"
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL, name TEXT)")
-            _ = try await conn.simpleQuery("CREATE VIEW \(view) AS SELECT id, name FROM \(table) WHERE id > 0")
-        }
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id"),
+            .text(name: "name")
+        ])
+        try await client.createView(name: view, query: "SELECT id, name FROM \(table) WHERE id > 0")
         defer {
-            Task.detached { [client, view, table] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP VIEW IF EXISTS \(view)")
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                }
+            Task { [client = self.client!] in
+                _ = try? await client.dropView(name: view, ifExists: true)
+                _ = try? await client.dropTable(name: table, ifExists: true)
             }
         }
 
@@ -256,17 +258,17 @@ final class MetadataFullTests: PostgresKitTestCase {
 
     func testFunctionDefinition() async throws {
         let fn = "pgwire_meta_fn_\(UInt32.random(in: 0..<UInt32.max))"
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("""
-            CREATE OR REPLACE FUNCTION \(fn)(x integer) RETURNS integer
-            LANGUAGE SQL AS $$ SELECT x * 2 $$
-            """)
-        }
+        try await client.createFunction(
+            name: fn,
+            parameters: [PostgresFunctionParameter(name: "x", dataType: "integer")],
+            returnType: "integer",
+            body: "SELECT x * 2",
+            language: .sql,
+            orReplace: true
+        )
         defer {
-            Task.detached { [client, fn] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP FUNCTION IF EXISTS \(fn)(integer)")
-                }
+            Task { [client = self.client!] in
+                _ = try? await client.dropFunction(name: fn, parameters: ["integer"], ifExists: true)
             }
         }
 
@@ -282,24 +284,30 @@ final class MetadataFullTests: PostgresKitTestCase {
         let table = "pgwire_meta_trig_t_\(UInt32.random(in: 0..<UInt32.max))"
         let fn = "pgwire_meta_trig_fn_\(UInt32.random(in: 0..<UInt32.max))"
         let trig = "pgwire_meta_trig_\(UInt32.random(in: 0..<UInt32.max))"
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL, val TEXT)")
-            _ = try await conn.simpleQuery("""
-            CREATE OR REPLACE FUNCTION \(fn)() RETURNS trigger
-            LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END $$
-            """)
-            _ = try await conn.simpleQuery("""
-            CREATE TRIGGER \(trig) BEFORE INSERT ON \(table)
-            FOR EACH ROW EXECUTE PROCEDURE \(fn)()
-            """)
-        }
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id"),
+            .text(name: "val")
+        ])
+        try await client.createFunction(
+            name: fn,
+            parameters: [],
+            returnType: "trigger",
+            body: "BEGIN RETURN NEW; END;",
+            language: .plpgsql,
+            orReplace: true
+        )
+        try await client.createTrigger(
+            name: trig,
+            table: table,
+            event: .before,
+            operations: [.insert],
+            procedure: "\(fn)()"
+        )
         defer {
-            Task.detached { [client, trig, table, fn] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TRIGGER IF EXISTS \(trig) ON \(table)")
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                    _ = try? await conn.simpleQuery("DROP FUNCTION IF EXISTS \(fn)()")
-                }
+            Task { [client = self.client!] in
+                _ = try? await client.dropTrigger(name: trig, table: table, ifExists: true)
+                _ = try? await client.dropTable(name: table, ifExists: true)
+                _ = try? await client.dropFunction(name: fn, parameters: [], ifExists: true)
             }
         }
 
@@ -335,15 +343,13 @@ final class MetadataFullTests: PostgresKitTestCase {
     func testTableComment() async throws {
         let table = "pgwire_meta_cmt_\(UInt32.random(in: 0..<UInt32.max))"
         let comment = "Integration test table for comments"
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL)")
-            _ = try await conn.simpleQuery("COMMENT ON TABLE \(table) IS '\(comment)'")
-        }
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id")
+        ])
+        try await client.commentOnTable(table, comment: comment)
         defer {
-            Task.detached { [client, table] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                }
+            Task { [client = self.client!] in
+                _ = try? await client.dropTable(name: table, ifExists: true)
             }
         }
 
@@ -353,15 +359,14 @@ final class MetadataFullTests: PostgresKitTestCase {
 
     func testColumnComments() async throws {
         let table = "pgwire_meta_colcmt_\(UInt32.random(in: 0..<UInt32.max))"
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL, name TEXT)")
-            _ = try await conn.simpleQuery("COMMENT ON COLUMN \(table).name IS 'The display name'")
-        }
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id"),
+            .text(name: "name")
+        ])
+        try await client.commentOnColumn(table: table, column: "name", comment: "The display name")
         defer {
-            Task.detached { [client, table] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                }
+            Task { [client = self.client!] in
+                _ = try? await client.dropTable(name: table, ifExists: true)
             }
         }
 
@@ -381,14 +386,13 @@ final class MetadataFullTests: PostgresKitTestCase {
 
     func testSchemaSummary_PublicSchema() async throws {
         let table = "pgwire_meta_sum_\(UInt32.random(in: 0..<UInt32.max))"
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, label TEXT)")
-        }
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id", primaryKey: true),
+            .text(name: "label")
+        ])
         defer {
-            Task.detached { [client, table] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                }
+            Task { [client = self.client!] in
+                _ = try? await client.dropTable(name: table, ifExists: true)
             }
         }
 

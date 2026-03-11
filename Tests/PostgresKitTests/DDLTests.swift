@@ -103,10 +103,20 @@ final class DDLTests: PostgresKitTestCase {
         // Test data insertion using API with raw SQL for complex types
         let testUUID = UUID(uuidString: "550e8400-e29b-41d4-a716-446655440000")!
 
-        _ = try await client.executeDDL("""
-            INSERT INTO all_types_test (text_col, varchar_col, integer_col, bigint_col, boolean_col, uuid_col, jsonb_col, array_col)
-            VALUES ('Test text', 'Test varchar', 42, 999999999, true, '\(testUUID.uuidString)'::uuid, '{"key": "value"}'::jsonb, '{1,2,3}'::integer[])
-            """)
+        _ = try await client.insert(
+            into: "all_types_test",
+            columns: ["text_col", "varchar_col", "integer_col", "bigint_col", "boolean_col", "uuid_col", "jsonb_col", "array_col"],
+            values: [[
+                "Test text",
+                "Test varchar",
+                42,
+                999_999_999,
+                true,
+                PostgresInsertValue(testUUID),
+                .jsonbLiteral("{\"key\": \"value\"}"),
+                .array([1, 2, 3])
+            ]]
+        )
 
         print("✓ Successfully inserted test data into all types table")
     }
@@ -247,52 +257,55 @@ final class DDLTests: PostgresKitTestCase {
     func testAlterTable() async throws {
         print("=== Testing ALTER TABLE operations ===")
 
-        let result = try await client.withConnection { conn in
-            // Create initial table
-            _ = try await conn.simpleQuery("""
-                CREATE TEMPORARY TABLE alter_test (
-                    id SERIAL PRIMARY KEY,
-                    name VARCHAR(50)
-                )
-            """)
+        // Clean up existing table
+        _ = try await client.dropTable(name: "alter_test", ifExists: true)
 
-            // Test ADD COLUMN
-            _ = try await conn.simpleQuery("ALTER TABLE alter_test ADD COLUMN age INTEGER")
-            _ = try await conn.simpleQuery("ALTER TABLE alter_test ADD COLUMN email VARCHAR(100)")
+        // Create initial table
+        _ = try await client.createTable(
+            name: "alter_test",
+            columns: [
+                .serial(name: "id", primaryKey: true),
+                .varchar(name: "name", length: 50)
+            ]
+        )
 
-            // Test ALTER COLUMN TYPE
-            _ = try await conn.simpleQuery("ALTER TABLE alter_test ALTER COLUMN name TYPE VARCHAR(100)")
+        // Test ADD COLUMN
+        _ = try await client.addColumn(table: "alter_test", column: .integer(name: "age"))
+        _ = try await client.addColumn(table: "alter_test", column: .varchar(name: "email", length: 100))
 
-            // Test SET DEFAULT
-            _ = try await conn.simpleQuery("ALTER TABLE alter_test ALTER COLUMN age SET DEFAULT 25")
+        // Test ALTER COLUMN TYPE
+        _ = try await client.alterColumnType(table: "alter_test", column: "name", newType: "VARCHAR(100)")
 
-            // Test SET NOT NULL (need to update existing nulls first)
-            _ = try await conn.simpleQuery("ALTER TABLE alter_test ALTER COLUMN age SET NOT NULL")
+        // Test SET DEFAULT
+        _ = try await client.alterColumnDefault(table: "alter_test", column: "age", defaultValue: "25")
 
-            // Test DROP COLUMN
-            _ = try await conn.simpleQuery("ALTER TABLE alter_test DROP COLUMN email")
+        // Test SET NOT NULL (need to update existing nulls first)
+        _ = try await client.alterColumnNullability(table: "alter_test", column: "age", nullable: false)
 
-            // Test ADD CONSTRAINT
-            _ = try await conn.simpleQuery("ALTER TABLE alter_test ADD CONSTRAINT check_name CHECK (length(name) > 2)")
+        // Test DROP COLUMN
+        _ = try await client.dropColumn(table: "alter_test", column: "email")
 
-            // Test RENAME COLUMN
-            _ = try await conn.simpleQuery("ALTER TABLE alter_test RENAME COLUMN name TO full_name")
+        // Test ADD CONSTRAINT
+        _ = try await client.addCheckConstraint(table: "alter_test", condition: "length(name) > 2", constraintName: "check_name")
 
-            // Insert test data
-            _ = try await conn.simpleQuery("""
-                INSERT INTO alter_test (full_name) VALUES ('John Doe')
-            """)
+        // Test RENAME COLUMN
+        _ = try await client.renameColumn(table: "alter_test", oldName: "name", newName: "full_name")
 
-            // Verify the data uses the default age
-            let rows = try await conn.simpleQuery("SELECT id, full_name, age FROM alter_test")
-            var results: [(Int32, String, Int32)] = []
-            for try await (id, name, age) in rows.decode((Int32, String, Int32).self) {
-                results.append((id, name, age))
-            }
+        // Insert test data
+        _ = try await client.insert(
+            into: "alter_test",
+            columns: ["full_name"],
+            values: [["John Doe"]]
+        )
 
-            return results.first?.2 ?? 0
+        // Verify the data uses the default age
+        let rows = try await client.simpleQuery("SELECT id, full_name, age FROM alter_test")
+        var results: [(Int32, String, Int32)] = []
+        for try await (id, name, age) in rows.decode((Int32, String, Int32).self) {
+            results.append((id, name, age))
         }
 
+        let result = results.first?.2 ?? 0
         XCTAssertEqual(result, 25) // Should use the default age
         print("✓ ALTER TABLE operations completed successfully")
     }
@@ -386,11 +399,8 @@ final class DDLTests: PostgresKitTestCase {
         }
 
         // Test index usage with EXPLAIN using PostgresClient API
-        let explainRows = try await client.simpleQuery("""
-            EXPLAIN (FORMAT JSON) SELECT * FROM index_test WHERE name = 'User 42'
-        """)
-
-        for try await plan in explainRows.decode(String.self) {
+        let explainPlan = try await client.explain("SELECT * FROM index_test WHERE name = 'User 42'", format: .json)
+        for plan in explainPlan {
             print("Query plan: \(plan)")
         }
 
@@ -410,109 +420,153 @@ final class DDLTests: PostgresKitTestCase {
     func testForeignKeys() async throws {
         print("=== Testing Foreign Key operations ===")
 
-        let result = try await client.withConnection { conn in
-            // Create parent tables
-            _ = try await conn.simpleQuery("""
-                CREATE TEMPORARY TABLE authors (
-                    id SERIAL PRIMARY KEY,
-                    name VARCHAR(100) NOT NULL,
-                    email VARCHAR(100) UNIQUE
-                )
-            """)
+        // Clean up existing tables (order matters for foreign keys)
+        _ = try await client.dropTable(name: "books", ifExists: true, cascade: true)
+        _ = try await client.dropTable(name: "authors", ifExists: true, cascade: true)
+        _ = try await client.dropTable(name: "publishers", ifExists: true, cascade: true)
 
-            _ = try await conn.simpleQuery("""
-                CREATE TEMPORARY TABLE publishers (
-                    id SERIAL PRIMARY KEY,
-                    name VARCHAR(100) NOT NULL
-                )
-            """)
+        // Create parent tables
+        _ = try await client.createTable(
+            name: "authors",
+            columns: [
+                .serial(name: "id", primaryKey: true),
+                .varchar(name: "name", length: 100, nullable: false),
+                .varchar(name: "email", length: 100)
+            ]
+        )
+        _ = try await client.addUniqueConstraint(
+            table: "authors",
+            columns: ["email"],
+            constraintName: "uk_authors_email"
+        )
 
-            // Create child table with foreign keys
-            _ = try await conn.simpleQuery("""
-                CREATE TEMPORARY TABLE books (
-                    id SERIAL PRIMARY KEY,
-                    title VARCHAR(200) NOT NULL,
-                    author_id INTEGER NOT NULL REFERENCES authors(id) ON DELETE CASCADE,
-                    publisher_id INTEGER REFERENCES publishers(id) ON DELETE SET NULL,
-                    isbn VARCHAR(20) UNIQUE,
-                    published_date DATE
-                )
-            """)
+        _ = try await client.createTable(
+            name: "publishers",
+            columns: [
+                .serial(name: "id", primaryKey: true),
+                .varchar(name: "name", length: 100, nullable: false)
+            ]
+        )
 
-            // Insert test data
-            _ = try await conn.simpleQuery("""
-                INSERT INTO authors (name, email) VALUES
-                ('J.K. Rowling', 'jk@rowling.com'),
-                ('Stephen King', 'stephen@king.com')
-            """)
+        // Create child table with foreign keys
+        _ = try await client.createTable(
+            name: "books",
+            columns: [
+                .serial(name: "id", primaryKey: true),
+                .varchar(name: "title", length: 200, nullable: false),
+                .integer(name: "author_id"),
+                .integer(name: "publisher_id"),
+                .varchar(name: "isbn", length: 20),
+                .date(name: "published_date")
+            ]
+        )
 
-            _ = try await conn.simpleQuery("""
-                INSERT INTO publishers (name) VALUES
-                ('Bloomsbury'), ('Penguin Books')
-            """)
+        _ = try await client.addForeignKey(
+            table: "books",
+            column: "author_id",
+            referencesTable: "authors",
+            referencesColumn: "id",
+            constraintName: "fk_books_author",
+            onDelete: .cascade
+        )
 
-            _ = try await conn.simpleQuery("""
-                INSERT INTO books (title, author_id, publisher_id, isbn, published_date) VALUES
-                ('Harry Potter 1', 1, 1, '978-0-7475-3268-9', '1997-06-26'),
-                ('The Shining', 2, 2, '978-0-385-12167-5', '1977-01-28')
-            """)
+        _ = try await client.addForeignKey(
+            table: "books",
+            column: "publisher_id",
+            referencesTable: "publishers",
+            referencesColumn: "id",
+            constraintName: "fk_books_publisher",
+            onDelete: .setNull
+        )
 
-            // Test foreign key constraint violation
-            do {
-                _ = try await conn.simpleQuery("""
-                    INSERT INTO books (title, author_id, publisher_id, isbn)
-                    VALUES ('Invalid Book', 999, 1, 'invalid-isbn')
-                """)
-                XCTFail("Should have failed with foreign key violation")
-            } catch {
-                print("✓ Foreign key constraint violation caught: \(error)")
-            }
+        _ = try await client.addUniqueConstraint(
+            table: "books",
+            columns: ["isbn"],
+            constraintName: "uk_books_isbn"
+        )
 
-            // Verify initial state
-            let initialCountRows = try await conn.simpleQuery("SELECT COUNT(*)::text FROM books")
-            var initialCount = 0
-            for try await countStr in initialCountRows.decode(String.self) {
-                if let intVal = Int(countStr) {
-                    initialCount = intVal
-                }
-                break
-            }
-            print("Initial books count: \(initialCount)")
+        // Set NOT NULL on author_id after adding the foreign key
+        _ = try await client.alterColumnNullability(table: "books", column: "author_id", nullable: false)
 
-            // Count books before delete operations
-            let beforeCountRows = try await conn.simpleQuery("SELECT COUNT(*)::text FROM books")
-            var beforeCount = 0
-            for try await countStr in beforeCountRows.decode(String.self) {
-                if let intVal = Int(countStr) {
-                    beforeCount = intVal
-                }
-                break
-            }
+        // Insert test data
+        _ = try await client.insert(
+            into: "authors",
+            columns: ["name", "email"],
+            values: [
+                ["J.K. Rowling", "jk@rowling.com"],
+                ["Stephen King", "stephen@king.com"]
+            ]
+        )
 
-            // Test CASCADE delete
-            _ = try await conn.simpleQuery("DELETE FROM authors WHERE id = 1")
+        _ = try await client.insert(
+            into: "publishers",
+            columns: ["name"],
+            values: [["Bloomsbury"], ["Penguin Books"]]
+        )
 
-            // Test SET NULL delete
-            _ = try await conn.simpleQuery("DELETE FROM publishers WHERE id = 2")
+        _ = try await client.insert(
+            into: "books",
+            columns: ["title", "author_id", "publisher_id", "isbn", "published_date"],
+            values: [
+                ["Harry Potter 1", 1, 1, "978-0-7475-3268-9", .date("1997-06-26")],
+                ["The Shining", 2, 2, "978-0-385-12167-5", .date("1977-01-28")]
+            ]
+        )
 
-            // Count remaining books after both operations
-            let afterCountRows = try await conn.simpleQuery("SELECT COUNT(*)::text FROM books")
-            var afterCount = 0
-            for try await countStr in afterCountRows.decode(String.self) {
-                if let intVal = Int(countStr) {
-                    afterCount = intVal
-                }
-                break
-            }
-
-            let affectedCount = beforeCount - afterCount
-            print("Books before: \(beforeCount), after: \(afterCount), affected: \(affectedCount)")
-
-            return affectedCount
+        // Test foreign key constraint violation
+        do {
+            _ = try await client.insert(
+                into: "books",
+                columns: ["title", "author_id", "publisher_id", "isbn"],
+                values: [["Invalid Book", 999, 1, "invalid-isbn"]]
+            )
+            XCTFail("Should have failed with foreign key violation")
+        } catch {
+            print("✓ Foreign key constraint violation caught: \(error)")
         }
 
-        XCTAssertEqual(result, 1) // 1 book deleted via CASCADE
-        print("✓ Foreign key operations completed successfully - affected \(result) records")
+        // Verify initial state
+        let initialCountRows = try await client.simpleQuery("SELECT COUNT(*)::text FROM books")
+        var initialCount = 0
+        for try await countStr in initialCountRows.decode(String.self) {
+            if let intVal = Int(countStr) {
+                initialCount = intVal
+            }
+            break
+        }
+        print("Initial books count: \(initialCount)")
+
+        // Count books before delete operations
+        let beforeCountRows = try await client.simpleQuery("SELECT COUNT(*)::text FROM books")
+        var beforeCount = 0
+        for try await countStr in beforeCountRows.decode(String.self) {
+            if let intVal = Int(countStr) {
+                beforeCount = intVal
+            }
+            break
+        }
+
+        // Test CASCADE delete
+        _ = try await client.delete(from: "authors", whereClause: "id = 1")
+
+        // Test SET NULL delete
+        _ = try await client.delete(from: "publishers", whereClause: "id = 2")
+
+        // Count remaining books after both operations
+        let afterCountRows = try await client.simpleQuery("SELECT COUNT(*)::text FROM books")
+        var afterCount = 0
+        for try await countStr in afterCountRows.decode(String.self) {
+            if let intVal = Int(countStr) {
+                afterCount = intVal
+            }
+            break
+        }
+
+        let affectedCount = beforeCount - afterCount
+        print("Books before: \(beforeCount), after: \(afterCount), affected: \(affectedCount)")
+
+        XCTAssertEqual(affectedCount, 1) // 1 book deleted via CASCADE
+        print("✓ Foreign key operations completed successfully - affected \(affectedCount) records")
         print("✓ Foreign key operations completed successfully")
     }
 
@@ -521,46 +575,50 @@ final class DDLTests: PostgresKitTestCase {
     func testDropTable() async throws {
         print("=== Testing DROP TABLE operations ===")
 
-        let result = try await client.withConnection { conn in
-            // Create table
-            _ = try await conn.simpleQuery("""
-                CREATE TEMPORARY TABLE drop_test (
-                    id SERIAL PRIMARY KEY,
-                    name VARCHAR(50)
-                )
-            """)
+        // Clean up existing table
+        _ = try await client.dropTable(name: "drop_test", ifExists: true)
 
-            // Insert data
-            _ = try await conn.simpleQuery("INSERT INTO drop_test (name) VALUES ('Test')")
+        // Create table
+        _ = try await client.createTable(
+            name: "drop_test",
+            columns: [
+                .serial(name: "id", primaryKey: true),
+                .varchar(name: "name", length: 50)
+            ]
+        )
 
-            // Verify table exists
-            let beforeCount = try await conn.simpleQuery("SELECT COUNT(*)::text FROM drop_test")
-            var before = 0
-            for try await countStr in beforeCount.decode(String.self) {
-                if let intVal = Int(countStr) {
-                    before = intVal
-                }
-                break
+        // Insert data
+        _ = try await client.insert(
+            into: "drop_test",
+            columns: ["name"],
+            values: [["Test"]]
+        )
+
+        // Verify table exists
+        let beforeCount = try await client.simpleQuery("SELECT COUNT(*)::text FROM drop_test")
+        var before = 0
+        for try await countStr in beforeCount.decode(String.self) {
+            if let intVal = Int(countStr) {
+                before = intVal
             }
-
-            // Drop table
-            _ = try await conn.simpleQuery("DROP TABLE drop_test")
-
-            // Try to query dropped table (should fail)
-            do {
-                _ = try await conn.simpleQuery("SELECT COUNT(*)::text FROM drop_test")
-                XCTFail("Should have failed - table should not exist")
-            } catch {
-                print("✓ Table successfully dropped - query failed as expected: \(error)")
-            }
-
-            // Test IF EXISTS
-            _ = try await conn.simpleQuery("DROP TABLE IF EXISTS drop_test") // Should not error
-
-            return before
+            break
         }
 
-        XCTAssertEqual(result, 1)
+        // Drop table
+        _ = try await client.dropTable(name: "drop_test")
+
+        // Try to query dropped table (should fail)
+        do {
+            _ = try await client.simpleQuery("SELECT COUNT(*)::text FROM drop_test")
+            XCTFail("Should have failed - table should not exist")
+        } catch {
+            print("✓ Table successfully dropped - query failed as expected: \(error)")
+        }
+
+        // Test IF EXISTS
+        _ = try await client.dropTable(name: "drop_test", ifExists: true) // Should not error
+
+        XCTAssertEqual(before, 1)
         print("✓ DROP TABLE operations completed successfully")
     }
 }

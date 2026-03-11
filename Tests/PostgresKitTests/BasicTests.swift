@@ -2,7 +2,7 @@ import XCTest
 import Logging
 @testable import PostgresKit
 
-final class BasicTests: XCTestCase {
+final class BasicTests: PostgresKitTestCase {
 
     private var client: PostgresDatabaseClient!
     private var testLogger: Logger!
@@ -11,35 +11,19 @@ final class BasicTests: XCTestCase {
         try await super.setUp()
         testLogger = Logger(label: "basic-tests")
 
-                guard let host = ProcessInfo.processInfo.environment["POSTGRES_HOST"],
-
-                      let user = ProcessInfo.processInfo.environment["POSTGRES_USERNAME"],
-
-                      let db = ProcessInfo.processInfo.environment["POSTGRES_DATABASE"],
-
-                      let portStr = ProcessInfo.processInfo.environment["POSTGRES_PORT"],
-
-                      let port = Int(portStr)
-
-                else {
-
-                    throw XCTSkip("POSTGRES_* environment not set; skipping integration test")
-
-                }
+                guard TestEnv.isConfigured else { throw XCTSkip("Postgres environment not set") }
 
         
 
-                let password = ProcessInfo.processInfo.environment["POSTGRES_PASSWORD"]
 
-                let useTLS = (ProcessInfo.processInfo.environment["POSTGRES_TLS"] ?? "false").lowercased() == "true"
 
         let config = PostgresConfiguration(
-            host: host,
-            port: port,
-            database: db,
-            username: user,
-            password: password,
-            useTLS: useTLS,
+            host: TestEnv.host,
+            port: TestEnv.port,
+            database: TestEnv.database,
+            username: TestEnv.username,
+            password: TestEnv.password,
+            useTLS: TestEnv.useTLS,
             applicationName: "BasicTests"
         )
 
@@ -207,7 +191,7 @@ final class BasicTests: XCTestCase {
             _ = try await client.simpleQuery("SELECT * FROM nonexistent_table")
             XCTFail("Expected query to fail")
         } catch {
-            XCTAssertTrue(error is PostgresError || error is PostgresKitError || error is any Error)
+            XCTAssertTrue(error is PostgresError || error is PostgresKitError || error is PSQLError)
         }
     }
 
@@ -218,7 +202,7 @@ final class BasicTests: XCTestCase {
             }
             XCTFail("Expected query to fail")
         } catch {
-            XCTAssertTrue(error is PostgresError || error is PostgresKitError || error is any Error)
+            XCTAssertTrue(error is PostgresError || error is PostgresKitError || error is PSQLError)
         }
     }
 

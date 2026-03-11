@@ -19,13 +19,31 @@ enum TestEnv {
         }
     }
 
-    // Use environment variables like other tests, with fallbacks to original values
+    private static func getEnv(_ key: String) -> String? {
+        // Try getenv first (for setenv compatibility)
+        if let value = getenv(key) {
+            return String(cString: value)
+        }
+        // Fallback to ProcessInfo
+        return ProcessInfo.processInfo.environment[key]
+    }
+
+    static var isConfigured: Bool {
+        let host = getEnv("POSTGRES_HOST")
+        let useDocker = getEnv("USE_DOCKER")
+        let configured = host != nil || useDocker == "1"
+        if !configured {
+            print("⚠️ TestEnv NOT configured. POSTGRES_HOST: \(host ?? "nil"), USE_DOCKER: \(useDocker ?? "nil")")
+        }
+        return configured
+    }
+
     static var host: String {
-        ProcessInfo.processInfo.environment["POSTGRES_HOST"] ?? "127.0.0.1"
+        getEnv("POSTGRES_HOST") ?? "127.0.0.1"
     }
 
     static var port: Int {
-        if let portStr = ProcessInfo.processInfo.environment["POSTGRES_PORT"],
+        if let portStr = getEnv("POSTGRES_PORT"),
            let port = Int(portStr) {
             return port
         }
@@ -33,19 +51,18 @@ enum TestEnv {
     }
 
     static var username: String {
-        ProcessInfo.processInfo.environment["POSTGRES_USERNAME"] ?? "postgres"
+        getEnv("POSTGRES_USERNAME") ?? "postgres"
     }
 
     static var password: String? {
-        ProcessInfo.processInfo.environment["POSTGRES_PASSWORD"] ?? "postgres"
+        getEnv("POSTGRES_PASSWORD") ?? "postgres"
     }
 
     static var database: String {
-        ProcessInfo.processInfo.environment["POSTGRES_DATABASE"] ?? "postgres"
+        getEnv("POSTGRES_DATABASE") ?? "postgres"
     }
 
     static var useTLS: Bool {
-        (ProcessInfo.processInfo.environment["POSTGRES_TLS"] ?? "false").lowercased() == "true"
+        (getEnv("POSTGRES_TLS") ?? "false").lowercased() == "true"
     }
 }
-

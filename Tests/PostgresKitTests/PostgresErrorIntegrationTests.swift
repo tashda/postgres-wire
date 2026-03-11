@@ -1,7 +1,7 @@
 import XCTest
 @testable import PostgresKit
 
-final class PostgresErrorIntegrationTests: XCTestCase {
+final class PostgresErrorIntegrationTests: PostgresKitTestCase {
 
     func testPostgresErrorCreation() throws {
         // Test that PostgresError can be created and has the expected properties

@@ -5,7 +5,7 @@ import PostgresNIO
 // typealias to distinguish our PostgresError from PostgresNIO's
 typealias PostgresKitError = PostgresKit.PostgresError
 
-final class PostgresErrorConversionTests: XCTestCase {
+final class PostgresErrorConversionTests: PostgresKitTestCase {
 
     func testPSQLErrorToPostgresErrorConversion() throws {
         // This test verifies that PSQLError is properly converted to PostgresError
@@ -119,7 +119,6 @@ final class PostgresErrorConversionTests: XCTestCase {
         case .success:
             XCTFail("Expected failure")
         case .failure(let error):
-            XCTAssertTrue(error is PostgresKitError)
             XCTAssertEqual(error.message, "Test operation failed")
             XCTAssertFalse(error.isConstraintViolation)
         }

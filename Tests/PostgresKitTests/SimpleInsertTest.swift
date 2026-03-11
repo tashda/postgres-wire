@@ -2,7 +2,7 @@ import XCTest
 import Logging
 @testable import PostgresKit
 
-final class SimpleInsertTest: XCTestCase {
+final class SimpleInsertTest: PostgresKitTestCase {
 
     private var client: PostgresDatabaseClient!
     private var testLogger: Logger!
@@ -10,7 +10,7 @@ final class SimpleInsertTest: XCTestCase {
     override func setUp() async throws {
         TestEnv.loadDotEnv()
         try await super.setUp()
-        guard ProcessInfo.processInfo.environment["POSTGRES_HOST"] != nil else {
+        guard TestEnv.isConfigured else {
             throw XCTSkip("POSTGRES_HOST not set; skipping integration test")
         }
         testLogger = Logger(label: "simple-insert-test")

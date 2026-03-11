@@ -2,7 +2,7 @@ import XCTest
 import PostgresNIO
 @testable import PostgresKit
 
-final class ServerPrepareKeyTests: XCTestCase {
+final class ServerPrepareKeyTests: PostgresKitTestCase {
 
     // MARK: - Key format
 

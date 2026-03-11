@@ -9,13 +9,14 @@ private actor ProgressCounter {
 
 /// Full integration test coverage for PostgresMetadata.
 /// Tests all public methods not already covered by MetadataIntegrationTests.swift.
-final class MetadataFullTests: XCTestCase {
+final class MetadataFullTests: PostgresKitTestCase {
     private var client: PostgresDatabaseClient!
     private let meta = PostgresMetadata()
 
     override func setUp() async throws {
+        try await super.setUp()
         TestEnv.loadDotEnv()
-        guard ProcessInfo.processInfo.environment["POSTGRES_HOST"] != nil else {
+        guard TestEnv.isConfigured else {
             throw XCTSkip("POSTGRES_HOST not set. Copy .env.example to .env and configure connection.")
         }
         let config = PostgresConfiguration(

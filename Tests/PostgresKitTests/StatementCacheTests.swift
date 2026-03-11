@@ -1,7 +1,7 @@
 import XCTest
 @testable import PostgresKit
 
-final class StatementCacheTests: XCTestCase {
+final class StatementCacheTests: PostgresKitTestCase {
     func testLRUEviction() throws {
         let cache = StatementCache(capacity: 2)
         cache.insert(.init(sql: "a", parameterCount: 1, handle: WireConnection.WirePreparedStatement(sql: "a")))

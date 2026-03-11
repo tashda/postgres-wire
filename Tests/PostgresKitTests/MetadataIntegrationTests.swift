@@ -3,85 +3,190 @@ import XCTest
 import Logging
 
 final class MetadataIntegrationTests: PostgresKitTestCase {
-    var client: PostgresDatabaseClient!
+    private var client: PostgresDatabaseClient!
+    private let meta = PostgresMetadata()
 
     override func setUp() async throws {
         try await super.setUp()
-        TestEnv.loadDotEnv()
-        guard TestEnv.isConfigured else {
-            throw XCTSkip("POSTGRES_HOST not set; skipping integration test")
-        }
-        let logger = Logger(label: "postgres-kit-tests")
+        guard TestEnv.isConfigured else { throw XCTSkip("Postgres environment not set") }
         let config = PostgresConfiguration(
-            host: TestEnv.host,
-            port: TestEnv.port,
-            database: TestEnv.database,
-            username: TestEnv.username,
-            password: TestEnv.password,
-            useTLS: TestEnv.useTLS,
-            applicationName: "postgres-wire-tests"
+            host: TestEnv.host, port: TestEnv.port,
+            database: TestEnv.database, username: TestEnv.username,
+            password: TestEnv.password, useTLS: TestEnv.useTLS,
+            applicationName: "MetadataIntegrationTests"
         )
-        self.client = try await PostgresDatabaseClient.connect(configuration: config, logger: logger)
+        client = try await PostgresDatabaseClient.connect(configuration: config, logger: Logger(label: "metadata-tests"))
     }
 
-    override func tearDown() async throws {
+    override func tearDown() {
         client?.close()
+        super.tearDown()
     }
 
-    func testColumnsByTable() async throws {
-        let schema = "public"
-        // Use a fixed table name to ensure it exists for metadata queries
-        let table = "kit_meta_test_table"
-        let refTable = "kit_meta_ref_table"
+    private func uniqueName(_ prefix: String = "meta") -> String {
+        "\(prefix)_\(UInt32.random(in: 0..<UInt32.max))"
+    }
 
-        // Create tables - drop if exists first to handle test reruns
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("DROP TABLE IF EXISTS \(table) CASCADE")
-            _ = try await conn.simpleQuery("DROP TABLE IF EXISTS \(refTable) CASCADE")
-            _ = try await conn.simpleQuery("CREATE TABLE \(refTable) (id INT PRIMARY KEY, description TEXT)")
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id INT PRIMARY KEY, name TEXT, ref_id INT)")
-            _ = try await conn.simpleQuery("ALTER TABLE \(table) ADD CONSTRAINT fk_ref FOREIGN KEY (ref_id) REFERENCES \(refTable)(id)")
+    // MARK: - Schema Discovery
 
-            // Insert some test data to ensure tables are properly created
-            _ = try await conn.simpleQuery("INSERT INTO \(refTable) (id, description) VALUES (1, 'test ref')")
-            _ = try await conn.simpleQuery("INSERT INTO \(table) (id, name, ref_id) VALUES (1, 'test', 1)")
-        }
+    func testListSchemas() async throws {
+        let schemas = try await meta.listSchemas(using: client)
+        XCTAssertTrue(schemas.contains("public"), "Should contain public schema")
+        XCTAssertTrue(schemas.contains("information_schema"), "Should contain information_schema")
+    }
 
-        defer {
-            Task.detached { [client] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table) CASCADE")
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(refTable) CASCADE")
-                }
-            }
-        }
+    func testListSchemasIncludesSampleDataSchemas() async throws {
+        let schemas = try await meta.listSchemas(using: client)
+        XCTAssertTrue(schemas.contains("app"), "Should contain app schema from SampleData")
+        XCTAssertTrue(schemas.contains("audit"), "Should contain audit schema from SampleData")
+        XCTAssertTrue(schemas.contains("archive"), "Should contain archive schema from SampleData")
+    }
 
-        let meta = PostgresMetadata()
-        let byTable = try await meta.columnsByTable(using: client, schema: schema)
+    // MARK: - Tables and Views
 
-        // Debug output
-        print("Available tables in schema '\(schema)': \(byTable.keys.sorted())")
-        print("Looking for table: '\(table)'")
+    func testListTablesAndViewsInPublicSchema() async throws {
+        let objects = try await meta.listTablesAndViews(using: client, schema: "public")
+        let names = objects.map { $0.name }
+        // SampleData creates type tables in public schema
+        XCTAssertTrue(names.contains("numeric_types"), "Should find numeric_types table")
+        XCTAssertTrue(names.contains("text_types"), "Should find text_types table")
+    }
 
+    func testListTablesAndViewsInAppSchema() async throws {
+        let objects = try await meta.listTablesAndViews(using: client, schema: "app")
+        let names = objects.map { $0.name }
+        XCTAssertTrue(names.contains("users"), "Should find app.users table")
+        XCTAssertTrue(names.contains("posts"), "Should find app.posts table")
+    }
+
+    // MARK: - Columns
+
+    func testListColumnsForTable() async throws {
+        let table = uniqueName()
+        let refTable = uniqueName("ref")
+        defer { Task {
+            _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table) CASCADE")
+            _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(refTable) CASCADE")
+        }}
+
+        _ = try await client.simpleQuery("CREATE TABLE \(refTable) (id INT PRIMARY KEY, description TEXT)")
+        _ = try await client.simpleQuery("CREATE TABLE \(table) (id INT PRIMARY KEY, name TEXT, ref_id INT)")
+        _ = try await client.simpleQuery("ALTER TABLE \(table) ADD CONSTRAINT fk_\(table) FOREIGN KEY (ref_id) REFERENCES \(refTable)(id)")
+
+        let byTable = try await meta.columnsByTable(using: client, schema: "public")
         guard let details = byTable[table] else {
-            // Try to get more debug info
-            do {
-                let availableTables = try await meta.listTablesAndViews(using: client, schema: schema)
-                print("Tables from listTablesAndViews: \(availableTables.map { $0.name }.sorted())")
-            } catch {
-                print("Failed to list tables: \(error)")
-            }
             return XCTFail("Expected details for table \(table)")
         }
 
-        // Expect id, name, ref_id
         let names = Set(details.map { $0.name })
         XCTAssertTrue(names.contains("id"))
         XCTAssertTrue(names.contains("name"))
         XCTAssertTrue(names.contains("ref_id"))
-        // Primary key on id
         XCTAssertTrue(details.first(where: { $0.name == "id" })?.isPrimaryKey == true)
-        // Foreign key on ref_id
         XCTAssertNotNil(details.first(where: { $0.name == "ref_id" })?.foreignKey)
+    }
+
+    func testListColumnsForSampleDataTable() async throws {
+        let columns = try await meta.listColumns(using: client, schema: "app", table: "users")
+        let names = columns.map { $0.name }
+        XCTAssertTrue(names.contains("id"), "Should have id column")
+        XCTAssertTrue(names.contains("username"), "Should have username column")
+        XCTAssertTrue(names.contains("email"), "Should have email column")
+    }
+
+    // MARK: - Foreign Key Detection
+
+    func testForeignKeyDetection() async throws {
+        let fks = try await meta.foreignKeys(using: client, schema: "app", table: "posts")
+        XCTAssertFalse(fks.isEmpty, "app.posts should have foreign keys")
+        // posts references users
+        let userFK = fks.first { $0.referencedTable == "users" }
+        XCTAssertNotNil(userFK, "Should have FK referencing users")
+    }
+
+    // MARK: - Primary Key
+
+    func testPrimaryKeyDetection() async throws {
+        let pk = try await meta.primaryKey(using: client, schema: "app", table: "users")
+        XCTAssertNotNil(pk, "app.users should have a primary key")
+        XCTAssertTrue(pk?.columns.contains("id") == true)
+    }
+
+    // MARK: - Index Introspection
+
+    func testListIndexes() async throws {
+        let table = uniqueName()
+        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+
+        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, name TEXT, email TEXT)")
+        _ = try await client.simpleQuery("CREATE INDEX idx_\(table)_name ON \(table) (name)")
+        _ = try await client.simpleQuery("CREATE UNIQUE INDEX idx_\(table)_email ON \(table) (email)")
+
+        let indexes = try await meta.listIndexes(using: client, schema: "public", table: table)
+        XCTAssertGreaterThanOrEqual(indexes.count, 2, "Should have at least PK index + name index + email index")
+
+        let nameIdx = indexes.first { $0.name.contains("name") }
+        XCTAssertNotNil(nameIdx, "Should have name index")
+
+        let emailIdx = indexes.first { $0.name.contains("email") }
+        XCTAssertNotNil(emailIdx, "Should have email index")
+    }
+
+    // MARK: - Unique Constraints
+
+    func testUniqueConstraints() async throws {
+        let table = uniqueName()
+        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+
+        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, code TEXT UNIQUE, email TEXT)")
+        _ = try await client.simpleQuery("ALTER TABLE \(table) ADD CONSTRAINT uq_\(table)_email UNIQUE (email)")
+
+        let constraints = try await meta.uniqueConstraints(using: client, schema: "public", table: table)
+        XCTAssertGreaterThanOrEqual(constraints.count, 2, "Should have at least 2 unique constraints (code + email)")
+    }
+
+    // MARK: - View Definition
+
+    func testViewDefinition() async throws {
+        let def = try await meta.viewDefinition(using: client, schema: "app", view: "active_users")
+        XCTAssertNotNil(def, "Should find active_users view definition")
+        if let def = def {
+            XCTAssertTrue(def.lowercased().contains("select"), "View definition should contain SELECT")
+        }
+    }
+
+    // MARK: - Databases
+
+    func testListDatabases() async throws {
+        let databases = try await meta.listDatabases(using: client)
+        XCTAssertFalse(databases.isEmpty, "Should list at least one database")
+        XCTAssertTrue(databases.contains(TestEnv.database), "Should contain the test database")
+    }
+
+    // MARK: - Extensions
+
+    func testListExtensions() async throws {
+        let extensions = try await meta.listExtensions(using: client)
+        let names = extensions.map { $0.name }
+        XCTAssertTrue(names.contains("plpgsql"), "Should have plpgsql extension")
+        // SampleData installs these
+        XCTAssertTrue(names.contains("hstore"), "Should have hstore extension from SampleData")
+    }
+
+    // MARK: - Roles
+
+    func testListRoles() async throws {
+        let roles = try await meta.listRoles(using: client)
+        XCTAssertFalse(roles.isEmpty, "Should list at least one role")
+        // SampleData creates test roles
+        let roleNames = roles.map { $0.name }
+        XCTAssertTrue(roleNames.contains("test_readonly"), "Should have test_readonly role from SampleData")
+    }
+
+    // MARK: - Schema Summary
+
+    func testSchemaSummary() async throws {
+        let summary = try await meta.schemaSummary(using: client, schema: "app")
+        XCTAssertFalse(summary.tables.isEmpty, "App schema should have tables")
     }
 }

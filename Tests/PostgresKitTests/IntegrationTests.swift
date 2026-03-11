@@ -62,7 +62,7 @@ final class IntegrationTests: PostgresKitTestCase {
         
         // Check if our sample users table exists and has data
         do {
-            let rows = try await connectedClient.simpleQuery("SELECT count(*) FROM users")
+            let rows = try await connectedClient.simpleQuery("SELECT count(*) FROM app.users")
             var countFound = false
             for try await count in rows.decode(Int64.self) {
                 XCTAssertGreaterThan(count, 0, "Sample data should have at least one user")

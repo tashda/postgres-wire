@@ -194,7 +194,7 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
 
         _ = try await client.createFunction(
             name: name,
-            parameters: [.init(name: "x", type: "INTEGER"), .init(name: "y", type: "INTEGER")],
+            parameters: [.init(name: "x", dataType: "INTEGER"), .init(name: "y", dataType: "INTEGER")],
             returnType: "INTEGER",
             body: "SELECT x + y;",
             language: .sql,

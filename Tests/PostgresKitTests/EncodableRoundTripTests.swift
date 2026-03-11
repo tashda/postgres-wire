@@ -4,12 +4,13 @@ import Logging
 
 /// Integration tests for custom PostgresEncodable types (IPAddress, MACAddress).
 /// Verifies that encode(into:) produces data that PostgreSQL accepts and returns correctly.
-final class EncodableRoundTripTests: XCTestCase {
+final class EncodableRoundTripTests: PostgresKitTestCase {
     private var client: PostgresDatabaseClient!
 
     override func setUp() async throws {
+        try await super.setUp()
         TestEnv.loadDotEnv()
-        guard ProcessInfo.processInfo.environment["POSTGRES_HOST"] != nil else {
+        guard TestEnv.isConfigured else {
             throw XCTSkip("POSTGRES_HOST not set. Copy .env.example to .env and configure connection.")
         }
         let config = PostgresConfiguration(

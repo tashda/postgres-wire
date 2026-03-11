@@ -1,7 +1,7 @@
 @testable import PostgresKit
 import XCTest
 
-final class SearchSQLTests: XCTestCase {
+final class SearchSQLTests: PostgresKitTestCase {
 
     // MARK: - makeLikePattern
 

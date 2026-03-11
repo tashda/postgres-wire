@@ -2,7 +2,7 @@ name: Build and Test
 
 on:
   push:
-    branches: ["dev"]
+    branches: ["dev", "main"]
   pull_request:
     branches: ["main"]
 
@@ -10,7 +10,6 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,31 +17,15 @@ jobs:
       - name: Setup Swift
         uses: swift-actions/setup-swift@v2
         with:
-          swift-version: '6.0'
+          swift-version: '6.2'
 
       - name: Build
         run: swift build
 
-  test:
-    name: Test
+  unit-tests:
+    name: Unit Tests (PostgresWire)
     needs: build
     runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: postgres_wire_test
-          POSTGRES_USER: test_user
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,19 +33,31 @@ jobs:
       - name: Setup Swift
         uses: swift-actions/setup-swift@v2
         with:
-          swift-version: '6.0'
+          swift-version: '6.2'
 
-      - name: Run Tests
+      - name: Run Unit Tests
+        run: swift test --filter PostgresWireTests
+
+  integration-tests:
+    name: Integration Tests (Postgres ${{ matrix.postgres-version }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres-version: ["14", "15", "16", "17", "18", "latest"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: '6.2'
+
+      - name: Run Integration Tests
         env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_DATABASE: postgres_wire_test
-          POSTGRES_USERNAME: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_TLS: "false"
-          TEST_POSTGRES_HOST: localhost
-          TEST_POSTGRES_PORT: "5432"
-          TEST_POSTGRES_DB: postgres_wire_test
-          TEST_POSTGRES_USER: test_user
-          TEST_POSTGRES_PASSWORD: test_password
-        run: swift test
+          USE_DOCKER: "1"
+          POSTGRES_VERSION: ${{ matrix.postgres-version }}
+          POSTGRES_PORT: "54321"
+        run: swift test --filter PostgresKitTests

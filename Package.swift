@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 import PackageDescription
 
 let package = Package(
@@ -45,7 +45,7 @@ let package = Package(
                 .product(name: "PostgresNIO", package: "postgres-nio")
             ],
             path: "Tests/PostgresKitTests",
-            exclude: ["README.md"]
+            exclude: ["README.md", "Support/SampleData.sql"]
         )
     ]
 )

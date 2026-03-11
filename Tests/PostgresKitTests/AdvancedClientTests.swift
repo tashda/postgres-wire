@@ -5,12 +5,13 @@ import Logging
 /// Tests client operations not covered elsewhere:
 /// schema ops, enum types, column alters, DML helpers, advisory locks,
 /// server config, cursor streaming, copyTable, createTableAs.
-final class AdvancedClientTests: XCTestCase {
+final class AdvancedClientTests: PostgresKitTestCase {
     private var client: PostgresDatabaseClient!
 
     override func setUp() async throws {
+        try await super.setUp()
         TestEnv.loadDotEnv()
-        guard ProcessInfo.processInfo.environment["POSTGRES_HOST"] != nil else {
+        guard TestEnv.isConfigured else {
             throw XCTSkip("POSTGRES_HOST not set. Copy .env.example to .env and configure connection.")
         }
         let config = PostgresConfiguration(
@@ -342,6 +343,10 @@ final class AdvancedClientTests: XCTestCase {
         XCTAssertFalse(currentVal.isEmpty, "work_mem should be set")
 
         try await client.resetConfiguration(parameter: "work_mem")
+        let restored = try await client.simpleQuery("SHOW work_mem")
+        var restoredVal = ""
+        for try await v in restored.decode(String.self) { restoredVal = v; break }
+        XCTAssertEqual(restoredVal, originalVal, "work_mem should be restored to its original value")
     }
 
     // MARK: - Cursor Streaming

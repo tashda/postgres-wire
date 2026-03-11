@@ -190,7 +190,7 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
 
     func testCreateAndDropFunction() async throws {
         let name = uniqueName("fn")
-        defer { Task { _ = try? await client.dropFunction(name: name, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropFunction(name: name, ifExists: true) } }
 
         _ = try await client.createFunction(
             name: name,
@@ -218,7 +218,7 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
         let table = uniqueName("table")
         let fnName = uniqueName("trfn")
         let trigName = uniqueName("tr")
-        defer { Task {
+        defer { Task { [client = self.client!] in
             _ = try? await client.dropTrigger(name: trigName, table: table, ifExists: true)
             _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)")
             _ = try? await client.dropFunction(name: fnName, ifExists: true)

@@ -64,7 +64,7 @@ final class MetadataIntegrationTests: PostgresKitTestCase {
     func testListColumnsForTable() async throws {
         let table = uniqueName()
         let refTable = uniqueName("ref")
-        defer { Task {
+        defer { Task { [client = self.client!] in
             _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table) CASCADE")
             _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(refTable) CASCADE")
         }}
@@ -116,7 +116,7 @@ final class MetadataIntegrationTests: PostgresKitTestCase {
 
     func testListIndexes() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
 
         _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, name TEXT, email TEXT)")
         _ = try await client.simpleQuery("CREATE INDEX idx_\(table)_name ON \(table) (name)")
@@ -136,7 +136,7 @@ final class MetadataIntegrationTests: PostgresKitTestCase {
 
     func testUniqueConstraints() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
 
         _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, code TEXT UNIQUE, email TEXT)")
         _ = try await client.simpleQuery("ALTER TABLE \(table) ADD CONSTRAINT uq_\(table)_email UNIQUE (email)")
@@ -187,6 +187,6 @@ final class MetadataIntegrationTests: PostgresKitTestCase {
 
     func testSchemaSummary() async throws {
         let summary = try await meta.schemaSummary(using: client, schema: "app")
-        XCTAssertFalse(summary.tables.isEmpty, "App schema should have tables")
+        XCTAssertFalse(summary.objects.filter { $0.type == .table }.isEmpty, "App schema should have tables")
     }
 }

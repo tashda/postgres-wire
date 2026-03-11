@@ -33,7 +33,7 @@ final class ErrorIntegrationTests: PostgresKitTestCase {
 
     func testUniqueViolationThrowsPostgresError() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -61,7 +61,7 @@ final class ErrorIntegrationTests: PostgresKitTestCase {
     func testForeignKeyViolationThrowsPostgresError() async throws {
         let parent = uniqueName("parent")
         let child = uniqueName("child")
-        defer { Task {
+        defer { Task { [client = self.client!] in
             _ = try? await client.dropTable(name: child, ifExists: true)
             _ = try? await client.dropTable(name: parent, ifExists: true)
         }}
@@ -122,7 +122,7 @@ final class ErrorIntegrationTests: PostgresKitTestCase {
 
     func testExecuteWithEnhancedErrorUniqueViolation() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -154,7 +154,7 @@ final class ErrorIntegrationTests: PostgresKitTestCase {
     func testExecuteWithEnhancedErrorForeignKeyViolation() async throws {
         let parent = uniqueName("parent")
         let child = uniqueName("child")
-        defer { Task {
+        defer { Task { [client = self.client!] in
             _ = try? await client.dropTable(name: child, ifExists: true)
             _ = try? await client.dropTable(name: parent, ifExists: true)
         }}
@@ -190,7 +190,7 @@ final class ErrorIntegrationTests: PostgresKitTestCase {
 
     func testTraditionalCatchConvertsToPostgresError() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),

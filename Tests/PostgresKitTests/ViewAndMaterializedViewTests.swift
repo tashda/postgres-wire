@@ -60,7 +60,7 @@ final class ViewAndMaterializedViewTests: PostgresKitTestCase {
 
     func testCreateAndDropView() async throws {
         let name = uniqueName()
-        defer { Task { _ = try? await client.dropView(name: name, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropView(name: name, ifExists: true) } }
 
         _ = try await client.createView(name: name, query: "SELECT 1 AS val, 'test'::text AS label")
 
@@ -78,7 +78,7 @@ final class ViewAndMaterializedViewTests: PostgresKitTestCase {
 
     func testCreateOrReplaceView() async throws {
         let name = uniqueName()
-        defer { Task { _ = try? await client.dropView(name: name, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropView(name: name, ifExists: true) } }
 
         _ = try await client.createView(name: name, query: "SELECT 1 AS val")
         _ = try await client.createView(name: name, query: "SELECT 2 AS val", orReplace: true)
@@ -96,7 +96,7 @@ final class ViewAndMaterializedViewTests: PostgresKitTestCase {
 
     func testCreateAndDropMaterializedView() async throws {
         let name = uniqueName("mv")
-        defer { Task { _ = try? await client.dropMaterializedView(name: name, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropMaterializedView(name: name, ifExists: true) } }
 
         _ = try await client.createMaterializedView(name: name, query: "SELECT generate_series(1, 5) AS n")
 
@@ -110,7 +110,7 @@ final class ViewAndMaterializedViewTests: PostgresKitTestCase {
 
     func testRefreshMaterializedView() async throws {
         let name = uniqueName("mv")
-        defer { Task { _ = try? await client.dropMaterializedView(name: name, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropMaterializedView(name: name, ifExists: true) } }
 
         // Create matview based on current time
         _ = try await client.createMaterializedView(name: name, query: "SELECT now() AS captured_at")
@@ -159,7 +159,7 @@ final class ViewAndMaterializedViewTests: PostgresKitTestCase {
         let base = uniqueName("base")
         let dependent = uniqueName("dep")
         defer {
-            Task {
+            Task { [client = self.client!] in
                 _ = try? await client.dropView(name: dependent, ifExists: true)
                 _ = try? await client.dropView(name: base, ifExists: true)
             }

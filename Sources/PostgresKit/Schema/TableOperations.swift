@@ -66,8 +66,9 @@ public extension PostgresDatabaseClient {
 
     /// Rename an existing table.
     @discardableResult
-    func renameTable(oldName: String, newName: String) async throws -> Int {
-        let sql = "ALTER TABLE \(quoteIdentifier(oldName)) RENAME TO \(quoteIdentifier(newName))"
+    func renameTable(oldName: String, newName: String, schema: String? = nil) async throws -> Int {
+        let qualifiedOldName = schema.map { "\(quoteIdentifier($0)).\(quoteIdentifier(oldName))" } ?? quoteIdentifier(oldName)
+        let sql = "ALTER TABLE \(qualifiedOldName) RENAME TO \(quoteIdentifier(newName))"
         return try await executeDDL(sql)
     }
 

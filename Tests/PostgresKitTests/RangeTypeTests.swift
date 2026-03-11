@@ -147,7 +147,7 @@ final class RangeTypeTests: PostgresKitTestCase {
 
     func testRangeInsertRoundTrip() async throws {
         let table = "rt_range_\(UInt32.random(in: 0..<UInt32.max))"
-        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
 
         _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, r INT4RANGE)")
         _ = try await client.simpleQuery("INSERT INTO \(table) (r) VALUES ('[10,20)'), ('[100,200]'), ('empty')")

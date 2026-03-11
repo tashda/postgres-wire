@@ -31,7 +31,7 @@ final class ForeignKeyConstraintTests: PostgresKitTestCase {
     func testForeignKeyEnforcesReferentialIntegrity() async throws {
         let parent = uniqueName("parent")
         let child = uniqueName("child")
-        defer { Task {
+        defer { Task { [client = self.client!] in
             _ = try? await client.dropTable(name: child, ifExists: true)
             _ = try? await client.dropTable(name: parent, ifExists: true)
         }}
@@ -74,7 +74,7 @@ final class ForeignKeyConstraintTests: PostgresKitTestCase {
     func testForeignKeyCascadeDelete() async throws {
         let parent = uniqueName("parent")
         let child = uniqueName("child")
-        defer { Task {
+        defer { Task { [client = self.client!] in
             _ = try? await client.dropTable(name: child, ifExists: true)
             _ = try? await client.dropTable(name: parent, ifExists: true)
         }}
@@ -125,7 +125,7 @@ final class ForeignKeyConstraintTests: PostgresKitTestCase {
     func testForeignKeySetNull() async throws {
         let parent = uniqueName("parent")
         let child = uniqueName("child")
-        defer { Task {
+        defer { Task { [client = self.client!] in
             _ = try? await client.dropTable(name: child, ifExists: true)
             _ = try? await client.dropTable(name: parent, ifExists: true)
         }}
@@ -170,7 +170,7 @@ final class ForeignKeyConstraintTests: PostgresKitTestCase {
     func testForeignKeyRestrictDelete() async throws {
         let parent = uniqueName("parent")
         let child = uniqueName("child")
-        defer { Task {
+        defer { Task { [client = self.client!] in
             _ = try? await client.dropTable(name: child, ifExists: true)
             _ = try? await client.dropTable(name: parent, ifExists: true)
         }}
@@ -213,7 +213,7 @@ final class ForeignKeyConstraintTests: PostgresKitTestCase {
     func testForeignKeyWithUUID() async throws {
         let parent = uniqueName("parent")
         let child = uniqueName("child")
-        defer { Task {
+        defer { Task { [client = self.client!] in
             _ = try? await client.dropTable(name: child, ifExists: true)
             _ = try? await client.dropTable(name: parent, ifExists: true)
         }}

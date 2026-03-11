@@ -30,7 +30,7 @@ final class PrimaryKeyConstraintTests: PostgresKitTestCase {
 
     func testAddPrimaryKeyToExistingColumn() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id"),
@@ -51,7 +51,7 @@ final class PrimaryKeyConstraintTests: PostgresKitTestCase {
 
     func testPrimaryKeyViolation() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id"),
@@ -73,7 +73,7 @@ final class PrimaryKeyConstraintTests: PostgresKitTestCase {
 
     func testBigSerialPrimaryKey() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -93,7 +93,7 @@ final class PrimaryKeyConstraintTests: PostgresKitTestCase {
 
     func testCompositePrimaryKey() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .text(name: "department", nullable: false),
@@ -122,7 +122,7 @@ final class PrimaryKeyConstraintTests: PostgresKitTestCase {
 
     func testUUIDPrimaryKey() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .uuid(name: "id", nullable: false),
@@ -145,7 +145,7 @@ final class PrimaryKeyConstraintTests: PostgresKitTestCase {
 
     func testTextPrimaryKey() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .varchar(name: "code", length: 20, nullable: false),

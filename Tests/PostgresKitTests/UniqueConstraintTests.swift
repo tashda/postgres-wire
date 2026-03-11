@@ -30,7 +30,7 @@ final class UniqueConstraintTests: PostgresKitTestCase {
 
     func testUniqueConstraintOnVarchar() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -51,7 +51,7 @@ final class UniqueConstraintTests: PostgresKitTestCase {
 
     func testUniqueConstraintOnUUID() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -73,7 +73,7 @@ final class UniqueConstraintTests: PostgresKitTestCase {
 
     func testUniqueConstraintOnEmail() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -96,7 +96,7 @@ final class UniqueConstraintTests: PostgresKitTestCase {
 
     func testCompositeUniqueConstraint() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -131,7 +131,7 @@ final class UniqueConstraintTests: PostgresKitTestCase {
 
     func testUniqueConstraintAllowsMultipleNulls() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -153,7 +153,7 @@ final class UniqueConstraintTests: PostgresKitTestCase {
 
     func testUniqueConstraintOnMacaddr() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -174,7 +174,7 @@ final class UniqueConstraintTests: PostgresKitTestCase {
 
     func testUniqueConstraintOnInet() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),

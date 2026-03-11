@@ -142,14 +142,14 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
 
     func testCreateAndDropUser() async throws {
         let roleName = uniqueName()
-        defer { Task { _ = try? await client.dropUser(name: roleName, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropUser(name: roleName, ifExists: true) } }
 
         _ = try await client.createUser(
             name: roleName,
             password: "testpw123",
-            login: true,
             createDatabase: false,
-            createRole: false
+            createRole: false,
+            login: true
         )
 
         // Verify role exists
@@ -170,9 +170,9 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
 
     func testAlterUser() async throws {
         let roleName = uniqueName()
-        defer { Task { _ = try? await client.dropUser(name: roleName, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropUser(name: roleName, ifExists: true) } }
 
-        _ = try await client.createUser(name: roleName, login: false, createDatabase: false, createRole: false)
+        _ = try await client.createUser(name: roleName, createDatabase: false, createRole: false, login: false)
 
         // Enable login
         _ = try await client.alterUser(name: roleName, login: true)
@@ -188,12 +188,12 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
     func testGrantAndRevokeTablePrivileges() async throws {
         let roleName = uniqueName()
         let table = uniqueName("tbl")
-        defer { Task {
+        defer { Task { [client = self.client!] in
             _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)")
             _ = try? await client.dropUser(name: roleName, ifExists: true)
         }}
 
-        _ = try await client.createUser(name: roleName, login: false, createDatabase: false, createRole: false)
+        _ = try await client.createUser(name: roleName, createDatabase: false, createRole: false, login: false)
         _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, name TEXT)")
 
         // Grant SELECT
@@ -216,12 +216,12 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
     func testGrantMultiplePrivileges() async throws {
         let roleName = uniqueName()
         let table = uniqueName("tbl")
-        defer { Task {
+        defer { Task { [client = self.client!] in
             _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)")
             _ = try? await client.dropUser(name: roleName, ifExists: true)
         }}
 
-        _ = try await client.createUser(name: roleName, login: false, createDatabase: false, createRole: false)
+        _ = try await client.createUser(name: roleName, createDatabase: false, createRole: false, login: false)
         _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, name TEXT)")
 
         _ = try await client.grantPrivileges(privileges: [.select, .insert, .update], onTable: table, to: roleName)
@@ -246,13 +246,13 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
     func testGrantAndRevokeRole() async throws {
         let parentRole = uniqueName("parent")
         let childRole = uniqueName("child")
-        defer { Task {
+        defer { Task { [client = self.client!] in
             _ = try? await client.dropUser(name: childRole, ifExists: true)
             _ = try? await client.dropUser(name: parentRole, ifExists: true)
         }}
 
-        _ = try await client.createUser(name: parentRole, login: false, createDatabase: false, createRole: false)
-        _ = try await client.createUser(name: childRole, login: false, createDatabase: false, createRole: false)
+        _ = try await client.createUser(name: parentRole, createDatabase: false, createRole: false, login: false)
+        _ = try await client.createUser(name: childRole, createDatabase: false, createRole: false, login: false)
 
         // Grant parentRole to childRole
         _ = try await client.grantRole(role: parentRole, to: childRole)
@@ -286,9 +286,9 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
 
     func testRoleComment() async throws {
         let roleName = uniqueName()
-        defer { Task { _ = try? await client.dropUser(name: roleName, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropUser(name: roleName, ifExists: true) } }
 
-        _ = try await client.createUser(name: roleName, login: false, createDatabase: false, createRole: false)
+        _ = try await client.createUser(name: roleName, createDatabase: false, createRole: false, login: false)
         try await client.setRoleComment(role: roleName, comment: "Test role for integration tests")
 
         let rows = try await client.simpleQuery("""

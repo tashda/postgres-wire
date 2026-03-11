@@ -260,7 +260,7 @@ final class DataTypeRoundTripTests: PostgresKitTestCase {
 
     func testInsertAndReadBackInteger() async throws {
         let table = "rt_int_\(UInt32.random(in: 0..<UInt32.max))"
-        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
 
         _ = try await client.simpleQuery("CREATE TABLE \(table) (val INTEGER)")
         _ = try await client.insert(into: table, columns: ["val"], values: [[42]])
@@ -276,7 +276,7 @@ final class DataTypeRoundTripTests: PostgresKitTestCase {
 
     func testInsertAndReadBackText() async throws {
         let table = "rt_text_\(UInt32.random(in: 0..<UInt32.max))"
-        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
 
         _ = try await client.simpleQuery("CREATE TABLE \(table) (val TEXT)")
         _ = try await client.insert(into: table, columns: ["val"], values: [["Hello 日本語 🎉"]])
@@ -292,7 +292,7 @@ final class DataTypeRoundTripTests: PostgresKitTestCase {
 
     func testInsertAndReadBackUUID() async throws {
         let table = "rt_uuid_\(UInt32.random(in: 0..<UInt32.max))"
-        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
 
         let uuid = UUID()
         _ = try await client.simpleQuery("CREATE TABLE \(table) (val UUID)")
@@ -309,7 +309,7 @@ final class DataTypeRoundTripTests: PostgresKitTestCase {
 
     func testInsertAndReadBackBoolean() async throws {
         let table = "rt_bool_\(UInt32.random(in: 0..<UInt32.max))"
-        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
 
         _ = try await client.simpleQuery("CREATE TABLE \(table) (val BOOLEAN)")
         _ = try await client.insert(into: table, columns: ["val"], values: [[true], [false]])
@@ -322,7 +322,7 @@ final class DataTypeRoundTripTests: PostgresKitTestCase {
 
     func testInsertAndReadBackDate() async throws {
         let table = "rt_date_\(UInt32.random(in: 0..<UInt32.max))"
-        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
 
         _ = try await client.simpleQuery("CREATE TABLE \(table) (val DATE)")
         _ = try await client.insert(into: table, columns: ["val"], values: [[Date(timeIntervalSince1970: 0)]])

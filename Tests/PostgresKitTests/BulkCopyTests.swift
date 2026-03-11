@@ -35,7 +35,7 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyOutBasicCSV() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
 
         _ = try await client.simpleQuery("CREATE TABLE \(table) (id INTEGER, name TEXT, score INTEGER)")
         _ = try await client.simpleQuery("INSERT INTO \(table) VALUES (1, 'Alice', 95), (2, 'Bob', 87), (3, 'Carol', 92)")
@@ -59,7 +59,7 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyOutEmptyTable() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
 
         _ = try await client.simpleQuery("CREATE TABLE \(table) (id INTEGER, name TEXT)")
 
@@ -77,7 +77,7 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyOutWithNulls() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
 
         _ = try await client.simpleQuery("CREATE TABLE \(table) (id INTEGER, name TEXT, notes TEXT)")
         _ = try await client.simpleQuery("INSERT INTO \(table) VALUES (1, 'Alice', NULL), (2, NULL, 'has notes')")
@@ -94,7 +94,7 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyOutWithSpecialCharacters() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
 
         _ = try await client.simpleQuery("CREATE TABLE \(table) (id INTEGER, name TEXT)")
         _ = try await client.simpleQuery("INSERT INTO \(table) VALUES (1, 'O''Brien'), (2, 'Hello, World'), (3, 'Line1')")
@@ -116,7 +116,7 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyInBasicCSV() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
 
         _ = try await client.simpleQuery("CREATE TABLE \(table) (id INTEGER, name TEXT, score INTEGER)")
 
@@ -140,7 +140,7 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyInLargeDataset() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
 
         _ = try await client.simpleQuery("CREATE TABLE \(table) (id INTEGER, value TEXT)")
 
@@ -179,7 +179,7 @@ final class BulkCopyTests: PostgresKitTestCase {
     func testCopyOutThenCopyIn() async throws {
         let sourceTable = uniqueName("src")
         let destTable = uniqueName("dst")
-        defer { Task {
+        defer { Task { [client = self.client!] in
             _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(sourceTable)")
             _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(destTable)")
         }}
@@ -216,7 +216,7 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testBulkCopyWithCustomOptions() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
 
         _ = try await client.simpleQuery("CREATE TABLE \(table) (id INTEGER, name TEXT)")
 

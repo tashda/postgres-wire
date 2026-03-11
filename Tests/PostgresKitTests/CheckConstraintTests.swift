@@ -34,7 +34,7 @@ final class CheckConstraintTests: PostgresKitTestCase {
 
     func testCheckConstraintNumericRange() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -71,7 +71,7 @@ final class CheckConstraintTests: PostgresKitTestCase {
 
     func testCheckConstraintPositiveDecimal() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -105,7 +105,7 @@ final class CheckConstraintTests: PostgresKitTestCase {
 
     func testCheckConstraintStringLength() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -131,7 +131,7 @@ final class CheckConstraintTests: PostgresKitTestCase {
 
     func testCheckConstraintEmailPattern() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -158,7 +158,7 @@ final class CheckConstraintTests: PostgresKitTestCase {
 
     func testCheckConstraintStatusValues() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -185,7 +185,7 @@ final class CheckConstraintTests: PostgresKitTestCase {
 
     func testCheckConstraintJSONBType() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -214,7 +214,7 @@ final class CheckConstraintTests: PostgresKitTestCase {
 
     func testCheckConstraintDateOrdering() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -245,7 +245,7 @@ final class CheckConstraintTests: PostgresKitTestCase {
 
     func testCheckConstraintBooleanLogic() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
@@ -287,7 +287,7 @@ final class CheckConstraintTests: PostgresKitTestCase {
 
     func testCheckConstraintEmployeeCodeFormat() async throws {
         let table = uniqueName()
-        defer { Task { _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
         _ = try await client.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),

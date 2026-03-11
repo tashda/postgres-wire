@@ -2,25 +2,17 @@ import XCTest
 @testable import PostgresWire
 @testable import PostgresKit
 
-final class PostgresExecutionOptionsTests: XCTestCase {
+final class PostgresExecutionOptionsTests: PostgresKitTestCase {
     func testSimpleQueryWithOptionsIfConfigured() async throws {
-        guard let host = ProcessInfo.processInfo.environment["POSTGRES_HOST"],
-              let portValue = ProcessInfo.processInfo.environment["POSTGRES_PORT"],
-              let port = Int(portValue),
-              let user = ProcessInfo.processInfo.environment["POSTGRES_USERNAME"],
-              let pass = ProcessInfo.processInfo.environment["POSTGRES_PASSWORD"],
-              let db = ProcessInfo.processInfo.environment["POSTGRES_DATABASE"]
-        else {
-            throw XCTSkip("Postgres credentials not configured")
-        }
+        guard TestEnv.isConfigured else { throw XCTSkip("Postgres environment not set") }
 
         let config = PostgresConfiguration(
-            host: host,
-            port: port,
-            database: db,
-            username: user,
-            password: pass,
-            useTLS: false
+            host: TestEnv.host,
+            port: TestEnv.port,
+            database: TestEnv.database,
+            username: TestEnv.username,
+            password: TestEnv.password,
+            useTLS: TestEnv.useTLS
         )
         let client = try await PostgresDatabaseClient.connect(configuration: config)
         defer { client.close() }

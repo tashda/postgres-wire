@@ -2,12 +2,13 @@
 import XCTest
 import Logging
 
-final class MetadataIntegrationTests: XCTestCase {
+final class MetadataIntegrationTests: PostgresKitTestCase {
     var client: PostgresDatabaseClient!
 
     override func setUp() async throws {
+        try await super.setUp()
         TestEnv.loadDotEnv()
-        guard ProcessInfo.processInfo.environment["POSTGRES_HOST"] != nil else {
+        guard TestEnv.isConfigured else {
             throw XCTSkip("POSTGRES_HOST not set; skipping integration test")
         }
         let logger = Logger(label: "postgres-kit-tests")

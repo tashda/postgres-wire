@@ -3,7 +3,7 @@ import PostgresNIO
 @testable import PostgresKit
 import PostgresWire
 
-final class DebugErrorConversionTest: XCTestCase {
+final class DebugErrorConversionTest: PostgresKitTestCase {
 
     func testDirectPSQLErrorConversion() throws {
         print("🧪 Testing direct PSQLError conversion...")

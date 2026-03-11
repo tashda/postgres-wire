@@ -1,7 +1,7 @@
 import XCTest
 @testable import PostgresKit
 
-final class LRUCacheTests: XCTestCase {
+final class LRUCacheTests: PostgresKitTestCase {
 
     // MARK: - Basic operations
 

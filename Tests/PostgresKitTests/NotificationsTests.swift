@@ -10,12 +10,13 @@ private actor NotificationCollector {
     func first() -> PostgresNotification? { notifications.first }
 }
 
-final class NotificationsTests: XCTestCase {
+final class NotificationsTests: PostgresKitTestCase {
     private var client: PostgresDatabaseClient!
 
     override func setUp() async throws {
+        try await super.setUp()
         TestEnv.loadDotEnv()
-        guard ProcessInfo.processInfo.environment["POSTGRES_HOST"] != nil else {
+        guard TestEnv.isConfigured else {
             throw XCTSkip("POSTGRES_HOST not set. Copy .env.example to .env and configure connection.")
         }
         let config = PostgresConfiguration(

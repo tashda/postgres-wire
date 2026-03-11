@@ -1,7 +1,7 @@
 import XCTest
 @testable import PostgresKit
 
-final class DecodingTests: XCTestCase {
+final class DecodingTests: PostgresKitTestCase {
 
     func testCountQueryDecoding() async throws {
         // This test would require a database connection, but let's create a simple structure

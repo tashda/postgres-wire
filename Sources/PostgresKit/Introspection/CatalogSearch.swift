@@ -6,7 +6,7 @@ import Foundation
 public enum PostgresSearchSQL {
     private static let excludedSchemasList = "'pg_catalog','information_schema'"
 
-    public static func makeLikePattern(_ query: String) -> String {
+    static func makeLikePattern(_ query: String) -> String {
         var sanitized = query.trimmingCharacters(in: .whitespacesAndNewlines)
         sanitized = sanitized.replacingOccurrences(of: "\\", with: "\\\\")
         sanitized = sanitized.replacingOccurrences(of: "%", with: "\\%")
@@ -15,7 +15,7 @@ public enum PostgresSearchSQL {
         return sanitized
     }
 
-    public static func tables(pattern: String, limit: Int) -> String {
+    static func tables(pattern: String, limit: Int) -> String {
         """
         SELECT table_schema, table_name
         FROM information_schema.tables
@@ -27,7 +27,7 @@ public enum PostgresSearchSQL {
         """
     }
 
-    public static func views(pattern: String, limit: Int) -> String {
+    static func views(pattern: String, limit: Int) -> String {
         """
         SELECT table_schema, table_name, view_definition
         FROM information_schema.views
@@ -40,7 +40,7 @@ public enum PostgresSearchSQL {
         """
     }
 
-    public static func materializedViews(pattern: String, limit: Int) -> String {
+    static func materializedViews(pattern: String, limit: Int) -> String {
         """
         SELECT schemaname, matviewname, definition
         FROM pg_matviews
@@ -53,7 +53,7 @@ public enum PostgresSearchSQL {
         """
     }
 
-    public static func functions(pattern: String, limit: Int) -> String {
+    static func functions(pattern: String, limit: Int) -> String {
         """
         SELECT routine_schema, routine_name, routine_definition
         FROM information_schema.routines
@@ -68,7 +68,7 @@ public enum PostgresSearchSQL {
         """
     }
 
-    public static func procedures(pattern: String, limit: Int) -> String {
+    static func procedures(pattern: String, limit: Int) -> String {
         """
         SELECT routine_schema, routine_name, routine_definition
         FROM information_schema.routines
@@ -83,7 +83,7 @@ public enum PostgresSearchSQL {
         """
     }
 
-    public static func triggers(pattern: String, limit: Int) -> String {
+    static func triggers(pattern: String, limit: Int) -> String {
         """
         SELECT trigger_schema, event_object_table, trigger_name, action_statement
         FROM information_schema.triggers
@@ -98,7 +98,7 @@ public enum PostgresSearchSQL {
         """
     }
 
-    public static func columns(pattern: String, limit: Int) -> String {
+    static func columns(pattern: String, limit: Int) -> String {
         """
         SELECT table_schema, table_name, column_name, data_type
         FROM information_schema.columns
@@ -109,7 +109,7 @@ public enum PostgresSearchSQL {
         """
     }
 
-    public static func indexes(pattern: String, limit: Int) -> String {
+    static func indexes(pattern: String, limit: Int) -> String {
         """
         SELECT schemaname, tablename, indexname, indexdef
         FROM pg_indexes
@@ -124,7 +124,7 @@ public enum PostgresSearchSQL {
         """
     }
 
-    public static func foreignKeys(pattern: String, limit: Int) -> String {
+    static func foreignKeys(pattern: String, limit: Int) -> String {
         """
         WITH fk_data AS (
             SELECT

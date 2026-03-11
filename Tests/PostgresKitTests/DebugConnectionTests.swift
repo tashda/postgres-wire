@@ -2,7 +2,7 @@ import XCTest
 import Logging
 @testable import PostgresKit
 
-final class DebugConnectionTests: XCTestCase {
+final class DebugConnectionTests: PostgresKitTestCase {
     private var client: PostgresDatabaseClient!
     private var testLogger: Logger!
 
@@ -10,43 +10,23 @@ final class DebugConnectionTests: XCTestCase {
         try await super.setUp()
         testLogger = Logger(label: "debug-connection-tests")
 
-                guard let host = ProcessInfo.processInfo.environment["POSTGRES_HOST"],
-
-                      let user = ProcessInfo.processInfo.environment["POSTGRES_USERNAME"],
-
-                      let db = ProcessInfo.processInfo.environment["POSTGRES_DATABASE"],
-
-                      let portStr = ProcessInfo.processInfo.environment["POSTGRES_PORT"],
-
-                      let port = Int(portStr)
-
-                else {
-
-                    throw XCTSkip("POSTGRES_* environment not set; skipping integration test")
-
-                }
-
-        
-
-                let password = ProcessInfo.processInfo.environment["POSTGRES_PASSWORD"]
-
-                let useTLS = (ProcessInfo.processInfo.environment["POSTGRES_TLS"] ?? "false").lowercased() == "true"
+        guard TestEnv.isConfigured else { throw XCTSkip("Postgres environment not set") }
 
         print("🔍 Debug Connection Info:")
-        print("  Host: \(host)")
-        print("  Port: \(port)")
-        print("  Database: \(db)")
-        print("  Username: \(user)")
-        print("  Password: \(password != nil ? "***" : "nil")")
-        print("  TLS: \(useTLS)")
+        print("  Host: \(TestEnv.host)")
+        print("  Port: \(TestEnv.port)")
+        print("  Database: \(TestEnv.database)")
+        print("  Username: \(TestEnv.username)")
+        print("  Password: \(TestEnv.password != nil ? "***" : "nil")")
+        print("  TLS: \(TestEnv.useTLS)")
 
         let config = PostgresConfiguration(
-            host: host,
-            port: port,
-            database: db,
-            username: user,
-            password: password,
-            useTLS: useTLS,
+            host: TestEnv.host,
+            port: TestEnv.port,
+            database: TestEnv.database,
+            username: TestEnv.username,
+            password: TestEnv.password,
+            useTLS: TestEnv.useTLS,
             applicationName: "DebugConnectionTests"
         )
 
@@ -91,7 +71,7 @@ final class DebugConnectionTests: XCTestCase {
 
         do {
             // Clean up first
-            try? await client.simpleQuery("DROP TABLE IF EXISTS debug_test_table")
+            _ = try? await client.simpleQuery("DROP TABLE IF EXISTS debug_test_table")
 
             // Create table
             _ = try await client.simpleQuery("""

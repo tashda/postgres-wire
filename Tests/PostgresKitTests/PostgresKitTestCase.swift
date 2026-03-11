@@ -1,8 +1,24 @@
 import XCTest
 
 class PostgresKitTestCase: XCTestCase {
-    override func setUp() {
+    
+    override class func setUp() {
         super.setUp()
         TestEnv.loadDotEnv()
+    }
+    
+    override func setUp() async throws {
+        try await super.setUp()
+        
+        // Ensure Docker is started if required before ANY test logic runs
+        let useDocker = ProcessInfo.processInfo.environment["USE_DOCKER"]
+        if useDocker == "1" {
+            do {
+                try PostgresDockerManager.shared.startIfNeeded()
+            } catch {
+                XCTFail("Failed to start Postgres Docker container: \(error)")
+                throw error
+            }
+        }
     }
 }

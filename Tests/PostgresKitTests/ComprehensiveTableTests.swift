@@ -2,7 +2,7 @@ import XCTest
 import Logging
 @testable import PostgresKit
 
-final class ComprehensiveTableTests: XCTestCase {
+final class ComprehensiveTableTests: PostgresKitTestCase {
     private var client: PostgresDatabaseClient!
     private var testLogger: Logger!
 
@@ -10,35 +10,19 @@ final class ComprehensiveTableTests: XCTestCase {
         try await super.setUp()
         testLogger = Logger(label: "comprehensive-table-tests")
 
-                guard let host = ProcessInfo.processInfo.environment["POSTGRES_HOST"],
-
-                      let user = ProcessInfo.processInfo.environment["POSTGRES_USERNAME"],
-
-                      let db = ProcessInfo.processInfo.environment["POSTGRES_DATABASE"],
-
-                      let portStr = ProcessInfo.processInfo.environment["POSTGRES_PORT"],
-
-                      let port = Int(portStr)
-
-                else {
-
-                    throw XCTSkip("POSTGRES_* environment not set; skipping integration test")
-
-                }
+                guard TestEnv.isConfigured else { throw XCTSkip("Postgres environment not set") }
 
         
 
-                let password = ProcessInfo.processInfo.environment["POSTGRES_PASSWORD"]
 
-                let useTLS = (ProcessInfo.processInfo.environment["POSTGRES_TLS"] ?? "false").lowercased() == "true"
 
         let config = PostgresConfiguration(
-            host: host,
-            port: port,
-            database: db,
-            username: user,
-            password: password,
-            useTLS: useTLS,
+            host: TestEnv.host,
+            port: TestEnv.port,
+            database: TestEnv.database,
+            username: TestEnv.username,
+            password: TestEnv.password,
+            useTLS: TestEnv.useTLS,
             applicationName: "ComprehensiveTableTests"
         )
 
@@ -465,12 +449,13 @@ final class ComprehensiveTableTests: XCTestCase {
         var count = 0
         var avgPrice: Double = 0.0
         for try await row in result {
-            if let rowCount = row.column("count")?.int {
+            let randomRow = row.makeRandomAccess()
+            if let rowCount = try? randomRow["count"].decode(Int64.self) {
                 count = Int(rowCount)
             }
-            if let priceAvg = row.column("avg_price")?.double {
+            if let priceAvg = try? randomRow["avg_price"].decode(Double.self) {
                 avgPrice = priceAvg
-            } else if let priceAvgString = row.column("avg_price")?.string,
+            } else if let priceAvgString = try? randomRow["avg_price"].decode(String.self),
                       let priceAvgDouble = Double(priceAvgString) {
                 avgPrice = priceAvgDouble
             }

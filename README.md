@@ -93,6 +93,34 @@ let rows = try await client.query(
 )
 ```
 
+## Integration Testing with Docker
+
+This project includes a lightweight, built-in utility to run integration tests against a live PostgreSQL database managed by Docker.
+
+### Automated Multi-Version Testing
+
+A convenient shell script is provided to test against multiple PostgreSQL versions (14, 15, 16, 17, 18, and `latest`):
+
+```bash
+./test-all-postgres-versions.sh
+```
+
+### Manual Docker Integration
+
+Alternatively, you can run tests against a single Docker instance by setting environment variables:
+
+```bash
+export USE_DOCKER=1
+export POSTGRES_VERSION=16
+swift test --filter PostgresKitTests
+```
+
+When `USE_DOCKER=1` is set:
+1.  The test suite automatically spins up a Docker PostgreSQL container.
+2.  Loads a sample database from `Tests/PostgresKitTests/Support/SampleData.sql`.
+3.  Overrides connection details to point to the temporary Docker container.
+4.  Stops and removes the container after the tests complete.
+
 ## Documentation
 
 Comprehensive documentation can be generated using Swift-DocC:

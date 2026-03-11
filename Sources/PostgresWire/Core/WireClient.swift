@@ -46,7 +46,7 @@ public final class PostgresWireClient: @unchecked Sendable {
     private init(client: PostgresClient, logger: Logger) {
         self.client = client
         self.logger = logger
-        self.runTask = Task { await client.run() }
+        self.runTask = Task.detached { await client.run() }
     }
 
     deinit {
@@ -89,34 +89,27 @@ public final class PostgresWireClient: @unchecked Sendable {
         // for the NIO connection to finish if the timer wins.
         let finalProbeConfig = probeConfig
         let timeoutNanos = UInt64(configuration.connectTimeout) * 1_000_000_000
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
-            let completed = NIOLockedValueBox(false)
-
-            let probeTask = Task.detached {
-                do {
-                    let probe = try await PostgresConnection.connect(
-                        configuration: finalProbeConfig,
-                        id: 0,
-                        logger: logger
-                    )
-                    try? await probe.close()
-                    if completed.withLockedValue({ old in let was = old; old = true; return was }) == false {
-                        continuation.resume()
-                    }
-                } catch {
-                    if completed.withLockedValue({ old in let was = old; old = true; return was }) == false {
-                        continuation.resume(throwing: error)
-                    }
-                }
+        
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            // Connect task
+            group.addTask {
+                let probe = try await PostgresConnection.connect(
+                    configuration: finalProbeConfig,
+                    id: 0,
+                    logger: logger
+                )
+                try? await probe.close()
             }
-
-            Task.detached {
-                try? await Task.sleep(nanoseconds: timeoutNanos)
-                if completed.withLockedValue({ old in let was = old; old = true; return was }) == false {
-                    probeTask.cancel()
-                    continuation.resume(throwing: IOError(errnoCode: 60, reason: "connect"))
-                }
+            
+            // Timeout task
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutNanos)
+                throw IOError(errnoCode: 60, reason: "connect timeout")
             }
+            
+            // Wait for the first one to finish or fail
+            try await group.next()
+            group.cancelAll()
         }
 
         // Phase 2: Probe succeeded — create the pool-based client for ongoing use.

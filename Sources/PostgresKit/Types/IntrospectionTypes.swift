@@ -1,0 +1,178 @@
+import Foundation
+
+/// Type of a schema object.
+public enum SchemaObjectKind: String, Sendable {
+    case table, view, materializedView
+}
+
+/// A basic representation of a schema object.
+public struct SchemaObject: Sendable {
+    public var schema: String
+    public var name: String
+    public var kind: SchemaObjectKind
+
+    public init(schema: String, name: String, kind: SchemaObjectKind) {
+        self.schema = schema
+        self.name = name
+        self.kind = kind
+    }
+}
+
+/// Column information.
+public struct PostgresColumnInfo: Sendable {
+    public let name: String
+    public let dataType: String
+    public let isNullable: Bool
+    public let defaultValue: String?
+
+    public init(name: String, dataType: String, isNullable: Bool, defaultValue: String?) {
+        self.name = name
+        self.dataType = dataType
+        self.isNullable = isNullable
+        self.defaultValue = defaultValue
+    }
+}
+
+/// Detailed column information including constraints.
+public struct PostgresColumnDetail: Sendable {
+    public struct ForeignKeyRef: Sendable {
+        public let constraintName: String
+        public let referencedSchema: String
+        public let referencedTable: String
+        public let referencedColumn: String
+
+        public init(constraintName: String, referencedSchema: String, referencedTable: String, referencedColumn: String) {
+            self.constraintName = constraintName
+            self.referencedSchema = referencedSchema
+            self.referencedTable = referencedTable
+            self.referencedColumn = referencedColumn
+        }
+    }
+    public let name: String
+    public let dataType: String
+    public let isNullable: Bool
+    public let maxLength: Int?
+    public let isPrimaryKey: Bool
+    public let foreignKey: ForeignKeyRef?
+
+    public init(name: String, dataType: String, isNullable: Bool, maxLength: Int?, isPrimaryKey: Bool, foreignKey: ForeignKeyRef?) {
+        self.name = name
+        self.dataType = dataType
+        self.isNullable = isNullable
+        self.maxLength = maxLength
+        self.isPrimaryKey = isPrimaryKey
+        self.foreignKey = foreignKey
+    }
+}
+
+/// Index information.
+public struct PostgresIndexInfo: Sendable {
+    public struct Column: Sendable {
+        public let name: String
+        public let isDescending: Bool
+
+        public init(name: String, isDescending: Bool) {
+            self.name = name
+            self.isDescending = isDescending
+        }
+    }
+    public let name: String
+    public let isUnique: Bool
+    public let columns: [Column]
+    public let predicate: String?
+
+    public init(name: String, isUnique: Bool, columns: [Column], predicate: String?) {
+        self.name = name
+        self.isUnique = isUnique
+        self.columns = columns
+        self.predicate = predicate
+    }
+}
+
+/// Primary key information.
+public struct PostgresPrimaryKeyInfo: Sendable {
+    public let name: String
+    public let columns: [String]
+
+    public init(name: String, columns: [String]) {
+        self.name = name
+        self.columns = columns
+    }
+}
+
+/// Foreign key information.
+public struct PostgresForeignKeyInfo: Sendable {
+    public let name: String
+    public let columns: [String]
+    public let referencedSchema: String
+    public let referencedTable: String
+    public let referencedColumns: [String]
+    public let onUpdate: String?
+    public let onDelete: String?
+
+    public init(name: String, columns: [String], referencedSchema: String, referencedTable: String, referencedColumns: [String], onUpdate: String?, onDelete: String?) {
+        self.name = name
+        self.columns = columns
+        self.referencedSchema = referencedSchema
+        self.referencedTable = referencedTable
+        self.referencedColumns = referencedColumns
+        self.onUpdate = onUpdate
+        self.onDelete = onDelete
+    }
+}
+
+/// Unique constraint information.
+public struct PostgresUniqueConstraintInfo: Sendable {
+    public let name: String
+    public let columns: [String]
+
+    public init(name: String, columns: [String]) {
+        self.name = name
+        self.columns = columns
+    }
+}
+
+/// Dependency information between objects.
+public struct PostgresDependencyInfo: Sendable {
+    public let name: String
+    public let sourceTable: String
+    public let referencingColumns: [String]
+    public let referencedColumns: [String]
+    public let onUpdate: String?
+    public let onDelete: String?
+
+    public init(name: String, sourceTable: String, referencingColumns: [String], referencedColumns: [String], onUpdate: String?, onDelete: String?) {
+        self.name = name
+        self.sourceTable = sourceTable
+        self.referencingColumns = referencingColumns
+        self.referencedColumns = referencedColumns
+        self.onUpdate = onUpdate
+        self.onDelete = onDelete
+    }
+}
+
+/// Extension information.
+public struct PostgresExtensionInfo: Sendable {
+    public let name: String
+    public let schema: String
+    public let version: String
+    public let relocatable: Bool
+
+    public init(name: String, schema: String, version: String, relocatable: Bool) {
+        self.name = name
+        self.schema = schema
+        self.version = version
+        self.relocatable = relocatable
+    }
+}
+
+/// Column comment information.
+public struct PostgresColumnComment: Sendable {
+    public let column: String
+    public let comment: String?
+
+    public init(column: String, comment: String?) {
+        self.column = column
+        self.comment = comment
+    }
+}

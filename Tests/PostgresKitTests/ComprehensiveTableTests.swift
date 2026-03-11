@@ -151,16 +151,28 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
             ]
         )
 
-        // Insert test data with complex types using raw SQL
-        _ = try await client.executeDDL("""
-            INSERT INTO test_complex_table (name, metadata, tags, external_id, binary_data, description) VALUES
-            ('Product One', '{"category": "electronics", "price": 999.99, "features": ["wifi", "bluetooth"]}'::jsonb,
-             '{new,featured,electronics}'::text[], '550e8400-e29b-41d4-a716-446655440001'::uuid,
-             'binary data content here'::bytea, 'High-end electronic product'),
-            ('Product Two', '{"category": "books", "price": 29.99, "pages": 300}'::jsonb,
-             '{books,fiction,bestseller}'::text[], '550e8400-e29b-41d4-a716-446655440002'::uuid,
-             'more binary content'::bytea, 'Bestselling fiction book')
-            """)
+        _ = try await client.insert(
+            into: "test_complex_table",
+            columns: ["name", "metadata", "tags", "external_id", "binary_data", "description"],
+            values: [
+                [
+                    "Product One",
+                    .jsonbLiteral("{\"category\": \"electronics\", \"price\": 999.99, \"features\": [\"wifi\", \"bluetooth\"]}"),
+                    .array(["new", "featured", "electronics"]),
+                    PostgresInsertValue(UUID(uuidString: "550e8400-e29b-41d4-a716-446655440001")!),
+                    PostgresInsertValue(Data("binary data content here".utf8)),
+                    "High-end electronic product"
+                ],
+                [
+                    "Product Two",
+                    .jsonbLiteral("{\"category\": \"books\", \"price\": 29.99, \"pages\": 300}"),
+                    .array(["books", "fiction", "bestseller"]),
+                    PostgresInsertValue(UUID(uuidString: "550e8400-e29b-41d4-a716-446655440002")!),
+                    PostgresInsertValue(Data("more binary content".utf8)),
+                    "Bestselling fiction book"
+                ]
+            ]
+        )
 
         // Test JSONB queries
         let jsonResult = try await client.simpleQuery("SELECT name, metadata->>'category' as category FROM test_complex_table WHERE metadata @> '{\"category\": \"electronics\"}'")
@@ -231,12 +243,14 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         _ = try await client.addColumn(table: "test_alter_table", column: .jsonb(name: "metadata"))
         _ = try await client.addColumn(table: "test_alter_table", column: .uuid(name: "external_id"))
 
-        // Insert data into new columns with proper type casting
-        _ = try await client.executeDDL("""
-            INSERT INTO test_alter_table (name, value, description, price, tags, metadata, external_id) VALUES
-            ('Item 3', 300, 'Third item', 39.99, '{new,featured}'::text[], '{"priority": "high"}'::jsonb, '550e8400-e29b-41d4-a716-446655440003'::uuid),
-            ('Item 4', 400, 'Fourth item', 49.99, '{sale,discount}'::text[], '{"discount": true}'::jsonb, '550e8400-e29b-41d4-a716-446655440004'::uuid)
-            """)
+        _ = try await client.insert(
+            into: "test_alter_table",
+            columns: ["name", "value", "description", "price", "tags", "metadata", "external_id"],
+            values: [
+                ["Item 3", 300, "Third item", 39.99, .array(["new", "featured"]), .jsonbLiteral("{\"priority\": \"high\"}"), PostgresInsertValue(UUID(uuidString: "550e8400-e29b-41d4-a716-446655440003")!)],
+                ["Item 4", 400, "Fourth item", 49.99, .array(["sale", "discount"]), .jsonbLiteral("{\"discount\": true}"), PostgresInsertValue(UUID(uuidString: "550e8400-e29b-41d4-a716-446655440004")!)]
+            ]
+        )
 
         // Verify new columns exist and have correct data - simple validation
         let countResult = try await client.simpleQuery("SELECT COUNT(*) FROM test_alter_table WHERE description IS NOT NULL")
@@ -282,8 +296,8 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         print("=== Testing Truncate Table Operations ===")
 
         // Use fixed table names with proper cleanup at start
-        _ = try await client.executeDDL("DROP TABLE IF EXISTS test_truncate_table CASCADE")
-        _ = try await client.executeDDL("DROP TABLE IF EXISTS test_truncate_table2 CASCADE")
+        _ = try await client.dropTable(name: "test_truncate_table", ifExists: true, cascade: true)
+        _ = try await client.dropTable(name: "test_truncate_table2", ifExists: true, cascade: true)
 
         // Create tables for truncate testing
         _ = try await client.createTable(
@@ -360,8 +374,8 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         XCTAssertEqual(newId, 1, "ID should restart from 1 after truncate with restartIdentity")
 
         // Cleanup with CASCADE
-        _ = try await client.executeDDL("DROP TABLE IF EXISTS test_truncate_table2 CASCADE")
-        _ = try await client.executeDDL("DROP TABLE IF EXISTS test_truncate_table CASCADE")
+        _ = try await client.dropTable(name: "test_truncate_table2", ifExists: true, cascade: true)
+        _ = try await client.dropTable(name: "test_truncate_table", ifExists: true, cascade: true)
 
         print("✓ Truncate table operations test passed")
     }
@@ -413,11 +427,9 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         let batchSize = 1000
         let totalRecords = 5000
 
-        // Generate and insert large dataset with proper type casting
+        // Generate and insert large dataset
         for batchStart in stride(from: 1, through: totalRecords, by: batchSize) {
-            var valueStatements: [String] = []
-
-            for i in batchStart..<min(batchStart + batchSize, totalRecords + 1) {
+            let rows: [[PostgresInsertValue]] = (batchStart..<min(batchStart + batchSize, totalRecords + 1)).map { i in
                 let name = "Product \(i)"
                 let categoryId = (i % 10) + 1
                 let price = Double.random(in: 10.0...1000.0)
@@ -427,14 +439,21 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
                 let attributes = "{\"batch\": \(batchNumber), \"quality\": \"\(quality)\"}"
                 let isActive = i % 20 != 0 // 5% inactive
 
-                valueStatements.append("('\(name)', \(categoryId), \(price), '\(timestamp)'::timestamp, '\(attributes)'::jsonb, \(isActive))")
+                return [
+                    PostgresInsertValue(name),
+                    PostgresInsertValue(categoryId),
+                    PostgresInsertValue(price),
+                    .timestamp(timestamp),
+                    .jsonbLiteral(attributes),
+                    PostgresInsertValue(isActive)
+                ]
             }
 
-            let sql = """
-                INSERT INTO test_large_dataset (name, category_id, price, created_at, attributes, is_active) VALUES
-                """ + valueStatements.joined(separator: ",")
-
-            _ = try await client.executeDDL(sql)
+            _ = try await client.insert(
+                into: "test_large_dataset",
+                columns: ["name", "category_id", "price", "created_at", "attributes", "is_active"],
+                values: rows
+            )
         }
 
         // Test query performance
@@ -502,13 +521,15 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
             ]
         )
 
-        // Insert data with special characters using raw SQL
-        _ = try await client.executeDDL("""
-            INSERT INTO test_special_chars_table (user_name, email_address, full_description, user_settings_data) VALUES
-            ('John O''Connor', 'john.o''connor@example.com', 'User with special chars: quotes, apostrophes, & symbols!', '{"theme": "dark", "notifications": true}'::jsonb),
-            ('Jane "Developer" Smith', 'jane.dev+test@example.co.uk', 'Complex email & text with @#$%^&*() characters', '{"role": "admin", "access_level": 5}'::jsonb),
-            ('用户中文', 'chinese@user.中国', 'Unicode test: ñáéíóú 中文 🚀', '{"language": "zh-CN", "encoding": "UTF-8"}'::jsonb)
-            """)
+        _ = try await client.insert(
+            into: "test_special_chars_table",
+            columns: ["user_name", "email_address", "full_description", "user_settings_data"],
+            values: [
+                ["John O'Connor", "john.o'connor@example.com", "User with special chars: quotes, apostrophes, & symbols!", .jsonbLiteral("{\"theme\": \"dark\", \"notifications\": true}")],
+                ["Jane \"Developer\" Smith", "jane.dev+test@example.co.uk", "Complex email & text with @#$%^&*() characters", .jsonbLiteral("{\"role\": \"admin\", \"access_level\": 5}")],
+                ["用户中文", "chinese@user.中国", "Unicode test: ñáéíóú 中文 🚀", .jsonbLiteral("{\"language\": \"zh-CN\", \"encoding\": \"UTF-8\"}")]
+            ]
+        )
 
         // Query special character data
         let result = try await client.simpleQuery("SELECT user_name, email_address, full_description FROM test_special_chars_table ORDER BY id")

@@ -393,9 +393,12 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         )
 
         // Create GIN index on JSONB (more appropriate for JSON data)
-        _ = try await client.executeDDL("""
-            CREATE INDEX idx_jsonb_value ON test_json_index_table USING GIN (metadata_jsonb)
-            """)
+        _ = try await client.createAdvancedIndex(
+            name: "idx_jsonb_value",
+            table: "test_json_index_table",
+            columns: [PostgresIndexColumn(name: "metadata_jsonb")],
+            indexType: .gin
+        )
 
         // Note: JSON type cannot be indexed with B-tree or GIN directly
         // JSONB should be preferred for indexing in PostgreSQL
@@ -435,13 +438,15 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         let uuid2 = UUID(uuidString: "550e8400-e29b-41d4-a716-446655440001")!
         let uuid3 = UUID(uuidString: "550e8400-e29b-41d4-a716-446655440002")!
 
-        // Use raw SQL to insert with proper type casting
-        _ = try await client.executeDDL("""
-            INSERT INTO test_uuid_array_index_table (uuid_value, tags, numbers, description) VALUES
-            ('\(uuid1.uuidString)'::uuid, '{tag1,tag2,tag3}'::text[], '{1,2,3}'::integer[], 'Item 1'),
-            ('\(uuid2.uuidString)'::uuid, '{tag2,tag4}'::text[], '{4,5,6}'::integer[], 'Item 2'),
-            ('\(uuid3.uuidString)'::uuid, '{tag1,tag5}'::text[], '{7,8,9}'::integer[], 'Item 3')
-            """)
+        _ = try await client.insert(
+            into: "test_uuid_array_index_table",
+            columns: ["uuid_value", "tags", "numbers", "description"],
+            values: [
+                [PostgresInsertValue(uuid1), .array(["tag1", "tag2", "tag3"]), .array([1, 2, 3]), "Item 1"],
+                [PostgresInsertValue(uuid2), .array(["tag2", "tag4"]), .array([4, 5, 6]), "Item 2"],
+                [PostgresInsertValue(uuid3), .array(["tag1", "tag5"]), .array([7, 8, 9]), "Item 3"]
+            ]
+        )
 
         // Create indexes on UUID and array columns
         _ = try await client.createIndex(
@@ -507,13 +512,15 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         let macAddress2 = MACAddress(string: "AA:BB:CC:DD:EE:FF")
         let macAddress3 = MACAddress(string: "11:22:33:44:55:66")
 
-        // Use raw SQL to insert with proper type casting
-        _ = try await client.executeDDL("""
-            INSERT INTO test_network_index_table (ip_address, network_cidr, mac_address, description) VALUES
-            ('\(ipAddress1.string)'::inet, '192.168.1.0/24'::cidr, '\(macAddress1.string)'::macaddr, 'Office computer'),
-            ('\(ipAddress2.string)'::inet, '10.0.0.0/16'::cidr, '\(macAddress2.string)'::macaddr, 'Data center server'),
-            ('\(ipAddress3.string)'::inet, '172.16.0.0/12'::cidr, '\(macAddress3.string)'::macaddr, 'Remote office')
-            """)
+        _ = try await client.insert(
+            into: "test_network_index_table",
+            columns: ["ip_address", "network_cidr", "mac_address", "description"],
+            values: [
+                [.inet(ipAddress1), .cidr("192.168.1.0/24"), .macaddr(macAddress1), "Office computer"],
+                [.inet(ipAddress2), .cidr("10.0.0.0/16"), .macaddr(macAddress2), "Data center server"],
+                [.inet(ipAddress3), .cidr("172.16.0.0/12"), .macaddr(macAddress3), "Remote office"]
+            ]
+        )
 
         // Create indexes on network columns
         _ = try await client.createIndex(
@@ -545,7 +552,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
             _ = try await client.insert(
                 into: "test_network_index_table",
                 columns: ["ip_address", "network_cidr", "mac_address", "description"],
-                values: [["192.168.1.101", "192.168.1.0/24", "00:11:22:33:44:55", "Duplicate MAC test"]]
+                values: [[.inet("192.168.1.101"), .cidr("192.168.1.0/24"), .macaddr("00:11:22:33:44:55"), "Duplicate MAC test"]]
             )
             XCTFail("Expected unique constraint violation for MAC address")
         } catch {

@@ -80,21 +80,22 @@ public struct PostgresBulkCopy: @unchecked Sendable {
 
         func flushBatch() async throws {
             guard !rows.isEmpty else { return }
-            var binds: [PGData] = []
             var valuesSQL: [String] = []
-            var paramIndex = 1
             for row in rows {
-                var placeholders: [String] = []
+                var literals: [String] = []
                 for (idx, value) in row.enumerated() {
-                    placeholders.append("$\(paramIndex)\(idx < columns.count ? "::\(columns[idx].dataType)" : "")")
-                    binds.append(value.map { PGData(string: $0) } ?? .null)
-                    paramIndex += 1
+                    if let value {
+                        let escaped = value.replacingOccurrences(of: "'", with: "''")
+                        let cast = idx < columns.count ? "::\(columns[idx].dataType)" : ""
+                        literals.append("'\(escaped)'\(cast)")
+                    } else {
+                        literals.append("NULL")
+                    }
                 }
-                valuesSQL.append("(\(placeholders.joined(separator: ", ")))")
+                valuesSQL.append("(\(literals.joined(separator: ", ")))")
             }
             let sql = insertPrefix + valuesSQL.joined(separator: ", ")
-            let finalBinds = binds
-            try await client.withConnection { conn in _ = try await conn.query(sql, binds: finalBinds) }
+            _ = try await client.executeDDL(sql)
             rows.removeAll(keepingCapacity: true)
         }
 
@@ -105,7 +106,8 @@ public struct PostgresBulkCopy: @unchecked Sendable {
                 let lineData = accumulator[lineRange]
                 accumulator.removeSubrange(lineRange)
                 if parsed.header { parsed.header = false; continue }
-                if let line = String(data: lineData, encoding: .utf8) {
+                if let line = String(data: lineData, encoding: .utf8)?
+                    .trimmingCharacters(in: .newlines), !line.isEmpty {
                     rows.append(parser.parseLine(line))
                     if rows.count >= batchSize { try await flushBatch() }
                 }

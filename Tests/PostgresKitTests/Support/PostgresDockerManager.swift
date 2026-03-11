@@ -182,7 +182,7 @@ public class PostgresDockerManager: @unchecked Sendable {
     
     public func runSQLFile(at path: String, dockerPath: String) throws {
         print("📄 Loading SQL file content...")
-        let sqlContent = try String(contentsOfFile: path)
+        let sqlContent = try String(contentsOfFile: path, encoding: .utf8)
         
         let process = createDockerProcess(executable: dockerPath, arguments: ["exec", "-i", containerId!, "psql", "-U", username, "-d", database])
         

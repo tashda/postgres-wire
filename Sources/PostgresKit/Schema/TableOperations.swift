@@ -31,10 +31,11 @@ public extension PostgresDatabaseClient {
 
     /// Drop an existing table.
     @discardableResult
-    func dropTable(name: String, ifExists: Bool = false, cascade: Bool = false) async throws -> Int {
+    func dropTable(name: String, ifExists: Bool = false, cascade: Bool = false, schema: String? = nil) async throws -> Int {
+        let qualifiedName = schema.map { "\(quoteIdentifier($0)).\(quoteIdentifier(name))" } ?? quoteIdentifier(name)
         var parts: [String] = ["DROP TABLE"]
         if ifExists { parts.append("IF EXISTS") }
-        parts.append(quoteIdentifier(name))
+        parts.append(qualifiedName)
         if cascade { parts.append("CASCADE") }
         return try await executeDDL(parts.joined(separator: " "))
     }
@@ -66,8 +67,9 @@ public extension PostgresDatabaseClient {
 
     /// Rename an existing table.
     @discardableResult
-    func renameTable(oldName: String, newName: String) async throws -> Int {
-        let sql = "ALTER TABLE \(quoteIdentifier(oldName)) RENAME TO \(quoteIdentifier(newName))"
+    func renameTable(oldName: String, newName: String, schema: String? = nil) async throws -> Int {
+        let qualifiedOldName = schema.map { "\(quoteIdentifier($0)).\(quoteIdentifier(oldName))" } ?? quoteIdentifier(oldName)
+        let sql = "ALTER TABLE \(qualifiedOldName) RENAME TO \(quoteIdentifier(newName))"
         return try await executeDDL(sql)
     }
 

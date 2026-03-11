@@ -77,24 +77,26 @@ final class EncodableRoundTripTests: PostgresKitTestCase {
 
     func testIPAddressInsertAndSelectFromTable() async throws {
         let table = "pgwire_ip_test_\(UInt32.random(in: 0..<UInt32.max))"
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, addr INET)")
-        }
+        try await client.createTable(
+            name: table,
+            columns: [
+                .serial(name: "id", primaryKey: true),
+                .inet(name: "addr")
+            ]
+        )
         defer {
-            Task.detached { [client, table] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                }
+            Task.detached { [client = self.client!] in
+                try? await client.dropTable(name: table, ifExists: true)
             }
         }
 
         let testIP = IPAddress(string: "172.16.0.1")
         var pgData = PGData(type: testIP.pgDataType)
         try testIP.encode(into: &pgData)
-        let encoded = pgData
-
+        let insertRow: [PostgresInsertValue] = [.inet(testIP.string)]
+        let insertValues = [insertRow]
         try await client.withConnection { conn in
-            _ = try await conn.query("INSERT INTO \(table) (addr) VALUES ($1::inet)", binds: [encoded])
+            _ = try await conn.insert(into: table, columns: ["addr"], values: insertValues)
         }
 
         let rows = try await client.simpleQuery("SELECT addr::text FROM \(table)")
@@ -134,24 +136,26 @@ final class EncodableRoundTripTests: PostgresKitTestCase {
 
     func testMACAddress_InsertAndSelectFromTable() async throws {
         let table = "pgwire_mac_test_\(UInt32.random(in: 0..<UInt32.max))"
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, addr MACADDR)")
-        }
+        try await client.createTable(
+            name: table,
+            columns: [
+                .serial(name: "id", primaryKey: true),
+                .macaddr(name: "addr")
+            ]
+        )
         defer {
-            Task.detached { [client, table] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                }
+            Task.detached { [client = self.client!] in
+                try? await client.dropTable(name: table, ifExists: true)
             }
         }
 
         let mac = MACAddress(string: "12:34:56:78:9a:bc")
         var pgData = PGData(type: mac.pgDataType)
         try mac.encode(into: &pgData)
-        let encoded = pgData
-
+        let insertRow: [PostgresInsertValue] = [.macaddr(mac.string)]
+        let insertValues = [insertRow]
         try await client.withConnection { conn in
-            _ = try await conn.query("INSERT INTO \(table) (addr) VALUES ($1::macaddr)", binds: [encoded])
+            _ = try await conn.insert(into: table, columns: ["addr"], values: insertValues)
         }
 
         let rows = try await client.simpleQuery("SELECT addr::text FROM \(table)")

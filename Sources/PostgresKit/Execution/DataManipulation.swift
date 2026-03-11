@@ -1,3 +1,4 @@
+import Foundation
 import PostgresWire
 import PostgresNIO
 
@@ -10,37 +11,21 @@ public extension PostgresDatabaseClient {
         columns: [String] = [],
         values: [[Any]]
     ) async throws -> Int {
-        let isEmpty = values.isEmpty
-        let processedValues = try values.map { row in
-            try row.map { value in
-                try toPGData(value: value)
-            }
+        let converted = try values.map { row in
+            try row.map(PostgresInsertValue.fromAny)
         }
+        return try await insert(into: table, columns: columns, values: converted)
+    }
 
-        return try await withConnection { conn in
-            if isEmpty { return 0 }
-
-            let columnList = columns.isEmpty ? "" : "(\(columns.map(quoteIdentifier).joined(separator: ", ")))"
-
-            var allBinds: [PGData] = []
-            var bindIndex = 1
-            let valuePlaceholders = processedValues.enumerated().map { _, processedRow in
-                let placeholders = processedRow.enumerated().map { _, _ in
-                    defer { bindIndex += 1 }
-                    return "$\(bindIndex)"
-                }
-                allBinds.append(contentsOf: processedRow)
-                return "(" + placeholders.joined(separator: ", ") + ")"
-            }.joined(separator: ", ")
-
-            let sql = "INSERT INTO \(quoteIdentifier(table))\(columnList) VALUES \(valuePlaceholders)"
-
-            let rows = try await conn.query(sql, binds: allBinds)
-            var count = 0
-            for try await _ in rows.decode((String?).self) {
-                count += 1
-            }
-            return count
+    /// Insert rows using structured values that can mix binds and SQL expressions.
+    @discardableResult
+    func insert(
+        into table: String,
+        columns: [String] = [],
+        values: [[PostgresInsertValue]]
+    ) async throws -> Int {
+        try await withConnection { conn in
+            try await conn.insert(into: table, columns: columns, values: values)
         }
     }
 
@@ -94,5 +79,58 @@ public extension PostgresDatabaseClient {
         if cascade { parts.append("CASCADE") }
         if restartIdentity { parts.append("RESTART IDENTITY") } else { parts.append("CONTINUE IDENTITY") }
         return try await executeDDL(parts.joined(separator: " "))
+    }
+}
+
+public extension PostgresDatabaseConnection {
+    /// Insert rows using structured values that can mix binds and SQL expressions.
+    @discardableResult
+    func insert(
+        into table: String,
+        columns: [String] = [],
+        values: [[PostgresInsertValue]]
+    ) async throws -> Int {
+        if values.isEmpty { return 0 }
+
+        let columnList = columns.isEmpty ? "" : "(\(columns.map(quoteIdentifier).joined(separator: ", ")))"
+
+        var allBinds: [PGData] = []
+        var bindIndex = 1
+        let valuePlaceholders = try values.map { row in
+            let fragments = try row.map { value in
+                switch value {
+                case .bind(let encodable):
+                    defer { bindIndex += 1 }
+                    allBinds.append(try toPGData(value: encodable))
+                    return "$\(bindIndex)"
+                case .sql(let sql):
+                    return sql
+                }
+            }
+            return "(\(fragments.joined(separator: ", ")))"
+        }.joined(separator: ", ")
+
+        let sql = "INSERT INTO \(quoteIdentifier(table))\(columnList) VALUES \(valuePlaceholders)"
+        let rows = try await query(sql, binds: allBinds)
+        var count = 0
+        for try await _ in rows.decode((String?).self) {
+            count += 1
+        }
+        return count
+    }
+}
+
+private extension PostgresInsertValue {
+    static func fromAny(_ value: Any) throws -> PostgresInsertValue {
+        if let value = value as? PostgresInsertValue {
+            return value
+        }
+        if let encodable = value as? any PostgresEncodable {
+            return .bind(encodable)
+        }
+        if value is NSNull {
+            return .null
+        }
+        throw PostgresError.encodingError(type: type(of: value))
     }
 }

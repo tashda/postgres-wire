@@ -38,15 +38,11 @@ final class UserManagementTests: PostgresKitTestCase {
     private let suffix = UInt32.random(in: 0..<UInt32.max)
 
     private func dropRoleIfExists(_ name: String) async {
-        try? await client.withConnection { conn in
-            _ = try await conn.simpleQuery("DROP ROLE IF EXISTS \(name)")
-        }
+        _ = try? await client.dropRole(name: name, ifExists: true)
     }
 
     private func dropUserIfExists(_ name: String) async {
-        try? await client.withConnection { conn in
-            _ = try await conn.simpleQuery("DROP USER IF EXISTS \(name)")
-        }
+        _ = try? await client.dropUser(name: name, ifExists: true)
     }
 
     // MARK: - Role/User Management
@@ -60,29 +56,27 @@ final class UserManagementTests: PostgresKitTestCase {
         await dropRoleIfExists(superName)
 
         defer {
-            Task.detached { [client, roleNames, superName] in
+            Task.detached { [client] in
                 for r in roleNames {
-                    try? await client?.withConnection { conn in
-                        _ = try await conn.simpleQuery("DROP ROLE IF EXISTS \(r)")
-                    }
+                    _ = try? await client?.dropRole(name: r, ifExists: true)
                 }
-                try? await client?.withConnection { conn in
-                    _ = try await conn.simpleQuery("DROP ROLE IF EXISTS \(superName)")
-                }
+                _ = try? await client?.dropRole(name: superName, ifExists: true)
             }
         }
 
         let allRoles = roleNames + [superName]
-        try await client.withConnection { conn in
-            for roleName in roleNames {
-                _ = try await conn.simpleQuery("CREATE ROLE \(roleName) WITH LOGIN PASSWORD 'test123'")
-            }
-            _ = try await conn.simpleQuery("""
-                CREATE ROLE \(superName) WITH
-                    SUPERUSER CREATEDB CREATEROLE LOGIN
-                    PASSWORD 'superpass123'
-            """)
+
+        for roleName in roleNames {
+            try await client.createRole(name: roleName, password: "test123", login: true)
         }
+        try await client.createRole(
+            name: superName,
+            password: "superpass123",
+            superuser: true,
+            createDatabase: true,
+            createRole: true,
+            login: true
+        )
 
         // Verify roles exist
         let nameList = allRoles.joined(separator: "','")
@@ -94,11 +88,8 @@ final class UserManagementTests: PostgresKitTestCase {
         XCTAssertEqual(verified.count, allRoles.count, "All created roles should be verifiable")
 
         // Drop and verify
-        let rolesToDrop = allRoles
-        try await client.withConnection { conn in
-            for r in rolesToDrop {
-                _ = try await conn.simpleQuery("DROP ROLE IF EXISTS \(r)")
-            }
+        for r in allRoles {
+            try await client.dropRole(name: r, ifExists: true)
         }
 
         let afterRows = try await client.simpleQuery("""
@@ -118,22 +109,16 @@ final class UserManagementTests: PostgresKitTestCase {
         await dropUserIfExists(renamedName)
 
         defer {
-            Task.detached { [client, userName, renamedName] in
-                try? await client?.withConnection { conn in
-                    _ = try await conn.simpleQuery("DROP USER IF EXISTS \(renamedName)")
-                    _ = try await conn.simpleQuery("DROP USER IF EXISTS \(userName)")
-                }
+            Task.detached { [client] in
+                _ = try? await client?.dropUser(name: renamedName, ifExists: true)
+                _ = try? await client?.dropUser(name: userName, ifExists: true)
             }
         }
 
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("""
-                CREATE ROLE \(userName) WITH LOGIN PASSWORD 'attrpass123' CONNECTION LIMIT 5
-            """)
-            _ = try await conn.simpleQuery("ALTER ROLE \(userName) CONNECTION LIMIT 10")
-            _ = try await conn.simpleQuery("ALTER ROLE \(userName) RENAME TO \(renamedName)")
-            _ = try await conn.simpleQuery("ALTER ROLE \(renamedName) VALID UNTIL 'infinity'")
-        }
+        try await client.createRole(name: userName, password: "attrpass123", login: true, connectionLimit: 5)
+        try await client.alterUser(name: userName, connectionLimit: 10)
+        try await client.alterUser(name: userName, rename: renamedName)
+        try await client.alterUser(name: renamedName, validUntil: "infinity")
 
         let userRows = try await client.simpleQuery("""
             SELECT rolname, rolcanlogin FROM pg_roles WHERE rolname = '\(renamedName)'
@@ -161,27 +146,23 @@ final class UserManagementTests: PostgresKitTestCase {
         for n in allNames { await dropRoleIfExists(n) }
 
         defer {
-            Task.detached { [client, allNames] in
+            Task.detached { [client] in
                 for n in allNames {
-                    try? await client?.withConnection { conn in
-                        _ = try await conn.simpleQuery("DROP ROLE IF EXISTS \(n)")
-                    }
+                    _ = try? await client?.dropRole(name: n, ifExists: true)
                 }
             }
         }
 
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE ROLE \(deptEng)")
-            _ = try await conn.simpleQuery("CREATE ROLE \(deptSales)")
-            _ = try await conn.simpleQuery("CREATE USER \(john) WITH PASSWORD 'pass123'")
-            _ = try await conn.simpleQuery("CREATE USER \(jane) WITH PASSWORD 'pass123'")
-            _ = try await conn.simpleQuery("CREATE USER \(bob) WITH PASSWORD 'pass123'")
+        try await client.createRole(name: deptEng)
+        try await client.createRole(name: deptSales)
+        try await client.createUser(name: john, password: "pass123")
+        try await client.createUser(name: jane, password: "pass123")
+        try await client.createUser(name: bob, password: "pass123")
 
-            _ = try await conn.simpleQuery("GRANT \(deptEng) TO \(john)")
-            _ = try await conn.simpleQuery("GRANT \(deptSales) TO \(jane)")
-            _ = try await conn.simpleQuery("GRANT \(deptEng) TO \(bob)")
-            _ = try await conn.simpleQuery("GRANT \(deptSales) TO \(bob)")
-        }
+        try await client.grantRole(role: deptEng, to: john)
+        try await client.grantRole(role: deptSales, to: jane)
+        try await client.grantRole(role: deptEng, to: bob)
+        try await client.grantRole(role: deptSales, to: bob)
 
         let membershipRows = try await client.simpleQuery("""
             SELECT ur1.rolname AS user_role, ur2.rolname AS role_membership
@@ -215,33 +196,30 @@ final class UserManagementTests: PostgresKitTestCase {
         await dropRoleIfExists(roleName)
 
         defer {
-            Task.detached { [client, schemaName, userName, roleName] in
-                try? await client?.withConnection { conn in
-                    _ = try await conn.simpleQuery("DROP SCHEMA IF EXISTS \(schemaName) CASCADE")
-                }
-                try? await client?.withConnection { conn in
-                    _ = try await conn.simpleQuery("DROP USER IF EXISTS \(userName)")
-                    _ = try await conn.simpleQuery("DROP ROLE IF EXISTS \(roleName)")
-                }
+            Task.detached { [client] in
+                _ = try? await client?.dropSchema(name: schemaName, ifExists: true, cascade: true)
+                _ = try? await client?.dropUser(name: userName, ifExists: true)
+                _ = try? await client?.dropRole(name: roleName, ifExists: true)
             }
         }
 
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE ROLE \(roleName)")
-            _ = try await conn.simpleQuery("CREATE USER \(userName) WITH PASSWORD 'test123'")
-            _ = try await conn.simpleQuery("GRANT \(roleName) TO \(userName)")
-            _ = try await conn.simpleQuery("CREATE SCHEMA \(schemaName)")
-            _ = try await conn.simpleQuery("GRANT USAGE ON SCHEMA \(schemaName) TO \(roleName)")
+        try await client.createRole(name: roleName)
+        try await client.createUser(name: userName, password: "test123")
+        try await client.grantRole(role: roleName, to: userName)
+        try await client.createSchema(name: schemaName)
+        try await client.grantSchemaPrivileges(privileges: [.usage], onSchema: schemaName, to: roleName)
 
-            _ = try await conn.simpleQuery("""
-                ALTER DEFAULT PRIVILEGES IN SCHEMA \(schemaName)
-                GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO \(roleName)
-            """)
+        try await client.alterDefaultPrivileges(
+            schema: schemaName,
+            grant: [.select, .insert, .update, .delete],
+            onObjectType: .tables,
+            to: roleName
+        )
 
-            _ = try await conn.simpleQuery("""
-                CREATE TABLE \(schemaName).test_tbl (id SERIAL PRIMARY KEY, name TEXT)
-            """)
-        }
+        try await client.createTable(
+            name: "\(schemaName).test_tbl",
+            columns: [.serial(name: "id", primaryKey: true), .text(name: "name")]
+        )
 
         let aclRows = try await client.simpleQuery("""
             SELECT privilege_type
@@ -270,52 +248,45 @@ final class UserManagementTests: PostgresKitTestCase {
         await dropUserIfExists(bob)
 
         defer {
-            Task.detached { [client, table, alice, bob] in
-                try? await client?.withConnection { conn in
-                    _ = try await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                }
-                try? await client?.withConnection { conn in
-                    _ = try await conn.simpleQuery("DROP USER IF EXISTS \(alice)")
-                    _ = try await conn.simpleQuery("DROP USER IF EXISTS \(bob)")
-                }
+            Task.detached { [client] in
+                _ = try? await client?.dropTable(name: table, ifExists: true)
+                _ = try? await client?.dropUser(name: alice, ifExists: true)
+                _ = try? await client?.dropUser(name: bob, ifExists: true)
             }
         }
 
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("""
-                CREATE TABLE \(table) (
-                    id SERIAL PRIMARY KEY,
-                    owner TEXT,
-                    category TEXT,
-                    data TEXT
-                )
-            """)
+        try await client.createTable(name: table, columns: [
+            PostgresColumnDefinition(name: "id", dataType: "SERIAL", primaryKey: true),
+            PostgresColumnDefinition(name: "owner", dataType: "TEXT"),
+            PostgresColumnDefinition(name: "category", dataType: "TEXT"),
+            PostgresColumnDefinition(name: "data", dataType: "TEXT"),
+        ])
 
-            _ = try await conn.simpleQuery("CREATE USER \(alice) WITH PASSWORD 'alice123'")
-            _ = try await conn.simpleQuery("CREATE USER \(bob) WITH PASSWORD 'bob123'")
+        try await client.createUser(name: alice, password: "alice123")
+        try await client.createUser(name: bob, password: "bob123")
 
-            _ = try await conn.simpleQuery("""
-                INSERT INTO \(table) (owner, category, data) VALUES
-                ('alice', 'personal', 'Alice personal data'),
-                ('bob', 'work', 'Bob work data'),
-                ('alice', 'public', 'Alice public data'),
-                ('bob', 'public', 'Bob public data')
-            """)
+        try await client.insert(into: table, columns: ["owner", "category", "data"], values: [
+            ["alice", "personal", "Alice personal data"],
+            ["bob", "work", "Bob work data"],
+            ["alice", "public", "Alice public data"],
+            ["bob", "public", "Bob public data"]
+        ])
 
-            _ = try await conn.simpleQuery("ALTER TABLE \(table) ENABLE ROW LEVEL SECURITY")
+        try await client.enableRowLevelSecurity(table: table)
 
-            _ = try await conn.simpleQuery("""
-                CREATE POLICY alice_policy_\(s) ON \(table)
-                FOR ALL TO \(alice)
-                USING (owner = 'alice' OR category = 'public')
-            """)
+        try await client.createPolicy(
+            name: "alice_policy_\(s)",
+            table: table,
+            to: [alice],
+            using: "owner = 'alice' OR category = 'public'"
+        )
 
-            _ = try await conn.simpleQuery("""
-                CREATE POLICY bob_policy_\(s) ON \(table)
-                FOR ALL TO \(bob)
-                USING (owner = 'bob' OR category = 'public')
-            """)
-        }
+        try await client.createPolicy(
+            name: "bob_policy_\(s)",
+            table: table,
+            to: [bob],
+            using: "owner = 'bob' OR category = 'public'"
+        )
 
         // Verify policies exist
         let policyRows = try await client.simpleQuery("""

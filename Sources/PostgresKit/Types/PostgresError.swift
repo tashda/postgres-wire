@@ -91,8 +91,10 @@ public struct PostgresError: Error, CustomStringConvertible, Sendable {
     /// Check if this is a constraint violation error.
     public var isConstraintViolation: Bool { sqlState?.hasPrefix("23") == true }
 
-    /// Check if this is a foreign key violation error.
-    public var isForeignKeyViolation: Bool { sqlState == "23503" }
+    /// Check if this is a foreign key / referential integrity violation error.
+    /// PostgreSQL may report `23503` (`foreign_key_violation`) or `23001` (`restrict_violation`)
+    /// for rejected FK deletes depending on server version and action.
+    public var isForeignKeyViolation: Bool { sqlState == "23503" || sqlState == "23001" }
 
     /// Check if this is a unique constraint violation error.
     public var isUniqueViolation: Bool { sqlState == "23505" }

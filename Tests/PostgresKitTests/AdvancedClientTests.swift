@@ -65,19 +65,18 @@ final class AdvancedClientTests: PostgresKitTestCase {
 
         // Use the enum in a table to confirm it works
         let table = uniqueName("pgwire_enum_t")
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL, status \(typeName))")
-            _ = try await conn.simpleQuery("INSERT INTO \(table) (status) VALUES ('active')")
-        }
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id"),
+            PostgresColumnDefinition(name: "status", dataType: typeName)
+        ])
+        try await client.insert(into: table, columns: ["status"], values: [[.castLiteral("active", as: typeName)]])
 
         let rows = try await client.simpleQuery("SELECT status FROM \(table)")
         var values: [String] = []
         for try await v in rows.decode(String.self) { values.append(v) }
         XCTAssertEqual(values, ["active"])
 
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-        }
+        try await client.dropTable(name: table, ifExists: true)
         try await client.dropEnum(name: typeName, ifExists: true, cascade: true)
     }
 
@@ -87,19 +86,18 @@ final class AdvancedClientTests: PostgresKitTestCase {
         try await client.addEnumValue(type: typeName, value: "blue")
 
         let table = uniqueName("pgwire_color_t")
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL, color \(typeName))")
-            _ = try await conn.simpleQuery("INSERT INTO \(table) (color) VALUES ('blue')")
-        }
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id"),
+            PostgresColumnDefinition(name: "color", dataType: typeName)
+        ])
+        try await client.insert(into: table, columns: ["color"], values: [[.castLiteral("blue", as: typeName)]])
 
         let rows = try await client.simpleQuery("SELECT color FROM \(table)")
         var values: [String] = []
         for try await v in rows.decode(String.self) { values.append(v) }
         XCTAssertEqual(values, ["blue"])
 
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-        }
+        try await client.dropTable(name: table, ifExists: true)
         try await client.dropEnum(name: typeName, ifExists: true, cascade: true)
     }
 
@@ -109,19 +107,18 @@ final class AdvancedClientTests: PostgresKitTestCase {
         try await client.renameEnumValue(type: typeName, oldValue: "sad", newValue: "unhappy")
 
         let table = uniqueName("pgwire_mood_t")
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL, mood \(typeName))")
-            _ = try await conn.simpleQuery("INSERT INTO \(table) (mood) VALUES ('unhappy')")
-        }
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id"),
+            PostgresColumnDefinition(name: "mood", dataType: typeName)
+        ])
+        try await client.insert(into: table, columns: ["mood"], values: [[.castLiteral("unhappy", as: typeName)]])
 
         let rows = try await client.simpleQuery("SELECT mood FROM \(table)")
         var values: [String] = []
         for try await v in rows.decode(String.self) { values.append(v) }
         XCTAssertEqual(values, ["unhappy"])
 
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-        }
+        try await client.dropTable(name: table, ifExists: true)
         try await client.dropEnum(name: typeName, ifExists: true, cascade: true)
     }
 
@@ -129,14 +126,13 @@ final class AdvancedClientTests: PostgresKitTestCase {
 
     func testAlterColumnDefault() async throws {
         let table = uniqueName("pgwire_altdef")
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, score INTEGER)")
-        }
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id", primaryKey: true),
+            .integer(name: "score")
+        ])
         defer {
             Task.detached { [client, table] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                }
+                _ = try? await client?.dropTable(name: table, ifExists: true)
             }
         }
 
@@ -155,21 +151,18 @@ final class AdvancedClientTests: PostgresKitTestCase {
 
     func testAlterColumnNullability() async throws {
         let table = uniqueName("pgwire_altnull")
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, label TEXT)")
-        }
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id", primaryKey: true),
+            .text(name: "label")
+        ])
         defer {
             Task.detached { [client, table] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                }
+                _ = try? await client?.dropTable(name: table, ifExists: true)
             }
         }
 
         // Add data first so NOT NULL constraint doesn't fail
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("INSERT INTO \(table) (label) VALUES ('hello')")
-        }
+        try await client.insert(into: table, columns: ["label"], values: [["hello"] as [Any]])
 
         // Make NOT NULL
         try await client.alterColumnNullability(table: table, column: "label", nullable: false)
@@ -186,14 +179,13 @@ final class AdvancedClientTests: PostgresKitTestCase {
 
     func testRenameColumn() async throws {
         let table = uniqueName("pgwire_rencol")
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, old_name TEXT)")
-        }
+        try await client.createTable(name: table, columns: [
+            .serial(name: "id", primaryKey: true),
+            .text(name: "old_name")
+        ])
         defer {
             Task.detached { [client, table] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                }
+                _ = try? await client?.dropTable(name: table, ifExists: true)
             }
         }
 
@@ -209,14 +201,14 @@ final class AdvancedClientTests: PostgresKitTestCase {
 
     func testInsertUpdateDeleteTruncate() async throws {
         let table = uniqueName("pgwire_dml")
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(table) (id INTEGER, name TEXT, active BOOLEAN)")
-        }
+        try await client.createTable(name: table, columns: [
+            .integer(name: "id"),
+            .text(name: "name"),
+            .boolean(name: "active")
+        ])
         defer {
             Task.detached { [client, table] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(table)")
-                }
+                _ = try? await client?.dropTable(name: table, ifExists: true)
             }
         }
 
@@ -257,17 +249,23 @@ final class AdvancedClientTests: PostgresKitTestCase {
     func testCopyTable() async throws {
         let src = uniqueName("pgwire_cpsrc")
         let dst = uniqueName("pgwire_cpdst")
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(src) (id INTEGER, val TEXT)")
-            _ = try await conn.simpleQuery("INSERT INTO \(src) VALUES (1,'a'),(2,'b'),(3,'c')")
-            _ = try await conn.simpleQuery("CREATE TABLE \(dst) (id INTEGER, val TEXT)")
-        }
+        try await client.createTable(name: src, columns: [
+            .integer(name: "id"),
+            .text(name: "val")
+        ])
+        try await client.insert(into: src, columns: ["id", "val"], values: [
+            [1, "a"] as [Any],
+            [2, "b"] as [Any],
+            [3, "c"] as [Any]
+        ])
+        try await client.createTable(name: dst, columns: [
+            .integer(name: "id"),
+            .text(name: "val")
+        ])
         defer {
             Task.detached { [client, src, dst] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(src)")
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(dst)")
-                }
+                _ = try? await client?.dropTable(name: src, ifExists: true)
+                _ = try? await client?.dropTable(name: dst, ifExists: true)
             }
         }
 
@@ -279,16 +277,18 @@ final class AdvancedClientTests: PostgresKitTestCase {
     func testCreateTableAs() async throws {
         let src = uniqueName("pgwire_ctas_src")
         let dst = uniqueName("pgwire_ctas_dst")
-        try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("CREATE TABLE \(src) (id INTEGER, name TEXT)")
-            _ = try await conn.simpleQuery("INSERT INTO \(src) VALUES (1,'Alice'),(2,'Bob')")
-        }
+        try await client.createTable(name: src, columns: [
+            .integer(name: "id"),
+            .text(name: "name")
+        ])
+        try await client.insert(into: src, columns: ["id", "name"], values: [
+            [1, "Alice"] as [Any],
+            [2, "Bob"] as [Any]
+        ])
         defer {
             Task.detached { [client, src, dst] in
-                try? await client?.withConnection { conn in
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(dst)")
-                    _ = try? await conn.simpleQuery("DROP TABLE IF EXISTS \(src)")
-                }
+                _ = try? await client?.dropTable(name: dst, ifExists: true)
+                _ = try? await client?.dropTable(name: src, ifExists: true)
             }
         }
 
@@ -331,21 +331,15 @@ final class AdvancedClientTests: PostgresKitTestCase {
     // MARK: - Server Configuration
 
     func testSetAndResetConfiguration() async throws {
-        let original = try await client.simpleQuery("SHOW work_mem")
-        var originalVal = ""
-        for try await v in original.decode(String.self) { originalVal = v; break }
+        let originalVal = try await client.showConfiguration(parameter: "work_mem") ?? ""
 
         try await client.setConfiguration(parameter: "work_mem", value: "16MB")
 
-        let current = try await client.simpleQuery("SHOW work_mem")
-        var currentVal = ""
-        for try await v in current.decode(String.self) { currentVal = v; break }
+        let currentVal = try await client.showConfiguration(parameter: "work_mem") ?? ""
         XCTAssertFalse(currentVal.isEmpty, "work_mem should be set")
 
         try await client.resetConfiguration(parameter: "work_mem")
-        let restored = try await client.simpleQuery("SHOW work_mem")
-        var restoredVal = ""
-        for try await v in restored.decode(String.self) { restoredVal = v; break }
+        let restoredVal = try await client.showConfiguration(parameter: "work_mem") ?? ""
         XCTAssertEqual(restoredVal, originalVal, "work_mem should be restored to its original value")
     }
 

@@ -130,13 +130,19 @@ final class BasicTests: PostgresKitTestCase {
     // MARK: - Transaction Tests
 
     func testSimpleTransaction() async throws {
-        _ = try await client.simpleQuery("CREATE TEMPORARY TABLE test_tx (id SERIAL PRIMARY KEY, value TEXT)")
+        _ = try await client.createTable(
+            name: "test_tx",
+            columns: [
+                .serial(name: "id", primaryKey: true),
+                .text(name: "value")
+            ],
+            temporary: true
+        )
 
         let result = try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("BEGIN")
-            _ = try await conn.simpleQuery("INSERT INTO test_tx (value) VALUES ('test1')")
-            _ = try await conn.simpleQuery("INSERT INTO test_tx (value) VALUES ('test2')")
-            _ = try await conn.simpleQuery("COMMIT")
+            _ = try await conn.beginTransaction()
+            _ = try await conn.insert(into: "test_tx", columns: ["value"], values: [["test1"], ["test2"]])
+            _ = try await conn.commit()
 
             // Simple approach: test each query individually
             var insertCount = 0
@@ -158,12 +164,19 @@ final class BasicTests: PostgresKitTestCase {
     }
 
     func testTransactionRollback() async throws {
-        _ = try await client.simpleQuery("CREATE TEMPORARY TABLE test_rollback (id SERIAL PRIMARY KEY, value TEXT)")
+        _ = try await client.createTable(
+            name: "test_rollback",
+            columns: [
+                .serial(name: "id", primaryKey: true),
+                .text(name: "value")
+            ],
+            temporary: true
+        )
 
         let result = try await client.withConnection { conn in
-            _ = try await conn.simpleQuery("BEGIN")
-            _ = try await conn.simpleQuery("INSERT INTO test_rollback (value) VALUES ('rollback_test')")
-            _ = try await conn.simpleQuery("ROLLBACK")
+            _ = try await conn.beginTransaction()
+            _ = try await conn.insert(into: "test_rollback", columns: ["value"], values: [["rollback_test"]])
+            _ = try await conn.rollback()
 
             // Simple approach: test each query individually
             var rollbackCount = 0

@@ -12,3 +12,5 @@ DerivedData/
 .claude/
 .swift-docc-build/
 GEMINI.md
+AGENT.MD
+CLAUDE.md

@@ -49,6 +49,14 @@ final class ErrorConversionTests: PostgresKitTestCase {
         XCTAssertTrue(error.isSQLState("23503"))
     }
 
+    func testRestrictViolationDetection() throws {
+        let error = PostgresError(message: "Restrict violation", sqlState: "23001", severity: "ERROR")
+        XCTAssertTrue(error.isForeignKeyViolation)
+        XCTAssertTrue(error.isConstraintViolation)
+        XCTAssertFalse(error.isUniqueViolation)
+        XCTAssertTrue(error.isSQLState("23001"))
+    }
+
     func testDataTypeMismatchDetection() throws {
         let error = PostgresError(message: "Data type mismatch", sqlState: "42804", severity: "ERROR")
         XCTAssertTrue(error.isDataTypeMismatch)

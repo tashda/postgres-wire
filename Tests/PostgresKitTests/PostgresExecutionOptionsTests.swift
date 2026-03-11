@@ -15,7 +15,6 @@ final class PostgresExecutionOptionsTests: PostgresKitTestCase {
             applicationName: "ExecutionOptionsTests"
         )
         client = try await PostgresDatabaseClient.connect(configuration: config)
-        defer { }
     }
 
     override func tearDown() {

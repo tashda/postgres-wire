@@ -64,12 +64,12 @@ final class SimpleSequenceTest: PostgresKitTestCase {
             ]
         )
 
-        // Now we need to set up the default value using raw SQL since we don't have a method for this yet
-        _ = try await client.simpleQuery("ALTER TABLE test_seq_table ALTER COLUMN id SET DEFAULT nextval('test_simple_seq')")
+        // Set up the default value using the alterColumnDefault API
+        _ = try await client.alterColumnDefault(table: "test_seq_table", column: "id", defaultValue: "nextval('test_simple_seq')")
 
         // Insert data using sequence
-        _ = try await client.simpleQuery("INSERT INTO test_seq_table (name) VALUES ('test1')")
-        _ = try await client.simpleQuery("INSERT INTO test_seq_table (name) VALUES ('test2')")
+        _ = try await client.insert(into: "test_seq_table", columns: ["name"], values: [["test1"]])
+        _ = try await client.insert(into: "test_seq_table", columns: ["name"], values: [["test2"]])
 
         // Verify sequence-generated IDs
         let resultRows = try await client.simpleQuery("SELECT id, name FROM test_seq_table ORDER BY id")

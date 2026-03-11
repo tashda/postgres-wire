@@ -71,7 +71,10 @@ internal struct CopyStatement {
         if let selectClause { return selectClause }
         let (schema, table) = try resolveTable()
         let columns = try await client.listColumns(schema: schema ?? "public", table: table)
-        let colList = columns.map { Self.quoteIdent($0.name) }.joined(separator: ", ")
+        let colList = columns.map { column in
+            let quoted = Self.quoteIdent(column.name)
+            return "\(quoted)::text AS \(quoted)"
+        }.joined(separator: ", ")
         return "SELECT \(colList) FROM \(Self.qualify(schema: schema, table: table))"
     }
 

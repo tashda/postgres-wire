@@ -202,7 +202,7 @@ final class CheckConstraintTests: PostgresKitTestCase {
 
         // Invalid: JSON array (not an object)
         do {
-            _ = try await client.simpleQuery("INSERT INTO \(table) (config) VALUES ('[1,2,3]'::jsonb)")
+            _ = try await client.insert(into: table, columns: ["config"], values: [[.jsonbLiteral("[1,2,3]")]])
             XCTFail("Expected check constraint violation for non-object JSON")
         } catch {
             let pgError = PostgresError.from(error)
@@ -259,14 +259,14 @@ final class CheckConstraintTests: PostgresKitTestCase {
         )
 
         // Valid: active with no termination
-        _ = try await client.simpleQuery("INSERT INTO \(table) (is_active, termination_date) VALUES (true, NULL)")
+        _ = try await client.insert(into: table, columns: ["is_active", "termination_date"], values: [[true, nil]])
 
         // Valid: inactive with termination date
-        _ = try await client.simpleQuery("INSERT INTO \(table) (is_active, termination_date) VALUES (false, CURRENT_DATE)")
+        _ = try await client.insert(into: table, columns: ["is_active", "termination_date"], values: [[false, .currentDate]])
 
         // Invalid: active WITH termination date
         do {
-            _ = try await client.simpleQuery("INSERT INTO \(table) (is_active, termination_date) VALUES (true, CURRENT_DATE)")
+            _ = try await client.insert(into: table, columns: ["is_active", "termination_date"], values: [[true, .currentDate]])
             XCTFail("Expected check constraint violation for active with termination")
         } catch {
             let pgError = PostgresError.from(error)
@@ -275,7 +275,7 @@ final class CheckConstraintTests: PostgresKitTestCase {
 
         // Invalid: inactive WITHOUT termination date
         do {
-            _ = try await client.simpleQuery("INSERT INTO \(table) (is_active, termination_date) VALUES (false, NULL)")
+            _ = try await client.insert(into: table, columns: ["is_active", "termination_date"], values: [[false, nil]])
             XCTFail("Expected check constraint violation for inactive without termination")
         } catch {
             let pgError = PostgresError.from(error)

@@ -39,11 +39,15 @@ final class TransactionDebugTests: PostgresKitTestCase {
 
         let result = try await client.withConnection { conn in
             // Create temporary table and test its behavior
-            _ = try await conn.simpleQuery("CREATE TEMPORARY TABLE debug_tx (id SERIAL PRIMARY KEY, value TEXT)")
+            _ = try await conn.createTable(
+                name: "debug_tx",
+                columns: [.serial(name: "id", primaryKey: true), .text(name: "value")],
+                temporary: true
+            )
 
             // Insert a row and check immediate result
             print("About to insert first row...")
-            _ = try await conn.simpleQuery("INSERT INTO debug_tx (value) VALUES ('test1')")
+            _ = try await conn.insert(into: "debug_tx", columns: ["value"], values: [["test1"]])
             print("First insert completed")
 
             // Count immediately
@@ -68,7 +72,7 @@ final class TransactionDebugTests: PostgresKitTestCase {
 
             // Insert another row
             print("About to insert second row...")
-            _ = try await conn.simpleQuery("INSERT INTO debug_tx (value) VALUES ('test2')")
+            _ = try await conn.insert(into: "debug_tx", columns: ["value"], values: [["test2"]])
             print("Second insert completed")
 
             // Count again
@@ -103,14 +107,17 @@ final class TransactionDebugTests: PostgresKitTestCase {
 
         let result = try await client.withConnection { conn in
             // Start transaction
-            _ = try await conn.simpleQuery("BEGIN")
+            _ = try await conn.beginTransaction()
 
             // Create table inside transaction
-            _ = try await conn.simpleQuery("CREATE TEMPORARY TABLE iso_tx (id SERIAL PRIMARY KEY, value TEXT)")
+            _ = try await conn.createTable(
+                name: "iso_tx",
+                columns: [.serial(name: "id", primaryKey: true), .text(name: "value")],
+                temporary: true
+            )
 
             // Insert rows inside transaction
-            _ = try await conn.simpleQuery("INSERT INTO iso_tx (value) VALUES ('iso1')")
-            _ = try await conn.simpleQuery("INSERT INTO iso_tx (value) VALUES ('iso2')")
+            _ = try await conn.insert(into: "iso_tx", columns: ["value"], values: [["iso1"], ["iso2"]])
 
             // Count inside transaction (before commit)
             let countBefore = try await conn.simpleQuery("SELECT COUNT(*)::text FROM iso_tx")
@@ -124,7 +131,7 @@ final class TransactionDebugTests: PostgresKitTestCase {
             print("Before COMMIT: COUNT = \(beforeCount)")
 
             // Commit transaction
-            _ = try await conn.simpleQuery("COMMIT")
+            _ = try await conn.commit()
 
             // Count after commit
             let countAfter = try await conn.simpleQuery("SELECT COUNT(*)::text FROM iso_tx")
@@ -149,13 +156,17 @@ final class TransactionDebugTests: PostgresKitTestCase {
 
         let result = try await client.withConnection { conn in
             // Create table outside transaction so it persists after rollback
-            _ = try await conn.simpleQuery("CREATE TEMPORARY TABLE rollback_tx (id SERIAL PRIMARY KEY, value TEXT)")
+            _ = try await conn.createTable(
+                name: "rollback_tx",
+                columns: [.serial(name: "id", primaryKey: true), .text(name: "value")],
+                temporary: true
+            )
 
             // Start transaction
-            _ = try await conn.simpleQuery("BEGIN")
+            _ = try await conn.beginTransaction()
 
             // Insert row inside transaction
-            _ = try await conn.simpleQuery("INSERT INTO rollback_tx (value) VALUES ('rollback_test')")
+            _ = try await conn.insert(into: "rollback_tx", columns: ["value"], values: [["rollback_test"]])
 
             // Count inside transaction (before rollback)
             let countBefore = try await conn.simpleQuery("SELECT COUNT(*)::text FROM rollback_tx")
@@ -169,7 +180,7 @@ final class TransactionDebugTests: PostgresKitTestCase {
             print("Before ROLLBACK: COUNT = \(beforeCount)")
 
             // Rollback transaction
-            _ = try await conn.simpleQuery("ROLLBACK")
+            _ = try await conn.rollback()
 
             // Count after rollback (table should still exist but be empty)
             let countAfter = try await conn.simpleQuery("SELECT COUNT(*)::text FROM rollback_tx")

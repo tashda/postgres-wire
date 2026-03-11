@@ -52,12 +52,60 @@ public extension PostgresDatabaseClient {
         return try await executeDDL(parts.joined(separator: " "))
     }
 
-    /// Drop an existing user or role.
+    /// Drop an existing user.
     @discardableResult
     func dropUser(name: String, ifExists: Bool = false) async throws -> Int {
         var parts: [String] = ["DROP USER"]
         if ifExists { parts.append("IF EXISTS") }
         parts.append(quoteIdentifier(name))
+        return try await executeDDL(parts.joined(separator: " "))
+    }
+
+    /// Drop an existing role.
+    @discardableResult
+    func dropRole(name: String, ifExists: Bool = false) async throws -> Int {
+        var parts: [String] = ["DROP ROLE"]
+        if ifExists { parts.append("IF EXISTS") }
+        parts.append(quoteIdentifier(name))
+        return try await executeDDL(parts.joined(separator: " "))
+    }
+
+    /// Create a new role (without LOGIN by default, unlike createUser).
+    @discardableResult
+    func createRole(
+        name: String,
+        password: String? = nil,
+        superuser: Bool = false,
+        createDatabase: Bool = false,
+        createRole: Bool = false,
+        login: Bool = false,
+        inherit: Bool = true,
+        replication: Bool = false,
+        bypassRLS: Bool = false,
+        connectionLimit: Int? = nil,
+        validUntil: String? = nil
+    ) async throws -> Int {
+        var parts: [String] = ["CREATE ROLE"]
+        parts.append(quoteIdentifier(name))
+
+        var options: [String] = []
+        if let password {
+            options.append("ENCRYPTED PASSWORD '\(password)'")
+        }
+        if superuser { options.append("SUPERUSER") }
+        if createDatabase { options.append("CREATEDB") }
+        if createRole { options.append("CREATEROLE") }
+        if login { options.append("LOGIN") } else { options.append("NOLOGIN") }
+        if !inherit { options.append("NOINHERIT") }
+        if replication { options.append("REPLICATION") }
+        if bypassRLS { options.append("BYPASSRLS") }
+        if let connectionLimit { options.append("CONNECTION LIMIT \(connectionLimit)") }
+        if let validUntil { options.append("VALID UNTIL '\(validUntil)'") }
+
+        if !options.isEmpty {
+            parts.append("WITH \(options.joined(separator: " "))")
+        }
+
         return try await executeDDL(parts.joined(separator: " "))
     }
 
@@ -74,6 +122,7 @@ public extension PostgresDatabaseClient {
         inherit: Bool? = nil,
         replication: Bool? = nil,
         bypassRLS: Bool? = nil,
+        connectionLimit: Int? = nil,
         validUntil: String? = nil,
         rename: String? = nil
     ) async throws -> Int {
@@ -93,6 +142,7 @@ public extension PostgresDatabaseClient {
             if let inherit { parts.append(inherit ? "INHERIT" : "NOINHERIT") }
             if let replication { parts.append(replication ? "REPLICATION" : "NOREPLICATION") }
             if let bypassRLS { parts.append(bypassRLS ? "BYPASSRLS" : "NOBYPASSRLS") }
+            if let connectionLimit { parts.append("CONNECTION LIMIT \(connectionLimit)") }
             if let validUntil { parts.append("VALID UNTIL '\(validUntil)'") }
         }
 

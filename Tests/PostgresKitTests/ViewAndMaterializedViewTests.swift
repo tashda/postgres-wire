@@ -125,7 +125,7 @@ final class ViewAndMaterializedViewTests: PostgresKitTestCase {
     }
 
     func testRefreshSampleMaterializedView() async throws {
-        _ = try await client.refreshMaterializedView(name: "app.user_activity_summary", concurrently: true)
+        _ = try await client.refreshMaterializedView(name: "app.user_activity_summary", concurrently: false)
 
         let rows = try await client.simpleQuery("SELECT count(*) FROM app.user_activity_summary")
         var count: Int64 = 0

@@ -189,12 +189,15 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
         let roleName = uniqueName()
         let table = uniqueName("tbl")
         defer { Task { [client = self.client!] in
-            _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)")
+            _ = try? await client.dropTable(name: table, ifExists: true)
             _ = try? await client.dropUser(name: roleName, ifExists: true)
         }}
 
         _ = try await client.createUser(name: roleName, createDatabase: false, createRole: false, login: false)
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, name TEXT)")
+        _ = try await client.createTable(name: table, columns: [
+            .serial(name: "id", primaryKey: true),
+            .text(name: "name")
+        ])
 
         // Grant SELECT
         _ = try await client.grantPrivileges(privileges: [.select], onTable: table, to: roleName)
@@ -217,12 +220,15 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
         let roleName = uniqueName()
         let table = uniqueName("tbl")
         defer { Task { [client = self.client!] in
-            _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)")
+            _ = try? await client.dropTable(name: table, ifExists: true)
             _ = try? await client.dropUser(name: roleName, ifExists: true)
         }}
 
         _ = try await client.createUser(name: roleName, createDatabase: false, createRole: false, login: false)
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id SERIAL PRIMARY KEY, name TEXT)")
+        _ = try await client.createTable(name: table, columns: [
+            .serial(name: "id", primaryKey: true),
+            .text(name: "name")
+        ])
 
         _ = try await client.grantPrivileges(privileges: [.select, .insert, .update], onTable: table, to: roleName)
 

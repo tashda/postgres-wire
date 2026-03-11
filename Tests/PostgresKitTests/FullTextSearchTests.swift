@@ -73,9 +73,11 @@ final class FullTextSearchTests: PostgresKitTestCase {
     // MARK: - Boolean Operators
 
     func testAndOperator() async throws {
+        // 'postgresql' stems differently from 'postgres' in English stemmer,
+        // so use 'postgresql' to match the tsvector from 'PostgreSQL is an advanced...'
         let rows = try await client.simpleQuery("""
             SELECT col_text FROM public.fulltext_types
-            WHERE col_tsvector @@ to_tsquery('english', 'postgres & database')
+            WHERE col_tsvector @@ to_tsquery('english', 'postgresql & database')
         """)
         var found = false
         for try await _ in rows { found = true }
@@ -83,9 +85,10 @@ final class FullTextSearchTests: PostgresKitTestCase {
     }
 
     func testOrOperator() async throws {
+        // 'swift' matches row 3, 'fox' matches row 1
         let rows = try await client.simpleQuery("""
             SELECT count(*) FROM public.fulltext_types
-            WHERE col_tsvector @@ to_tsquery('english', 'swift | postgres')
+            WHERE col_tsvector @@ to_tsquery('english', 'swift | fox')
         """)
         var count: Int64 = 0
         for try await c in rows.decode(Int64.self) { count = c }
@@ -171,9 +174,7 @@ final class FullTextSearchTests: PostgresKitTestCase {
     // MARK: - GIN Index on fulltext_types
 
     func testGINIndexUsedForFullTextSearch() async throws {
-        let rows = try await client.simpleQuery("EXPLAIN SELECT * FROM public.fulltext_types WHERE col_tsvector @@ to_tsquery('english', 'quick')")
-        var plan = ""
-        for try await line in rows.decode(String.self) { plan += line + "\n" }
+        let plan = try await client.explain("SELECT * FROM public.fulltext_types WHERE col_tsvector @@ to_tsquery('english', 'quick')")
         XCTAssertFalse(plan.isEmpty, "EXPLAIN should produce a plan")
     }
 

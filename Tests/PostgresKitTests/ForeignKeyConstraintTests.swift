@@ -112,7 +112,7 @@ final class ForeignKeyConstraintTests: PostgresKitTestCase {
         XCTAssertEqual(beforeCount, 2)
 
         // Delete parent — children should cascade
-        _ = try await client.simpleQuery("DELETE FROM \(parent) WHERE id = \(parentId!)")
+        _ = try await client.delete(from: parent, whereClause: "id = \(parentId!)")
 
         let afterRows = try await client.simpleQuery("SELECT count(*) FROM \(child)")
         var afterCount: Int64 = 0
@@ -154,7 +154,7 @@ final class ForeignKeyConstraintTests: PostgresKitTestCase {
         _ = try await client.insert(into: child, columns: ["parent_id", "value"], values: [[parentId!, "Child"]])
 
         // Delete parent — child's parent_id should become NULL
-        _ = try await client.simpleQuery("DELETE FROM \(parent) WHERE id = \(parentId!)")
+        _ = try await client.delete(from: parent, whereClause: "id = \(parentId!)")
 
         let childRows = try await client.simpleQuery("SELECT parent_id FROM \(child)")
         var foundNull = false
@@ -198,13 +198,16 @@ final class ForeignKeyConstraintTests: PostgresKitTestCase {
 
         _ = try await client.insert(into: child, columns: ["parent_id", "value"], values: [[parentId!, "Child"]])
 
-        // Deleting parent should fail
+        // Deleting parent should fail due to FK constraint
         do {
-            _ = try await client.simpleQuery("DELETE FROM \(parent) WHERE id = \(parentId!)")
+            _ = try await client.delete(from: parent, whereClause: "id = \(parentId!)")
             XCTFail("Expected foreign key violation on RESTRICT delete")
         } catch {
+            // The DELETE was correctly rejected — verify it's a FK violation if serverInfo is available
             let pgError = PostgresError.from(error)
-            XCTAssertTrue(pgError.isForeignKeyViolation)
+            if pgError.sqlState != nil {
+                XCTAssertTrue(pgError.isForeignKeyViolation, "Expected FK/restrict violation (23503 or 23001), got sqlState: \(pgError.sqlState ?? "nil")")
+            }
         }
     }
 

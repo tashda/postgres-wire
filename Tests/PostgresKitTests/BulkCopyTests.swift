@@ -35,10 +35,18 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyOutBasicCSV() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id INTEGER, name TEXT, score INTEGER)")
-        _ = try await client.simpleQuery("INSERT INTO \(table) VALUES (1, 'Alice', 95), (2, 'Bob', 87), (3, 'Carol', 92)")
+        try await client.createTable(name: table, columns: [
+            .integer(name: "id"),
+            .text(name: "name"),
+            .integer(name: "score")
+        ])
+        _ = try await client.insert(into: table, columns: ["id", "name", "score"], values: [
+            [1, "Alice", 95],
+            [2, "Bob", 87],
+            [3, "Carol", 92]
+        ])
 
         let stream = try await bulkCopy.copyOut(sql: "COPY \(table) TO STDOUT WITH (FORMAT csv, HEADER true)")
         var allData = Data()
@@ -59,9 +67,12 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyOutEmptyTable() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id INTEGER, name TEXT)")
+        try await client.createTable(name: table, columns: [
+            .integer(name: "id"),
+            .text(name: "name")
+        ])
 
         let stream = try await bulkCopy.copyOut(sql: "COPY \(table) TO STDOUT WITH (FORMAT csv, HEADER true)")
         var allData = Data()
@@ -77,10 +88,17 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyOutWithNulls() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id INTEGER, name TEXT, notes TEXT)")
-        _ = try await client.simpleQuery("INSERT INTO \(table) VALUES (1, 'Alice', NULL), (2, NULL, 'has notes')")
+        try await client.createTable(name: table, columns: [
+            .integer(name: "id"),
+            .text(name: "name"),
+            .text(name: "notes")
+        ])
+        _ = try await client.insert(into: table, values: [
+            [1, "Alice", nil],
+            [2, nil, "has notes"]
+        ])
 
         let stream = try await bulkCopy.copyOut(sql: "COPY \(table) TO STDOUT WITH (FORMAT csv, HEADER true)")
         var allData = Data()
@@ -94,10 +112,17 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyOutWithSpecialCharacters() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id INTEGER, name TEXT)")
-        _ = try await client.simpleQuery("INSERT INTO \(table) VALUES (1, 'O''Brien'), (2, 'Hello, World'), (3, 'Line1')")
+        try await client.createTable(name: table, columns: [
+            .integer(name: "id"),
+            .text(name: "name")
+        ])
+        _ = try await client.insert(into: table, columns: ["id", "name"], values: [
+            [1, "O'Brien"],
+            [2, "Hello, World"],
+            [3, "Line1"]
+        ])
 
         let stream = try await bulkCopy.copyOut(sql: "COPY \(table) TO STDOUT WITH (FORMAT csv, HEADER true)")
         var allData = Data()
@@ -116,9 +141,13 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyInBasicCSV() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id INTEGER, name TEXT, score INTEGER)")
+        try await client.createTable(name: table, columns: [
+            .integer(name: "id"),
+            .text(name: "name"),
+            .integer(name: "score")
+        ])
 
         let csvData = "id,name,score\n1,Alice,95\n2,Bob,87\n3,Carol,92\n"
         let source = AsyncThrowingStream<Data, Error> { continuation in
@@ -140,9 +169,12 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyInLargeDataset() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id INTEGER, value TEXT)")
+        try await client.createTable(name: table, columns: [
+            .integer(name: "id"),
+            .text(name: "value")
+        ])
 
         // Generate 1000 rows
         var csv = "id,value\n"
@@ -180,13 +212,23 @@ final class BulkCopyTests: PostgresKitTestCase {
         let sourceTable = uniqueName("src")
         let destTable = uniqueName("dst")
         defer { Task { [client = self.client!] in
-            _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(sourceTable)")
-            _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(destTable)")
+            _ = try? await client.dropTable(name: sourceTable, ifExists: true)
+            _ = try? await client.dropTable(name: destTable, ifExists: true)
         }}
 
-        _ = try await client.simpleQuery("CREATE TABLE \(sourceTable) (id INTEGER, name TEXT)")
-        _ = try await client.simpleQuery("INSERT INTO \(sourceTable) VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Carol')")
-        _ = try await client.simpleQuery("CREATE TABLE \(destTable) (id INTEGER, name TEXT)")
+        try await client.createTable(name: sourceTable, columns: [
+            .integer(name: "id"),
+            .text(name: "name")
+        ])
+        _ = try await client.insert(into: sourceTable, columns: ["id", "name"], values: [
+            [1, "Alice"],
+            [2, "Bob"],
+            [3, "Carol"]
+        ])
+        try await client.createTable(name: destTable, columns: [
+            .integer(name: "id"),
+            .text(name: "name")
+        ])
 
         // Copy out from source
         let outStream = try await bulkCopy.copyOut(sql: "COPY \(sourceTable) TO STDOUT WITH (FORMAT csv, HEADER true)")
@@ -200,10 +242,14 @@ final class BulkCopyTests: PostgresKitTestCase {
             continuation.yield(exportedData)
             continuation.finish()
         }
-        try await bulkCopy.copyIn(
-            sql: "COPY \(destTable) FROM STDIN WITH (FORMAT csv, HEADER true)",
-            source: inSource
-        )
+        do {
+            try await bulkCopy.copyIn(
+                sql: "COPY \(destTable) FROM STDIN WITH (FORMAT csv, HEADER true)",
+                source: inSource
+            )
+        } catch {
+            throw error
+        }
 
         // Verify destination has same data
         let rows = try await client.simpleQuery("SELECT count(*) FROM \(destTable)")
@@ -216,9 +262,12 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testBulkCopyWithCustomOptions() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.simpleQuery("DROP TABLE IF EXISTS \(table)") } }
+        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.simpleQuery("CREATE TABLE \(table) (id INTEGER, name TEXT)")
+        try await client.createTable(name: table, columns: [
+            .integer(name: "id"),
+            .text(name: "name")
+        ])
 
         let customBulk = PostgresBulkCopy(
             client: client,

@@ -143,6 +143,10 @@ public final class PostgresWireClient: @unchecked Sendable {
         }
     }
 
+    public var activity: PostgresActivityMonitor {
+        PostgresActivityMonitor(client: self)
+    }
+
     public func query(_ query: WireQuery, logger: Logger? = nil) async throws -> WireRowSequence {
         try await client.query(query.asPostgresQuery(), logger: logger ?? self.logger)
     }

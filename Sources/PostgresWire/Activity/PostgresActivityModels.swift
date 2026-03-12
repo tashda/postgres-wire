@@ -60,7 +60,9 @@ public struct PostgresActivitySnapshot: Sendable {
     }
 }
 
-public struct PostgresProcessInfo: Sendable {
+public struct PostgresProcessInfo: Sendable, Identifiable {
+    public var id: Int32 { pid }
+    
     public let pid: Int32
     public let databaseName: String?
     public let userName: String?
@@ -83,7 +85,9 @@ public struct PostgresWaitStat: Sendable {
     public let count: Int
 }
 
-public struct PostgresWaitStatDelta: Sendable {
+public struct PostgresWaitStatDelta: Sendable, Identifiable {
+    public var id: String { "\(waitEventType):\(waitEvent)" }
+    
     public let waitEventType: String
     public let waitEvent: String
     public let countDelta: Int
@@ -103,7 +107,9 @@ public struct PostgresDatabaseStat: Sendable {
     public let tup_deleted: Int64
 }
 
-public struct PostgresDatabaseStatDelta: Sendable {
+public struct PostgresDatabaseStatDelta: Sendable, Identifiable {
+    public var id: String { datname }
+    
     public let datname: String
     public let xact_commit_delta: Int64
     public let xact_rollback_delta: Int64
@@ -111,7 +117,9 @@ public struct PostgresDatabaseStatDelta: Sendable {
     public let blks_hit_delta: Int64
 }
 
-public struct PostgresExpensiveQuery: Sendable {
+public struct PostgresExpensiveQuery: Sendable, Identifiable {
+    public var id: String { "\(queryid ?? 0):\(query)" }
+    
     public let queryid: Int64?
     public let query: String
     public let calls: Int64

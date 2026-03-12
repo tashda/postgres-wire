@@ -4,7 +4,7 @@ import Logging
 
 /// Tests triggers firing correctly, stored functions, and the trigger/function client API.
 final class TriggerAndFunctionTests: PostgresKitTestCase {
-    private var client: PostgresDatabaseClient!
+    private var client: PostgresKit.PostgresClient!
 
     override func setUp() async throws {
         try await super.setUp()
@@ -15,7 +15,7 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "TriggerFunctionTests"
         )
-        client = try await PostgresDatabaseClient.connect(configuration: config, logger: Logger(label: "trigger-tests"))
+        client = try await PostgresClient.connect(configuration: config, logger: Logger(label: "trigger-tests"))
     }
 
     override func tearDown() { client?.close(); super.tearDown() }
@@ -28,7 +28,7 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
 
     func testUpdatedAtTriggerFires() async throws {
         // Get a user's current updated_at
-        let beforeRows = try await client.simpleQuery("SELECT id, updated_at FROM app.users WHERE username = 'alice'")
+        let beforeRows = try await client.connection.simpleQuery("SELECT id, updated_at FROM app.users WHERE username = 'alice'")
         var userId: Int64?
         var beforeTimestamp: String?
         for try await (id, ts) in beforeRows.decode((Int64, String).self) {
@@ -41,10 +41,10 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
         try await Task.sleep(nanoseconds: 100_000_000) // 100ms
 
         // Update the user's bio
-        _ = try await client.update(table: "app.users", set: ["bio": "Updated bio at \(Date())"], whereClause: "id = \(uid)")
+        _ = try await client.connection.update(table: "app.users", set: ["bio": "Updated bio at \(Date())"], whereClause: "id = \(uid)")
 
         // Check updated_at changed
-        let afterRows = try await client.simpleQuery("SELECT updated_at::text FROM app.users WHERE id = \(uid)")
+        let afterRows = try await client.connection.simpleQuery("SELECT updated_at::text FROM app.users WHERE id = \(uid)")
         var afterTimestamp: String?
         for try await ts in afterRows.decode(String.self) { afterTimestamp = ts }
 
@@ -55,7 +55,7 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
 
     func testSearchVectorTriggerPopulatesOnInsert() async throws {
         // Posts inserted by SampleData should have search_vector populated
-        let rows = try await client.simpleQuery("SELECT count(*) FROM app.posts WHERE search_vector IS NOT NULL")
+        let rows = try await client.connection.simpleQuery("SELECT count(*) FROM app.posts WHERE search_vector IS NOT NULL")
         var count: Int64 = 0
         for try await c in rows.decode(Int64.self) { count = c }
         XCTAssertGreaterThan(count, 0, "search_vector should be populated by trigger on INSERT")
@@ -63,17 +63,17 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
 
     func testSearchVectorTriggerUpdatesOnTitleChange() async throws {
         // Get a post
-        let postRows = try await client.simpleQuery("SELECT id FROM app.posts LIMIT 1")
+        let postRows = try await client.connection.simpleQuery("SELECT id FROM app.posts LIMIT 1")
         var postId: Int64?
         for try await id in postRows.decode(Int64.self) { postId = id }
         guard let pid = postId else { return XCTFail("Should have at least one post") }
 
         // Update title with a unique word
         let uniqueWord = "xylophonetest\(UInt32.random(in: 0..<UInt32.max))"
-        _ = try await client.update(table: "app.posts", set: ["title": "Testing \(uniqueWord) feature"], whereClause: "id = \(pid)")
+        _ = try await client.connection.update(table: "app.posts", set: ["title": "Testing \(uniqueWord) feature"], whereClause: "id = \(pid)")
 
         // Verify search_vector contains the unique word
-        let searchRows = try await client.simpleQuery("SELECT search_vector::text FROM app.posts WHERE id = \(pid)")
+        let searchRows = try await client.connection.simpleQuery("SELECT search_vector::text FROM app.posts WHERE id = \(pid)")
         var vector: String?
         for try await v in searchRows.decode(String.self) { vector = v }
         XCTAssertNotNil(vector)
@@ -88,14 +88,14 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
 
     func testAuditTriggerLogsInsert() async throws {
         // Clear audit log for clean test
-        _ = try await client.delete(from: "audit.change_log", whereClause: "table_name = 'users' AND operation = 'INSERT'")
+        _ = try await client.connection.delete(from: "audit.change_log", whereClause: "table_name = 'users' AND operation = 'INSERT'")
 
         // Insert a new user (triggers audit.log_change)
         let username = uniqueName("audituser")
-        _ = try await client.insert(into: "app.users", columns: ["username", "email", "password_hash"], values: [[username, "\(username)@example.com", "hash123"]])
+        _ = try await client.connection.insert(into: "app.users", columns: ["username", "email", "password_hash"], values: [[username, "\(username)@example.com", "hash123"]])
 
         // Check audit log
-        let rows = try await client.simpleQuery("""
+        let rows = try await client.connection.simpleQuery("""
             SELECT operation, new_data->>'username' FROM audit.change_log
             WHERE table_name = 'users' AND operation = 'INSERT' AND new_data->>'username' = '\(username)'
         """)
@@ -108,11 +108,11 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
         XCTAssertTrue(found, "Audit trigger should log INSERT")
 
         // Cleanup
-        _ = try await client.delete(from: "app.users", whereClause: "username = '\(username)'")
+        _ = try await client.connection.delete(from: "app.users", whereClause: "username = '\(username)'")
     }
 
     func testAuditTriggerLogsUpdate() async throws {
-        let rows = try await client.simpleQuery("""
+        let rows = try await client.connection.simpleQuery("""
             SELECT count(*) FROM audit.change_log WHERE table_name = 'users' AND operation = 'UPDATE'
         """)
         var count: Int64 = 0
@@ -125,7 +125,7 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
 
     func testTagCountTriggerIncrementsOnInsert() async throws {
         // Get current post_count for PostgreSQL tag
-        let beforeRows = try await client.simpleQuery("SELECT post_count FROM app.tags WHERE slug = 'postgresql'")
+        let beforeRows = try await client.connection.simpleQuery("SELECT post_count FROM app.tags WHERE slug = 'postgresql'")
         var beforeCount: Int?
         for try await c in beforeRows.decode(Int.self) { beforeCount = c }
         XCTAssertNotNil(beforeCount)
@@ -135,19 +135,19 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
 
     func testGetUserPostsFunction() async throws {
         // Get alice's ID
-        let userRows = try await client.simpleQuery("SELECT id FROM app.users WHERE username = 'alice'")
+        let userRows = try await client.connection.simpleQuery("SELECT id FROM app.users WHERE username = 'alice'")
         var userId: Int64?
         for try await id in userRows.decode(Int64.self) { userId = id }
         guard let uid = userId else { return XCTFail("alice should exist") }
 
-        let rows = try await client.simpleQuery("SELECT * FROM app.get_user_posts(\(uid))")
+        let rows = try await client.connection.simpleQuery("SELECT * FROM app.get_user_posts(\(uid))")
         var count = 0
         for try await _ in rows { count += 1 }
         XCTAssertGreaterThan(count, 0, "alice should have posts")
     }
 
     func testIncrementLoginCountFunction() async throws {
-        let userRows = try await client.simpleQuery("SELECT id, login_count FROM app.users WHERE username = 'bob'")
+        let userRows = try await client.connection.simpleQuery("SELECT id, login_count FROM app.users WHERE username = 'bob'")
         var userId: Int64?
         var beforeCount: Int?
         for try await (id, count) in userRows.decode((Int64, Int).self) {
@@ -156,16 +156,16 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
         }
         guard let uid = userId, let before = beforeCount else { return XCTFail("bob should exist") }
 
-        _ = try await client.simpleQuery("SELECT app.increment_login_count(\(uid))")
+        _ = try await client.connection.simpleQuery("SELECT app.increment_login_count(\(uid))")
 
-        let afterRows = try await client.simpleQuery("SELECT login_count FROM app.users WHERE id = \(uid)")
+        let afterRows = try await client.connection.simpleQuery("SELECT login_count FROM app.users WHERE id = \(uid)")
         var afterCount: Int?
         for try await c in afterRows.decode(Int.self) { afterCount = c }
         XCTAssertEqual(afterCount, before + 1, "Login count should be incremented")
     }
 
     func testMergeJsonbSettingsFunction() async throws {
-        let rows = try await client.simpleQuery("""
+        let rows = try await client.connection.simpleQuery("""
             SELECT app.merge_jsonb_settings('{"theme": "dark"}'::jsonb, '{"lang": "en", "notifications": true}'::jsonb)
         """)
         var found = false
@@ -188,9 +188,9 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
 
     func testCreateAndDropFunction() async throws {
         let name = uniqueName("fn")
-        defer { Task { [client = self.client!] in _ = try? await client.dropFunction(name: name, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.admin.dropFunction(name: name, ifExists: true) } }
 
-        _ = try await client.createFunction(
+        _ = try await client.admin.createFunction(
             name: name,
             parameters: [.init(name: "x", dataType: "INTEGER"), .init(name: "y", dataType: "INTEGER")],
             returnType: "INTEGER",
@@ -199,7 +199,7 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
             immutable: true
         )
 
-        let rows = try await client.simpleQuery("SELECT \(name)(3, 4)")
+        let rows = try await client.connection.simpleQuery("SELECT \(name)(3, 4)")
         var found = false
         for try await result in rows.decode(Int.self) {
             XCTAssertEqual(result, 7)
@@ -207,7 +207,7 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
         }
         XCTAssertTrue(found)
 
-        _ = try await client.dropFunction(name: name, parameters: ["INTEGER", "INTEGER"])
+        _ = try await client.admin.dropFunction(name: name, parameters: ["INTEGER", "INTEGER"])
     }
 
     // MARK: - Create and Drop Trigger via Client API
@@ -217,20 +217,20 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
         let fnName = uniqueName("trfn")
         let trigName = uniqueName("tr")
         defer { Task { [client = self.client!] in
-            _ = try? await client.dropTrigger(name: trigName, table: table, ifExists: true)
-            _ = try? await client.dropTable(name: table, ifExists: true)
-            _ = try? await client.dropFunction(name: fnName, ifExists: true)
+            _ = try? await client.admin.dropTrigger(name: trigName, table: table, ifExists: true)
+            _ = try? await client.admin.dropTable(name: table, ifExists: true)
+            _ = try? await client.admin.dropFunction(name: fnName, ifExists: true)
         }}
 
         // Create table
-        _ = try await client.createTable(name: table, columns: [
+        _ = try await client.admin.createTable(name: table, columns: [
             .serial(name: "id", primaryKey: true),
             .text(name: "name"),
             PostgresColumnDefinition(name: "updated_at", dataType: "TIMESTAMPTZ", defaultValue: "NOW()")
         ])
 
         // Create trigger function
-        _ = try await client.createFunction(
+        _ = try await client.admin.createFunction(
             name: fnName,
             parameters: [],
             returnType: "TRIGGER",
@@ -244,7 +244,7 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
         )
 
         // Create trigger
-        _ = try await client.createTrigger(
+        _ = try await client.admin.createTrigger(
             name: trigName,
             table: table,
             event: .before,
@@ -253,12 +253,12 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
         )
 
         // Insert and update to test trigger
-        _ = try await client.insert(into: table, columns: ["name"], values: [["test"]])
+        _ = try await client.connection.insert(into: table, columns: ["name"], values: [["test"]])
         try await Task.sleep(nanoseconds: 100_000_000)
-        _ = try await client.update(table: table, set: ["name": "updated"])
+        _ = try await client.connection.update(table: table, set: ["name": "updated"])
 
         // Drop trigger
-        _ = try await client.dropTrigger(name: trigName, table: table)
+        _ = try await client.admin.dropTrigger(name: trigName, table: table)
     }
 
     // MARK: - Trigger Introspection

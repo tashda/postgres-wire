@@ -3,7 +3,7 @@ import XCTest
 @testable import PostgresKit
 
 final class PostgresExecutionOptionsTests: PostgresKitTestCase {
-    private var client: PostgresDatabaseClient!
+    private var client: PostgresKit.PostgresClient!
 
     override func setUp() async throws {
         try await super.setUp()
@@ -14,7 +14,7 @@ final class PostgresExecutionOptionsTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "ExecutionOptionsTests"
         )
-        client = try await PostgresDatabaseClient.connect(configuration: config)
+        client = try await PostgresClient.connect(configuration: config)
     }
 
     override func tearDown() {
@@ -63,7 +63,7 @@ final class PostgresExecutionOptionsTests: PostgresKitTestCase {
 
     func testSimpleQueryWithAutoMode() async throws {
         let options = PostgresExecutionOptions(mode: .auto)
-        let rows = try await client.simpleQuery("SELECT 1 AS val", options: options)
+        let rows = try await client.connection.simpleQuery("SELECT 1 AS val", options: options)
         var values: [Int] = []
         for try await val in rows.decode(Int.self) { values.append(val) }
         XCTAssertEqual(values, [1])
@@ -79,7 +79,7 @@ final class PostgresExecutionOptionsTests: PostgresKitTestCase {
             progressThrottleMs: 120
         )
 
-        let rows = try await client.simpleQuery("SELECT generate_series(1, 10) AS n", options: options)
+        let rows = try await client.connection.simpleQuery("SELECT generate_series(1, 10) AS n", options: options)
         var count = 0
         for try await _ in rows { count += 1 }
         XCTAssertEqual(count, 10)
@@ -89,7 +89,7 @@ final class PostgresExecutionOptionsTests: PostgresKitTestCase {
 
     func testAutoModeSmallResultSet() async throws {
         let options = PostgresExecutionOptions(mode: .auto, cursorThreshold: 100)
-        let rows = try await client.simpleQuery("SELECT generate_series(1, 5) AS n", options: options)
+        let rows = try await client.connection.simpleQuery("SELECT generate_series(1, 5) AS n", options: options)
         var values: [Int] = []
         for try await val in rows.decode(Int.self) { values.append(val) }
         XCTAssertEqual(values, [1, 2, 3, 4, 5])
@@ -101,7 +101,7 @@ final class PostgresExecutionOptionsTests: PostgresKitTestCase {
             cursorThreshold: 50,
             fetchBaseline: 10
         )
-        let rows = try await client.simpleQuery("SELECT generate_series(1, 200) AS n", options: options)
+        let rows = try await client.connection.simpleQuery("SELECT generate_series(1, 200) AS n", options: options)
         var count = 0
         for try await _ in rows { count += 1 }
         XCTAssertEqual(count, 200)
@@ -111,7 +111,7 @@ final class PostgresExecutionOptionsTests: PostgresKitTestCase {
 
     func testOptionsWithSelectQuery() async throws {
         let options = PostgresExecutionOptions(mode: .auto)
-        let rows = try await client.simpleQuery("SELECT 'hello'::text AS greeting, 42 AS number", options: options)
+        let rows = try await client.connection.simpleQuery("SELECT 'hello'::text AS greeting, 42 AS number", options: options)
         var found = false
         for try await (greeting, number) in rows.decode((String, Int).self) {
             XCTAssertEqual(greeting, "hello")
@@ -123,7 +123,7 @@ final class PostgresExecutionOptionsTests: PostgresKitTestCase {
 
     func testOptionsWithMultipleRows() async throws {
         let options = PostgresExecutionOptions(mode: .auto, fetchBaseline: 2)
-        let rows = try await client.simpleQuery(
+        let rows = try await client.connection.simpleQuery(
             "SELECT n, 'item_' || n::text AS name FROM generate_series(1, 20) AS n",
             options: options
         )

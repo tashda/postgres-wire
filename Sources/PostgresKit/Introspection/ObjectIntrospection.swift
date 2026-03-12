@@ -1,12 +1,12 @@
 import PostgresWire
 
 /// High-level object definition and comment introspection.
-public extension PostgresDatabaseClient {
+public extension PostgresIntrospectionClient {
     /// Fetch the SQL definition of a view.
     func viewDefinition(schema: String, view: String) async throws -> String? {
         let sql = "SELECT pg_get_viewdef(format('%I.%I', $1::text, $2::text)::regclass, true)"
-        return try await withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [toPGData(value: schema), toPGData(value: view)])
+        return try await client.withConnection { conn in
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: view)])
             for row in rows { return try row.decode(String?.self) }
             return nil
         }
@@ -21,8 +21,8 @@ public extension PostgresDatabaseClient {
             WHERE n.nspname = $1 AND p.proname = $2
             ORDER BY p.oid LIMIT 1
             """
-        return try await withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [toPGData(value: schema), toPGData(value: name)])
+        return try await client.withConnection { conn in
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: name)])
             for row in rows { return try row.decode(String?.self) }
             return nil
         }
@@ -38,8 +38,8 @@ public extension PostgresDatabaseClient {
             WHERE n.nspname = $1 AND t.tgname = $2
             ORDER BY t.oid LIMIT 1
             """
-        return try await withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [toPGData(value: schema), toPGData(value: name)])
+        return try await client.withConnection { conn in
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: name)])
             for row in rows { return try row.decode(String?.self) }
             return nil
         }
@@ -48,8 +48,8 @@ public extension PostgresDatabaseClient {
     /// Fetch the comment/description for a table.
     func tableComment(schema: String, table: String) async throws -> String? {
         let sql = "SELECT obj_description(format('%I.%I', $1::text, $2::text)::regclass, 'pg_class')"
-        return try await withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [toPGData(value: schema), toPGData(value: table)])
+        return try await client.withConnection { conn in
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             for row in rows { return try row.decode(String?.self) }
             return nil
         }
@@ -65,8 +65,8 @@ public extension PostgresDatabaseClient {
             WHERE n.nspname = $1 AND c.relname = $2
             ORDER BY a.attnum
             """
-        return try await withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [toPGData(value: schema), toPGData(value: table)])
+        return try await client.withConnection { conn in
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var out: [PostgresColumnComment] = []
             for row in rows {
                 let (name, comment) = try row.decode((String, String?).self)
@@ -85,8 +85,8 @@ public extension PostgresDatabaseClient {
             WHERE n.nspname = $1 AND p.proname = $2
             ORDER BY p.oid LIMIT 1
             """
-        return try await withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [toPGData(value: schema), toPGData(value: name)])
+        return try await client.withConnection { conn in
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: name)])
             for row in rows { return try row.decode(String?.self) }
             return nil
         }
@@ -102,8 +102,8 @@ public extension PostgresDatabaseClient {
             WHERE n.nspname = $1 AND t.tgname = $2
             ORDER BY t.oid LIMIT 1
             """
-        return try await withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [toPGData(value: schema), toPGData(value: name)])
+        return try await client.withConnection { conn in
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: name)])
             for row in rows { return try row.decode(String?.self) }
             return nil
         }
@@ -111,7 +111,7 @@ public extension PostgresDatabaseClient {
 
     /// Fetch the comment for the current database.
     func databaseComment() async throws -> String? {
-        let rows = try await simpleQuery("""
+        let rows = try await client.simpleQuery("""
             SELECT obj_description(d.oid, 'pg_database')
             FROM pg_database d WHERE d.datname = current_database() LIMIT 1
             """)
@@ -119,3 +119,4 @@ public extension PostgresDatabaseClient {
         return nil
     }
 }
+

@@ -1,29 +1,29 @@
 import PostgresWire
 
 /// Row Level Security (RLS) policy management.
-public extension PostgresDatabaseClient {
+public extension PostgresSecurityClient {
     /// Enable row level security on a table.
     @discardableResult
     func enableRowLevelSecurity(table: String) async throws -> Int {
-        return try await executeDDL("ALTER TABLE \(quoteIdentifier(table)) ENABLE ROW LEVEL SECURITY")
+        return try await client.executeDDL("ALTER TABLE \(client.quoteIdentifier(table)) ENABLE ROW LEVEL SECURITY")
     }
 
     /// Disable row level security on a table.
     @discardableResult
     func disableRowLevelSecurity(table: String) async throws -> Int {
-        return try await executeDDL("ALTER TABLE \(quoteIdentifier(table)) DISABLE ROW LEVEL SECURITY")
+        return try await client.executeDDL("ALTER TABLE \(client.quoteIdentifier(table)) DISABLE ROW LEVEL SECURITY")
     }
 
     /// Force row level security for the table owner.
     @discardableResult
     func forceRowLevelSecurity(table: String) async throws -> Int {
-        return try await executeDDL("ALTER TABLE \(quoteIdentifier(table)) FORCE ROW LEVEL SECURITY")
+        return try await client.executeDDL("ALTER TABLE \(client.quoteIdentifier(table)) FORCE ROW LEVEL SECURITY")
     }
 
     /// Remove forced row level security for the table owner.
     @discardableResult
     func noForceRowLevelSecurity(table: String) async throws -> Int {
-        return try await executeDDL("ALTER TABLE \(quoteIdentifier(table)) NO FORCE ROW LEVEL SECURITY")
+        return try await client.executeDDL("ALTER TABLE \(client.quoteIdentifier(table)) NO FORCE ROW LEVEL SECURITY")
     }
 
     /// Create a row level security policy.
@@ -37,12 +37,12 @@ public extension PostgresDatabaseClient {
         withCheck: String? = nil,
         permissive: Bool = true
     ) async throws -> Int {
-        var parts: [String] = ["CREATE POLICY \(quoteIdentifier(name))"]
-        parts.append("ON \(quoteIdentifier(table))")
+        var parts: [String] = ["CREATE POLICY \(client.quoteIdentifier(name))"]
+        parts.append("ON \(client.quoteIdentifier(table))")
         if !permissive { parts.append("AS RESTRICTIVE") }
         parts.append("FOR \(command.rawValue)")
         if let to, !to.isEmpty {
-            parts.append("TO \(to.map(quoteIdentifier).joined(separator: ", "))")
+            parts.append("TO \(to.map(client.quoteIdentifier).joined(separator: ", "))")
         }
         if let using {
             parts.append("USING (\(using))")
@@ -50,7 +50,7 @@ public extension PostgresDatabaseClient {
         if let withCheck {
             parts.append("WITH CHECK (\(withCheck))")
         }
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Drop a row level security policy.
@@ -62,9 +62,9 @@ public extension PostgresDatabaseClient {
     ) async throws -> Int {
         var parts: [String] = ["DROP POLICY"]
         if ifExists { parts.append("IF EXISTS") }
-        parts.append(quoteIdentifier(name))
-        parts.append("ON \(quoteIdentifier(table))")
-        return try await executeDDL(parts.joined(separator: " "))
+        parts.append(client.quoteIdentifier(name))
+        parts.append("ON \(client.quoteIdentifier(table))")
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Alter an existing row level security policy.
@@ -76,10 +76,10 @@ public extension PostgresDatabaseClient {
         using: String? = nil,
         withCheck: String? = nil
     ) async throws -> Int {
-        var parts: [String] = ["ALTER POLICY \(quoteIdentifier(name))"]
-        parts.append("ON \(quoteIdentifier(table))")
+        var parts: [String] = ["ALTER POLICY \(client.quoteIdentifier(name))"]
+        parts.append("ON \(client.quoteIdentifier(table))")
         if let to, !to.isEmpty {
-            parts.append("TO \(to.map(quoteIdentifier).joined(separator: ", "))")
+            parts.append("TO \(to.map(client.quoteIdentifier).joined(separator: ", "))")
         }
         if let using {
             parts.append("USING (\(using))")
@@ -87,7 +87,7 @@ public extension PostgresDatabaseClient {
         if let withCheck {
             parts.append("WITH CHECK (\(withCheck))")
         }
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 }
 

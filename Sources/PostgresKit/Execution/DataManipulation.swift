@@ -3,7 +3,7 @@ import PostgresWire
 import PostgresNIO
 
 /// High-level Data Manipulation Language (DML) operations.
-public extension PostgresDatabaseClient {
+public extension PostgresConnectionClient {
     /// Insert rows into a table.
     @discardableResult
     func insert(
@@ -24,7 +24,7 @@ public extension PostgresDatabaseClient {
         columns: [String] = [],
         values: [[PostgresInsertValue]]
     ) async throws -> Int {
-        try await withConnection { conn in
+        try await client.withConnection { conn in
             try await conn.insert(into: table, columns: columns, values: values)
         }
     }
@@ -37,7 +37,7 @@ public extension PostgresDatabaseClient {
         whereClause: String? = nil
     ) async throws -> Int {
         let setClause = set.map { (column, value) in
-            let quotedColumn = quoteIdentifier(column)
+            let quotedColumn = client.quoteIdentifier(column)
             if let stringValue = value as? String {
                 return "\(quotedColumn) = '\(stringValue.replacingOccurrences(of: "'", with: "''"))'"
             } else {
@@ -45,13 +45,13 @@ public extension PostgresDatabaseClient {
             }
         }.joined(separator: ", ")
 
-        var sql = "UPDATE \(quoteIdentifier(table)) SET \(setClause)"
+        var sql = "UPDATE \(client.quoteIdentifier(table)) SET \(setClause)"
 
         if let whereClause {
             sql += " WHERE \(whereClause)"
         }
 
-        return try await executeDDL(sql)
+        return try await client.executeDDL(sql)
     }
 
     /// Delete rows from a table.
@@ -60,11 +60,11 @@ public extension PostgresDatabaseClient {
         from table: String,
         whereClause: String? = nil
     ) async throws -> Int {
-        var sql = "DELETE FROM \(quoteIdentifier(table))"
+        var sql = "DELETE FROM \(client.quoteIdentifier(table))"
         if let whereClause {
             sql += " WHERE \(whereClause)"
         }
-        return try await executeDDL(sql)
+        return try await client.executeDDL(sql)
     }
 
     /// Efficiently remove all rows from a table.
@@ -75,16 +75,17 @@ public extension PostgresDatabaseClient {
         restartIdentity: Bool = false,
         schema: String? = nil
     ) async throws -> Int {
-        let qualifiedName = schema.map { "\(quoteIdentifier($0)).\(quoteIdentifier(table))" } ?? quoteIdentifier(table)
+        let qualifiedName = schema.map { "\(client.quoteIdentifier($0)).\(client.quoteIdentifier(table))" } ?? client.quoteIdentifier(table)
         var parts: [String] = ["TRUNCATE TABLE"]
         parts.append(qualifiedName)
         if cascade { parts.append("CASCADE") }
         if restartIdentity { parts.append("RESTART IDENTITY") } else { parts.append("CONTINUE IDENTITY") }
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 }
 
-public extension PostgresDatabaseConnection {
+
+public extension PostgresConnection {
     /// Insert rows using structured values that can mix binds and SQL expressions.
     @discardableResult
     func insert(

@@ -5,7 +5,7 @@ import Logging
 ///
 /// PostgreSQL binds each connection to a single database — there is no `USE database`
 /// command. `PostgresServerConnection` solves this by wrapping multiple
-/// ``PostgresDatabaseClient`` instances (one per database) behind a single API.
+/// ``PostgresClient`` instances (one per database) behind a single API.
 /// It reuses the original connection's host, port, TLS, and auth settings to create
 /// new database-specific clients on demand, caching them for reuse.
 ///
@@ -45,11 +45,11 @@ import Logging
 /// Use `PostgresServerConnection` when your application needs to query across multiple
 /// databases on the same server (e.g., a database browser, a multi-tenant system with
 /// per-tenant databases, or a migration tool). If you only ever connect to a single
-/// database, use ``PostgresDatabaseClient`` directly.
+/// database, use ``PostgresClient`` directly.
 public final class PostgresServerConnection: Sendable {
 
     /// The client for the initially connected database.
-    public let primaryClient: PostgresDatabaseClient
+    public let primaryClient: PostgresClient
 
     /// The database name the primary client is connected to.
     ///
@@ -63,7 +63,7 @@ public final class PostgresServerConnection: Sendable {
     private let clients: ClientCache
 
     private init(
-        primaryClient: PostgresDatabaseClient,
+        primaryClient: PostgresClient,
         connectedDatabase: String,
         configuration: PostgresConfiguration,
         logger: Logger
@@ -77,7 +77,7 @@ public final class PostgresServerConnection: Sendable {
 
     /// Connect to a PostgreSQL server.
     ///
-    /// Creates the primary ``PostgresDatabaseClient`` using the provided configuration
+    /// Creates the primary ``PostgresClient`` using the provided configuration
     /// and resolves the actual connected database name via `SELECT current_database()`.
     ///
     /// - Parameters:
@@ -89,7 +89,7 @@ public final class PostgresServerConnection: Sendable {
         configuration: PostgresConfiguration,
         logger: Logger = .init(label: "postgres-kit")
     ) async throws -> PostgresServerConnection {
-        let client = try await PostgresDatabaseClient.connect(
+        let client = try await PostgresClient.connect(
             configuration: configuration,
             logger: logger
         )
@@ -109,9 +109,9 @@ public final class PostgresServerConnection: Sendable {
     /// - New clients reuse the same host, port, TLS, auth, and pool settings.
     ///
     /// - Parameter database: The PostgreSQL database name to connect to.
-    /// - Returns: A ``PostgresDatabaseClient`` connected to the requested database.
+    /// - Returns: A ``PostgresClient`` connected to the requested database.
     /// - Throws: ``PostgresError`` if a new connection cannot be established.
-    public func client(for database: String) async throws -> PostgresDatabaseClient {
+    public func client(for database: String) async throws -> PostgresClient {
         if database.lowercased() == connectedDatabase.lowercased() {
             return primaryClient
         }
@@ -120,7 +120,7 @@ public final class PostgresServerConnection: Sendable {
         }
         var dbConfig = configuration
         dbConfig.database = database
-        let newClient = try await PostgresDatabaseClient.connect(
+        let newClient = try await PostgresClient.connect(
             configuration: dbConfig,
             logger: logger
         )
@@ -137,7 +137,7 @@ public final class PostgresServerConnection: Sendable {
     }
 
     private static func resolveCurrentDatabase(
-        client: PostgresDatabaseClient
+        client: PostgresClient
     ) async throws -> String {
         let rows = try await client.simpleQuery("SELECT current_database()")
         for try await name in rows.decode(String.self) {
@@ -150,13 +150,13 @@ public final class PostgresServerConnection: Sendable {
 // MARK: - Client Cache
 
 private actor ClientCache {
-    private var cached: [String: PostgresDatabaseClient] = [:]
+    private var cached: [String: PostgresClient] = [:]
 
-    func get(_ database: String) -> PostgresDatabaseClient? {
+    func get(_ database: String) -> PostgresClient? {
         cached[database.lowercased()]
     }
 
-    func set(_ database: String, client: PostgresDatabaseClient) {
+    func set(_ database: String, client: PostgresClient) {
         cached[database.lowercased()] = client
     }
 

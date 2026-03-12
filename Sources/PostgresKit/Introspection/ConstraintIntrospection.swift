@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// High-level constraint and dependency introspection.
-public extension PostgresDatabaseClient {
+public extension PostgresIntrospectionClient {
     /// Fetch primary key information for a table.
     func primaryKey(schema: String, table: String) async throws -> PostgresPrimaryKeyInfo? {
         let sql = """
@@ -12,8 +12,8 @@ public extension PostgresDatabaseClient {
             WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_schema = $1 AND tc.table_name = $2
             ORDER BY kcu.ordinal_position
             """
-        return try await withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [toPGData(value: schema), toPGData(value: table)])
+        return try await client.withConnection { conn in
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var name: String?
             var cols: [String] = []
             for row in rows {
@@ -60,8 +60,8 @@ public extension PostgresDatabaseClient {
               AND cl.relname = $2
             ORDER BY c.conname, u.ord
             """
-        return try await withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [toPGData(value: schema), toPGData(value: table)])
+        return try await client.withConnection { conn in
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var fks: [String: [Row]] = [:]
             for row in rows {
                 let (name, column, refSchema, refTable, refColumn, onUpdate, onDelete, posStr) = try row.decode((String, String, String, String, String, String?, String?, String).self)
@@ -85,8 +85,8 @@ public extension PostgresDatabaseClient {
             WHERE tc.constraint_type = 'UNIQUE' AND tc.table_schema = $1 AND tc.table_name = $2
             ORDER BY tc.constraint_name, kcu.ordinal_position
             """
-        return try await withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [toPGData(value: schema), toPGData(value: table)])
+        return try await client.withConnection { conn in
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var map: [String: [String]] = [:]
             for row in rows {
                 let (name, column) = try row.decode((String, String).self)
@@ -112,8 +112,8 @@ public extension PostgresDatabaseClient {
             WHERE ccu.table_schema = $1 AND ccu.table_name = $2
             ORDER BY tc.constraint_name, kcu.ordinal_position
             """
-        return try await withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [toPGData(value: schema), toPGData(value: table)])
+        return try await client.withConnection { conn in
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             struct Row { let name: String; let srcSchema: String; let srcTable: String; let srcColumn: String; let tgtColumn: String; let onUpdate: String?; let onDelete: String?; let pos: Int }
             var map: [String: [Row]] = [:]
             for row in rows {
@@ -150,8 +150,8 @@ public extension PostgresDatabaseClient {
           AND ix.indisprimary = false
         ORDER BY idx.relname, ord.position
         """
-        return try await withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [toPGData(value: schema), toPGData(value: table)])
+        return try await client.withConnection { conn in
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var acc: [String: (unique: Bool, cols: [PostgresIndexInfo.Column], predicate: String?)] = [:]
             for row in rows {
                 let (indexName, isUniqueStr, _, attname, isDescStr, predicate) = try row.decode((String, String, String, String?, String?, String?).self)
@@ -169,3 +169,4 @@ public extension PostgresDatabaseClient {
         }
     }
 }
+

@@ -15,11 +15,11 @@ public struct PostgresBulkCopy: @unchecked Sendable {
         }
     }
 
-    private let client: PostgresDatabaseClient
+    private let client: PostgresClient
     private let logger: Logger
     private let options: Options
 
-    public init(client: PostgresDatabaseClient, logger: Logger, options: Options = .init()) {
+    public init(client: PostgresClient, logger: Logger, options: Options = .init()) {
         self.client = client
         self.logger = logger
         self.options = options
@@ -70,7 +70,7 @@ public struct PostgresBulkCopy: @unchecked Sendable {
         guard parsed.format == .csv else { throw PostgresKitError.notSupported("Only CSV format supported") }
 
         let (schema, table) = try parsed.resolveTable()
-        let columns = try await client.listColumns(schema: schema ?? "public", table: table)
+        let columns = try await client.introspection.listColumns(schema: schema ?? "public", table: table)
         let columnList = columns.map { CopyStatement.quoteIdent($0.name) }.joined(separator: ", ")
         let insertPrefix = "INSERT INTO \(CopyStatement.qualify(schema: schema, table: table)) (\(columnList)) VALUES "
 

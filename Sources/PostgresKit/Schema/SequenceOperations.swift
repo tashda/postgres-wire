@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// High-level Sequence Data Definition Language (DDL) operations.
-public extension PostgresDatabaseClient {
+public extension PostgresAdminClient {
     /// Create a new sequence.
     @discardableResult
     func createSequence(
@@ -19,7 +19,7 @@ public extension PostgresDatabaseClient {
         if temporary { parts.append("TEMPORARY") }
         parts.append("SEQUENCE")
         if ifNotExists { parts.append("IF NOT EXISTS") }
-        parts.append(quoteIdentifier(name))
+        parts.append(client.quoteIdentifier(name))
 
         if let startWith { parts.append("START WITH \(startWith)") }
         if let incrementBy { parts.append("INCREMENT BY \(incrementBy)") }
@@ -28,7 +28,7 @@ public extension PostgresDatabaseClient {
         if let cache { parts.append("CACHE \(cache)") }
         if cycle { parts.append("CYCLE") }
 
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Drop an existing sequence.
@@ -36,23 +36,23 @@ public extension PostgresDatabaseClient {
     func dropSequence(name: String, ifExists: Bool = false, cascade: Bool = false) async throws -> Int {
         var parts: [String] = ["DROP SEQUENCE"]
         if ifExists { parts.append("IF EXISTS") }
-        parts.append(quoteIdentifier(name))
+        parts.append(client.quoteIdentifier(name))
         if cascade { parts.append("CASCADE") }
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Advance the sequence and return its new value.
     func nextval(_ sequenceName: String) async throws -> Int {
-        let sql = "SELECT nextval(\(quoteLiteral(sequenceName))::text)::bigint as value"
-        let rows = try await simpleQuery(sql)
+        let sql = "SELECT nextval(\(client.quoteLiteral(sequenceName))::text)::bigint as value"
+        let rows = try await client.simpleQuery(sql)
         for try await value in rows.decode(Int.self) { return value }
         throw PostgresKit.PostgresError.protocolError("Sequence \(sequenceName) returned no value")
     }
 
     /// Return the most recently obtained value for the sequence in the current session.
     func currval(_ sequenceName: String) async throws -> Int {
-        let sql = "SELECT currval(\(quoteLiteral(sequenceName))::text)::bigint as value"
-        let rows = try await simpleQuery(sql)
+        let sql = "SELECT currval(\(client.quoteLiteral(sequenceName))::text)::bigint as value"
+        let rows = try await client.simpleQuery(sql)
         for try await value in rows.decode(Int.self) { return value }
         throw PostgresKit.PostgresError.protocolError("Sequence \(sequenceName) returned no value")
     }
@@ -60,7 +60,7 @@ public extension PostgresDatabaseClient {
     /// Reset the sequence's counter value.
     @discardableResult
     func setval(_ sequenceName: String, value: Int, isCalled: Bool = true) async throws -> Int {
-        let sql = "SELECT setval(\(quoteLiteral(sequenceName))::text, \(value), \(isCalled))"
-        return try await executeDDL(sql)
+        let sql = "SELECT setval(\(client.quoteLiteral(sequenceName))::text, \(value), \(isCalled))"
+        return try await client.executeDDL(sql)
     }
 }

@@ -21,6 +21,10 @@ public struct PostgresMetadata: Sendable {
         try await client.listDatabases()
     }
 
+    public func isSuperuser(using client: PostgresDatabaseClient) async throws -> Bool {
+        try await client.checkSuperuser()
+    }
+
     public func listSchemas(using client: PostgresDatabaseClient) async throws -> [String] {
         try await client.listSchemas().map { $0.name }
     }
@@ -83,6 +87,10 @@ public struct PostgresMetadata: Sendable {
 
     public func listExtensions(using client: PostgresDatabaseClient) async throws -> [PostgresExtensionInfo] {
         try await client.listExtensions()
+    }
+
+    public func listExtensionObjects(using client: PostgresDatabaseClient, name: String) async throws -> [PostgresExtensionObject] {
+        try await client.listExtensionObjects(name)
     }
 
     public func tableComment(using client: PostgresDatabaseClient, schema: String, table: String) async throws -> String? {

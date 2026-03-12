@@ -1,11 +1,11 @@
 import PostgresWire
 
 /// Transaction lifecycle management.
-public extension PostgresDatabaseClient {
+public extension PostgresConnectionClient {
     /// Begin a standard transaction.
     @discardableResult
     func beginTransaction() async throws -> Int {
-        return try await executeDDL("BEGIN")
+        return try await client.executeDDL("BEGIN")
     }
 
     /// Begin a transaction with specific isolation level and options.
@@ -19,36 +19,37 @@ public extension PostgresDatabaseClient {
         parts.append("ISOLATION LEVEL \(isolation.rawValue)")
         if readOnly { parts.append("READ ONLY") }
         if deferrable { parts.append("DEFERRABLE") }
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Commit the current transaction.
     @discardableResult
     func commit() async throws -> Int {
-        return try await executeDDL("COMMIT")
+        return try await client.executeDDL("COMMIT")
     }
 
     /// Roll back the current transaction.
     @discardableResult
     func rollback() async throws -> Int {
-        return try await executeDDL("ROLLBACK")
+        return try await client.executeDDL("ROLLBACK")
     }
 
     /// Create a named savepoint within the current transaction.
     @discardableResult
     func createSavepoint(_ name: String) async throws -> Int {
-        return try await executeDDL("SAVEPOINT \(quoteIdentifier(name))")
+        return try await client.executeDDL("SAVEPOINT \(client.quoteIdentifier(name))")
     }
 
     /// Roll back to a previously created savepoint.
     @discardableResult
     func rollbackToSavepoint(_ name: String) async throws -> Int {
-        return try await executeDDL("ROLLBACK TO SAVEPOINT \(quoteIdentifier(name))")
+        return try await client.executeDDL("ROLLBACK TO SAVEPOINT \(client.quoteIdentifier(name))")
     }
 
     /// Release a named savepoint.
     @discardableResult
     func releaseSavepoint(_ name: String) async throws -> Int {
-        return try await executeDDL("RELEASE SAVEPOINT \(quoteIdentifier(name))")
+        return try await client.executeDDL("RELEASE SAVEPOINT \(client.quoteIdentifier(name))")
     }
 }
+

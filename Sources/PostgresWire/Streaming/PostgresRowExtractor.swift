@@ -25,6 +25,86 @@ public struct PostgresRowExtractor: Sendable {
         return result
     }
 
+    // MARK: - Single-Pass Encode
+
+    /// Encode a ``PostgresRow`` directly into compact binary row format and optionally
+    /// produce preview strings — all without intermediate `[Data?]` allocations.
+    ///
+    /// Binary format per cell: `0x00` (null) **or** `0x01` + UInt32-LE length + raw bytes.
+    ///
+    /// - Parameters:
+    ///   - row: The Postgres row to encode.
+    ///   - formatPreview: When `true`, also formats each cell to a display string.
+    ///   - formatter: The cell formatter to use for preview strings.
+    ///   - formattingEnabled: When `false`, uses the cheap fast-path for preview.
+    /// - Returns: The encoded binary data and optional preview strings.
+    public nonisolated static func encodeBinaryRow(
+        from row: PostgresRow,
+        formatPreview: Bool,
+        formatter: PostgresCellFormatter,
+        formattingEnabled: Bool = true
+    ) -> (encodedRow: Data, preview: [String?]?) {
+        // Pass 1: compute exact encoded size
+        var totalSize = 0
+        for cell in row {
+            totalSize &+= 1 // flag byte
+            if let buffer = cell.bytes {
+                totalSize &+= 4 &+ buffer.readableBytes
+            }
+        }
+
+        // Pass 2: encode binary row directly from ByteBuffers (zero intermediate Data)
+        var encoded = Data(count: totalSize)
+        encoded.withUnsafeMutableBytes { mutableBytes in
+            guard let base = mutableBytes.baseAddress else { return }
+            var offset = 0
+            for cell in row {
+                if let buffer = cell.bytes {
+                    base.storeBytes(of: UInt8(0x01), toByteOffset: offset, as: UInt8.self)
+                    offset &+= 1
+                    let count = buffer.readableBytes
+                    var length = UInt32(count).littleEndian
+                    withUnsafeBytes(of: &length) { ptr in
+                        memcpy(base.advanced(by: offset), ptr.baseAddress!, 4)
+                    }
+                    offset &+= 4
+                    if count > 0 {
+                        buffer.withUnsafeReadableBytes { bufPtr in
+                            if let p = bufPtr.baseAddress {
+                                memcpy(base.advanced(by: offset), p, count)
+                            }
+                        }
+                        offset &+= count
+                    }
+                } else {
+                    base.storeBytes(of: UInt8(0x00), toByteOffset: offset, as: UInt8.self)
+                    offset &+= 1
+                }
+            }
+        }
+
+        // Pass 3 (optional): format preview strings
+        var preview: [String?]? = nil
+        if formatPreview {
+            preview = []
+            preview?.reserveCapacity(row.count)
+            for cell in row {
+                if formattingEnabled {
+                    preview?.append(formatter.stringValue(for: cell))
+                } else {
+                    preview?.append(
+                        PostgresCellFormatter.cheapStringValue(for: cell)
+                            ?? formatter.stringValue(for: cell)
+                    )
+                }
+            }
+        }
+
+        return (encoded, preview)
+    }
+
+    // MARK: - Legacy (kept for backward compatibility)
+
     /// Extract raw cell bytes as `[Data?]` from a row.
     public nonisolated static func rawCellData(from row: PostgresRow) -> [Data?] {
         var result: [Data?] = []
@@ -36,9 +116,6 @@ public struct PostgresRowExtractor: Sendable {
     }
 
     /// Extract raw bytes and optionally format a preview in a single pass over the row's cells.
-    ///
-    /// When `formatPreview` is `true`, both `rawCells` and `preview` are populated in one
-    /// iteration — avoiding a second pass. When `false`, `preview` is `nil`.
     public nonisolated static func extractRow(
         from row: PostgresRow,
         formatPreview: Bool,

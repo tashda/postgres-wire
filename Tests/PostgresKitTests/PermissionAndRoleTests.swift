@@ -4,7 +4,7 @@ import Logging
 
 /// Tests role-based access control, permission enforcement, and the role/privilege client API.
 final class PermissionAndRoleTests: PostgresKitTestCase {
-    private var client: PostgresDatabaseClient!
+    private var client: PostgresKit.PostgresClient!
 
     override func setUp() async throws {
         try await super.setUp()
@@ -15,7 +15,7 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "PermissionAndRoleTests"
         )
-        client = try await PostgresDatabaseClient.connect(configuration: config, logger: Logger(label: "permission-tests"))
+        client = try await PostgresClient.connect(configuration: config, logger: Logger(label: "permission-tests"))
     }
 
     override func tearDown() { client?.close(); super.tearDown() }
@@ -36,14 +36,14 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
     }
 
     func testReadonlyRoleHasNoLogin() async throws {
-        let rows = try await client.simpleQuery("SELECT rolcanlogin FROM pg_roles WHERE rolname = 'test_readonly'")
+        let rows = try await client.connection.simpleQuery("SELECT rolcanlogin FROM pg_roles WHERE rolname = 'test_readonly'")
         var canLogin: Bool?
         for try await val in rows.decode(Bool.self) { canLogin = val }
         XCTAssertEqual(canLogin, false, "test_readonly should not have LOGIN")
     }
 
     func testAppUserRoleHasLogin() async throws {
-        let rows = try await client.simpleQuery("SELECT rolcanlogin FROM pg_roles WHERE rolname = 'test_app_user'")
+        let rows = try await client.connection.simpleQuery("SELECT rolcanlogin FROM pg_roles WHERE rolname = 'test_app_user'")
         var canLogin: Bool?
         for try await val in rows.decode(Bool.self) { canLogin = val }
         XCTAssertEqual(canLogin, true, "test_app_user should have LOGIN")
@@ -52,7 +52,7 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
     // MARK: - Permission Verification via pg_has_table_privilege
 
     func testReadonlyHasSelectOnAppTables() async throws {
-        let rows = try await client.simpleQuery("""
+        let rows = try await client.connection.simpleQuery("""
             SELECT has_table_privilege('test_readonly', 'app.users', 'SELECT')
         """)
         var hasSelect: Bool?
@@ -61,7 +61,7 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
     }
 
     func testReadonlyCannotInsertAppTables() async throws {
-        let rows = try await client.simpleQuery("""
+        let rows = try await client.connection.simpleQuery("""
             SELECT has_table_privilege('test_readonly', 'app.users', 'INSERT')
         """)
         var hasInsert: Bool?
@@ -70,7 +70,7 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
     }
 
     func testReadwriteHasFullDMLOnAppTables() async throws {
-        let privRows = try await client.simpleQuery("""
+        let privRows = try await client.connection.simpleQuery("""
             SELECT
                 has_table_privilege('test_readwrite', 'app.users', 'SELECT') AS sel,
                 has_table_privilege('test_readwrite', 'app.users', 'INSERT') AS ins,
@@ -86,7 +86,7 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
     }
 
     func testReadonlyCannotUpdateOrDelete() async throws {
-        let rows = try await client.simpleQuery("""
+        let rows = try await client.connection.simpleQuery("""
             SELECT
                 has_table_privilege('test_readonly', 'app.posts', 'UPDATE') AS upd,
                 has_table_privilege('test_readonly', 'app.posts', 'DELETE') AS del
@@ -101,7 +101,7 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
 
     func testAppUserInheritsReadonly() async throws {
         // test_app_user should inherit test_readonly permissions
-        let rows = try await client.simpleQuery("""
+        let rows = try await client.connection.simpleQuery("""
             SELECT pg_has_role('test_app_user', 'test_readonly', 'MEMBER')
         """)
         var isMember: Bool?
@@ -110,7 +110,7 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
     }
 
     func testAppUserHasSelectViaInheritance() async throws {
-        let rows = try await client.simpleQuery("""
+        let rows = try await client.connection.simpleQuery("""
             SELECT has_table_privilege('test_app_user', 'app.users', 'SELECT')
         """)
         var hasSelect: Bool?
@@ -119,7 +119,7 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
     }
 
     func testAppUserCannotInsert() async throws {
-        let rows = try await client.simpleQuery("""
+        let rows = try await client.connection.simpleQuery("""
             SELECT has_table_privilege('test_app_user', 'app.users', 'INSERT')
         """)
         var hasInsert: Bool?
@@ -130,7 +130,7 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
     // MARK: - Schema Usage
 
     func testReadonlyHasSchemaUsage() async throws {
-        let rows = try await client.simpleQuery("""
+        let rows = try await client.connection.simpleQuery("""
             SELECT has_schema_privilege('test_readonly', 'app', 'USAGE')
         """)
         var hasUsage: Bool?
@@ -142,9 +142,9 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
 
     func testCreateAndDropUser() async throws {
         let roleName = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropUser(name: roleName, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.security.dropUser(name: roleName, ifExists: true) } }
 
-        _ = try await client.createUser(
+        _ = try await client.security.createUser(
             name: roleName,
             password: "testpw123",
             createDatabase: false,
@@ -153,16 +153,16 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
         )
 
         // Verify role exists
-        let rows = try await client.simpleQuery("SELECT rolname FROM pg_roles WHERE rolname = '\(roleName)'")
+        let rows = try await client.connection.simpleQuery("SELECT rolname FROM pg_roles WHERE rolname = '\(roleName)'")
         var found = false
         for try await _ in rows { found = true }
         XCTAssertTrue(found, "Created role should exist")
 
         // Drop it
-        _ = try await client.dropUser(name: roleName)
+        _ = try await client.security.dropUser(name: roleName)
 
         // Verify gone
-        let afterRows = try await client.simpleQuery("SELECT rolname FROM pg_roles WHERE rolname = '\(roleName)'")
+        let afterRows = try await client.connection.simpleQuery("SELECT rolname FROM pg_roles WHERE rolname = '\(roleName)'")
         var afterFound = false
         for try await _ in afterRows { afterFound = true }
         XCTAssertFalse(afterFound, "Dropped role should not exist")
@@ -170,14 +170,14 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
 
     func testAlterUser() async throws {
         let roleName = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropUser(name: roleName, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.security.dropUser(name: roleName, ifExists: true) } }
 
-        _ = try await client.createUser(name: roleName, createDatabase: false, createRole: false, login: false)
+        _ = try await client.security.createUser(name: roleName, createDatabase: false, createRole: false, login: false)
 
         // Enable login
-        _ = try await client.alterUser(name: roleName, login: true)
+        _ = try await client.security.alterUser(name: roleName, login: true)
 
-        let rows = try await client.simpleQuery("SELECT rolcanlogin FROM pg_roles WHERE rolname = '\(roleName)'")
+        let rows = try await client.connection.simpleQuery("SELECT rolcanlogin FROM pg_roles WHERE rolname = '\(roleName)'")
         var canLogin: Bool?
         for try await val in rows.decode(Bool.self) { canLogin = val }
         XCTAssertEqual(canLogin, true, "Altered role should now have LOGIN")
@@ -189,28 +189,28 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
         let roleName = uniqueName()
         let table = uniqueName("tbl")
         defer { Task { [client = self.client!] in
-            _ = try? await client.dropTable(name: table, ifExists: true)
-            _ = try? await client.dropUser(name: roleName, ifExists: true)
+            _ = try? await client.admin.dropTable(name: table, ifExists: true)
+            _ = try? await client.security.dropUser(name: roleName, ifExists: true)
         }}
 
-        _ = try await client.createUser(name: roleName, createDatabase: false, createRole: false, login: false)
-        _ = try await client.createTable(name: table, columns: [
+        _ = try await client.security.createUser(name: roleName, createDatabase: false, createRole: false, login: false)
+        _ = try await client.admin.createTable(name: table, columns: [
             .serial(name: "id", primaryKey: true),
             .text(name: "name")
         ])
 
         // Grant SELECT
-        _ = try await client.grantPrivileges(privileges: [.select], onTable: table, to: roleName)
+        _ = try await client.security.grantPrivileges(privileges: [.select], onTable: table, to: roleName)
 
-        let hasSelect = try await client.simpleQuery("SELECT has_table_privilege('\(roleName)', '\(table)', 'SELECT')")
+        let hasSelect = try await client.connection.simpleQuery("SELECT has_table_privilege('\(roleName)', '\(table)', 'SELECT')")
         for try await val in hasSelect.decode(Bool.self) {
             XCTAssertTrue(val, "Should have SELECT after grant")
         }
 
         // Revoke SELECT
-        _ = try await client.revokePrivileges(privileges: [.select], onTable: table, from: roleName)
+        _ = try await client.security.revokePrivileges(privileges: [.select], onTable: table, from: roleName)
 
-        let afterRevoke = try await client.simpleQuery("SELECT has_table_privilege('\(roleName)', '\(table)', 'SELECT')")
+        let afterRevoke = try await client.connection.simpleQuery("SELECT has_table_privilege('\(roleName)', '\(table)', 'SELECT')")
         for try await val in afterRevoke.decode(Bool.self) {
             XCTAssertFalse(val, "Should NOT have SELECT after revoke")
         }
@@ -220,19 +220,19 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
         let roleName = uniqueName()
         let table = uniqueName("tbl")
         defer { Task { [client = self.client!] in
-            _ = try? await client.dropTable(name: table, ifExists: true)
-            _ = try? await client.dropUser(name: roleName, ifExists: true)
+            _ = try? await client.admin.dropTable(name: table, ifExists: true)
+            _ = try? await client.security.dropUser(name: roleName, ifExists: true)
         }}
 
-        _ = try await client.createUser(name: roleName, createDatabase: false, createRole: false, login: false)
-        _ = try await client.createTable(name: table, columns: [
+        _ = try await client.security.createUser(name: roleName, createDatabase: false, createRole: false, login: false)
+        _ = try await client.admin.createTable(name: table, columns: [
             .serial(name: "id", primaryKey: true),
             .text(name: "name")
         ])
 
-        _ = try await client.grantPrivileges(privileges: [.select, .insert, .update], onTable: table, to: roleName)
+        _ = try await client.security.grantPrivileges(privileges: [.select, .insert, .update], onTable: table, to: roleName)
 
-        let rows = try await client.simpleQuery("""
+        let rows = try await client.connection.simpleQuery("""
             SELECT
                 has_table_privilege('\(roleName)', '\(table)', 'SELECT') AS sel,
                 has_table_privilege('\(roleName)', '\(table)', 'INSERT') AS ins,
@@ -253,17 +253,17 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
         let parentRole = uniqueName("parent")
         let childRole = uniqueName("child")
         defer { Task { [client = self.client!] in
-            _ = try? await client.dropUser(name: childRole, ifExists: true)
-            _ = try? await client.dropUser(name: parentRole, ifExists: true)
+            _ = try? await client.security.dropUser(name: childRole, ifExists: true)
+            _ = try? await client.security.dropUser(name: parentRole, ifExists: true)
         }}
 
-        _ = try await client.createUser(name: parentRole, createDatabase: false, createRole: false, login: false)
-        _ = try await client.createUser(name: childRole, createDatabase: false, createRole: false, login: false)
+        _ = try await client.security.createUser(name: parentRole, createDatabase: false, createRole: false, login: false)
+        _ = try await client.security.createUser(name: childRole, createDatabase: false, createRole: false, login: false)
 
         // Grant parentRole to childRole
-        _ = try await client.grantRole(role: parentRole, to: childRole)
+        _ = try await client.security.grantRole(role: parentRole, to: childRole)
 
-        let memberRows = try await client.simpleQuery("""
+        let memberRows = try await client.connection.simpleQuery("""
             SELECT pg_has_role('\(childRole)', '\(parentRole)', 'MEMBER')
         """)
         for try await val in memberRows.decode(Bool.self) {
@@ -271,9 +271,9 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
         }
 
         // Revoke
-        _ = try await client.revokeRole(role: parentRole, from: childRole)
+        _ = try await client.security.revokeRole(role: parentRole, from: childRole)
 
-        let afterRows = try await client.simpleQuery("""
+        let afterRows = try await client.connection.simpleQuery("""
             SELECT pg_has_role('\(childRole)', '\(parentRole)', 'MEMBER')
         """)
         for try await val in afterRows.decode(Bool.self) {
@@ -292,12 +292,12 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
 
     func testRoleComment() async throws {
         let roleName = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropUser(name: roleName, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.security.dropUser(name: roleName, ifExists: true) } }
 
-        _ = try await client.createUser(name: roleName, createDatabase: false, createRole: false, login: false)
-        try await client.setRoleComment(role: roleName, comment: "Test role for integration tests")
+        _ = try await client.security.createUser(name: roleName, createDatabase: false, createRole: false, login: false)
+        try await client.security.setRoleComment(role: roleName, comment: "Test role for integration tests")
 
-        let rows = try await client.simpleQuery("""
+        let rows = try await client.connection.simpleQuery("""
             SELECT pg_catalog.shobj_description(oid, 'pg_authid')
             FROM pg_roles WHERE rolname = '\(roleName)'
         """)
@@ -309,7 +309,7 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
     // MARK: - Sequence Privileges
 
     func testReadwriteHasSequenceUsage() async throws {
-        let rows = try await client.simpleQuery("""
+        let rows = try await client.connection.simpleQuery("""
             SELECT has_sequence_privilege('test_readwrite', s.oid, 'USAGE')
             FROM pg_class s
             JOIN pg_namespace n ON s.relnamespace = n.oid

@@ -2,7 +2,7 @@ import Foundation
 import PostgresWire
 
 /// High-level database introspection and property discovery.
-public extension PostgresDatabaseClient {
+public extension PostgresIntrospectionClient {
     /// Fetch comprehensive properties for a specific database.
     func fetchDatabaseProperties(name: String) async throws -> PostgresDatabaseProperties {
         // daticulocale was added in PostgreSQL 15 — try the full query first,
@@ -34,10 +34,10 @@ public extension PostgresDatabaseClient {
                 COALESCE(d.datacl::text, '') AS acl
             FROM pg_catalog.pg_database d
             LEFT JOIN pg_catalog.pg_tablespace t ON t.oid = d.dattablespace
-            WHERE d.datname = \(quoteLiteral(name))
+            WHERE d.datname = \(client.quoteLiteral(name))
             """
 
-        let rows = try await simpleQuery(sql)
+        let rows = try await client.simpleQuery(sql)
         var props: PostgresDatabaseProperties?
         for try await v in rows.decode((String, String, String, String, String, String, String, String, String, String, String, String, String, String, String).self) {
             props = PostgresDatabaseProperties(
@@ -80,10 +80,10 @@ public extension PostgresDatabaseClient {
                 COALESCE(d.datacl::text, '') AS acl
             FROM pg_catalog.pg_database d
             LEFT JOIN pg_catalog.pg_tablespace t ON t.oid = d.dattablespace
-            WHERE d.datname = \(quoteLiteral(name))
+            WHERE d.datname = \(client.quoteLiteral(name))
             """
 
-        let rows = try await simpleQuery(sql)
+        let rows = try await client.simpleQuery(sql)
         var props: PostgresDatabaseProperties?
         for try await v in rows.decode((String, String, String, String, String, String, String, String, String, String, String, String, String, String).self) {
             props = PostgresDatabaseProperties(
@@ -114,7 +114,7 @@ public extension PostgresDatabaseClient {
             WHERE setdatabase = \(databaseOid)::oid AND setrole = 0
             """
         var params: [PostgresDatabaseParameter] = []
-        let rows = try await simpleQuery(sql)
+        let rows = try await client.simpleQuery(sql)
         for try await setting in rows.decode(String.self) {
             let parts = setting.split(separator: "=", maxSplits: 1)
             if parts.count == 2 {
@@ -127,8 +127,9 @@ public extension PostgresDatabaseClient {
     /// List all available tablespaces.
     func listTablespaces() async throws -> [String] {
         var names: [String] = []
-        let rows = try await simpleQuery("SELECT spcname FROM pg_catalog.pg_tablespace ORDER BY spcname")
+        let rows = try await client.simpleQuery("SELECT spcname FROM pg_catalog.pg_tablespace ORDER BY spcname")
         for try await name in rows.decode(String.self) { names.append(name) }
         return names
     }
 }
+

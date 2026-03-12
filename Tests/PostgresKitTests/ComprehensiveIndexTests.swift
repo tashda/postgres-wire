@@ -8,7 +8,7 @@ private struct Metadata: JSONBEncodable {
 }
 
 final class ComprehensiveIndexTests: PostgresKitTestCase {
-    private var client: PostgresDatabaseClient!
+    private var client: PostgresKit.PostgresClient!
     private var testLogger: Logger!
 
     override func setUp() async throws {
@@ -31,7 +31,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
             applicationName: "ComprehensiveIndexTests"
         )
 
-        client = try await PostgresDatabaseClient.connect(configuration: config, logger: testLogger)
+        client = try await PostgresClient.connect(configuration: config, logger: testLogger)
     }
 
     override func tearDown() {
@@ -44,11 +44,11 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
     func testIntegerIndexOperations() async throws {
         print("=== Testing Integer Index Operations ===")
 
-        _ = try await client.dropTable(name: "test_integer_index_table", ifExists: true)
-        _ = try await client.dropIndex(name: "idx_integer_value", ifExists: true)
+        _ = try await client.admin.dropTable(name: "test_integer_index_table", ifExists: true)
+        _ = try await client.admin.dropIndex(name: "idx_integer_value", ifExists: true)
 
         // Create table with integer columns
-        _ = try await client.createTable(
+        _ = try await client.admin.createTable(
             name: "test_integer_index_table",
             columns: [
                 .bigSerial(name: "id", primaryKey: true),
@@ -61,7 +61,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         )
 
         // Insert test data
-        _ = try await client.insert(
+        _ = try await client.connection.insert(
             into: "test_integer_index_table",
             columns: ["smallint_val", "bigint_val", "decimal_val", "real_val", "double_val"],
             values: [
@@ -72,21 +72,21 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         )
 
         // Create indexes on all numeric columns
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_integer_value",
             table: "test_integer_index_table",
             columns: ["smallint_val"],
             unique: false
         )
 
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_bigint_value",
             table: "test_integer_index_table",
             columns: ["bigint_val"],
             unique: false
         )
 
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_decimal_value",
             table: "test_integer_index_table",
             columns: ["decimal_val"],
@@ -96,7 +96,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         // Index creation was successful - basic functionality test complete
 
         // Test index uniqueness
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_unique_smallint",
             table: "test_integer_index_table",
             columns: ["smallint_val"],
@@ -105,7 +105,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
 
         // Test duplicate insertion should fail
         do {
-            _ = try await client.insert(
+            _ = try await client.connection.insert(
                 into: "test_integer_index_table",
                 columns: ["smallint_val", "bigint_val", "decimal_val", "real_val", "double_val"],
                 values: [[100, 4000000, 45678.90, 456.78, 456789.012]]
@@ -117,11 +117,11 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         }
 
         // Cleanup
-        _ = try await client.dropIndex(name: "idx_integer_value", ifExists: false)
-        _ = try await client.dropIndex(name: "idx_bigint_value", ifExists: false)
-        _ = try await client.dropIndex(name: "idx_decimal_value", ifExists: false)
-        _ = try await client.dropIndex(name: "idx_unique_smallint", ifExists: false)
-        _ = try await client.dropTable(name: "test_integer_index_table", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_integer_value", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_bigint_value", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_decimal_value", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_unique_smallint", ifExists: false)
+        _ = try await client.admin.dropTable(name: "test_integer_index_table", ifExists: false)
 
         print("✓ Integer index operations test passed")
     }
@@ -131,11 +131,11 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
     func testTextIndexOperations() async throws {
         print("=== Testing Text Index Operations ===")
 
-        _ = try await client.dropTable(name: "test_text_index_table", ifExists: true)
-        _ = try await client.dropIndex(name: "idx_text_value", ifExists: true)
+        _ = try await client.admin.dropTable(name: "test_text_index_table", ifExists: true)
+        _ = try await client.admin.dropIndex(name: "idx_text_value", ifExists: true)
 
         // Create table with text columns
-        _ = try await client.createTable(
+        _ = try await client.admin.createTable(
             name: "test_text_index_table",
             columns: [
                 .bigSerial(name: "id", primaryKey: true),
@@ -147,7 +147,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         )
 
         // Insert test data
-        _ = try await client.insert(
+        _ = try await client.connection.insert(
             into: "test_text_index_table",
             columns: ["short_text", "long_text", "fixed_char", "description"],
             values: [
@@ -158,14 +158,14 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         )
 
         // Create indexes on text columns
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_text_value",
             table: "test_text_index_table",
             columns: ["short_text"],
             unique: false
         )
 
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_long_text",
             table: "test_text_index_table",
             columns: ["long_text"],
@@ -173,7 +173,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         )
 
         // Test GIN index for full-text search
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_description_gin",
             table: "test_text_index_table",
             columns: ["description"],
@@ -183,7 +183,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         // Index creation was successful - text indexing functionality test complete
 
         // Test partial index
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_text_partial",
             table: "test_text_index_table",
             columns: ["short_text"],
@@ -191,11 +191,11 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         )
 
         // Cleanup
-        _ = try await client.dropIndex(name: "idx_text_value", ifExists: false)
-        _ = try await client.dropIndex(name: "idx_long_text", ifExists: false)
-        _ = try await client.dropIndex(name: "idx_description_gin", ifExists: false)
-        _ = try await client.dropIndex(name: "idx_text_partial", ifExists: false)
-        _ = try await client.dropTable(name: "test_text_index_table", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_text_value", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_long_text", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_description_gin", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_text_partial", ifExists: false)
+        _ = try await client.admin.dropTable(name: "test_text_index_table", ifExists: false)
 
         print("✓ Text index operations test passed")
     }
@@ -205,11 +205,11 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
     func testDateTimeIndexOperations() async throws {
         print("=== Testing Date/Time Index Operations ===")
 
-        _ = try await client.dropTable(name: "test_datetime_index_table", ifExists: true)
-        _ = try await client.dropIndex(name: "idx_timestamp_value", ifExists: true)
+        _ = try await client.admin.dropTable(name: "test_datetime_index_table", ifExists: true)
+        _ = try await client.admin.dropIndex(name: "idx_timestamp_value", ifExists: true)
 
         // Create table with datetime columns
-        _ = try await client.createTable(
+        _ = try await client.admin.createTable(
             name: "test_datetime_index_table",
             columns: [
                 .bigSerial(name: "id", primaryKey: true),
@@ -253,7 +253,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         let time2 = timeFormatter.date(from: "11:00:00")!
         let time3 = timeFormatter.date(from: "12:00:00")!
 
-        _ = try await client.insert(
+        _ = try await client.connection.insert(
             into: "test_datetime_index_table",
             columns: ["created_at", "updated_at", "event_date", "event_time", "event_time_tz"],
             values: [
@@ -264,21 +264,21 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         )
 
         // Create indexes on datetime columns
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_timestamp_value",
             table: "test_datetime_index_table",
             columns: ["created_at"],
             unique: false
         )
 
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_timestamptz_value",
             table: "test_datetime_index_table",
             columns: ["updated_at"],
             unique: false
         )
 
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_date_value",
             table: "test_datetime_index_table",
             columns: ["event_date"],
@@ -288,10 +288,10 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         // Index creation was successful - datetime indexing functionality test complete
 
         // Cleanup
-        _ = try await client.dropIndex(name: "idx_timestamp_value", ifExists: false)
-        _ = try await client.dropIndex(name: "idx_timestamptz_value", ifExists: false)
-        _ = try await client.dropIndex(name: "idx_date_value", ifExists: false)
-        _ = try await client.dropTable(name: "test_datetime_index_table", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_timestamp_value", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_timestamptz_value", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_date_value", ifExists: false)
+        _ = try await client.admin.dropTable(name: "test_datetime_index_table", ifExists: false)
 
         print("✓ Date/Time index operations test passed")
     }
@@ -301,11 +301,11 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
     func testBooleanBinaryIndexOperations() async throws {
         print("=== Testing Boolean/Binary Index Operations ===")
 
-        _ = try await client.dropTable(name: "test_bool_binary_index_table", ifExists: true)
-        _ = try await client.dropIndex(name: "idx_boolean_value", ifExists: true)
+        _ = try await client.admin.dropTable(name: "test_bool_binary_index_table", ifExists: true)
+        _ = try await client.admin.dropIndex(name: "idx_boolean_value", ifExists: true)
 
         // Create table with boolean and binary columns
-        _ = try await client.createTable(
+        _ = try await client.admin.createTable(
             name: "test_bool_binary_index_table",
             columns: [
                 .bigSerial(name: "id", primaryKey: true),
@@ -321,7 +321,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         let binaryData2 = "more binary data".data(using: .utf8)!
         let binaryData3 = "final binary data".data(using: .utf8)!
 
-        _ = try await client.insert(
+        _ = try await client.connection.insert(
             into: "test_bool_binary_index_table",
             columns: ["is_active", "is_verified", "binary_data", "description"],
             values: [
@@ -333,14 +333,14 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         )
 
         // Create indexes on boolean columns
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_boolean_value",
             table: "test_bool_binary_index_table",
             columns: ["is_active"],
             unique: false
         )
 
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_boolean_compound",
             table: "test_bool_binary_index_table",
             columns: ["is_active", "is_verified"],
@@ -351,9 +351,9 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         // Index creation successful - boolean operations working correctly
 
         // Cleanup
-        _ = try await client.dropIndex(name: "idx_boolean_value", ifExists: false)
-        _ = try await client.dropIndex(name: "idx_boolean_compound", ifExists: false)
-        _ = try await client.dropTable(name: "test_bool_binary_index_table", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_boolean_value", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_boolean_compound", ifExists: false)
+        _ = try await client.admin.dropTable(name: "test_bool_binary_index_table", ifExists: false)
 
         print("✓ Boolean/Binary index operations test passed")
     }
@@ -363,11 +363,11 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
     func testJSONIndexOperations() async throws {
         print("=== Testing JSON Index Operations ===")
 
-        _ = try await client.dropTable(name: "test_json_index_table", ifExists: true)
-        _ = try await client.dropIndex(name: "idx_json_value", ifExists: true)
+        _ = try await client.admin.dropTable(name: "test_json_index_table", ifExists: true)
+        _ = try await client.admin.dropIndex(name: "idx_json_value", ifExists: true)
 
         // Create table with JSON columns
-        _ = try await client.createTable(
+        _ = try await client.admin.createTable(
             name: "test_json_index_table",
             columns: [
                 .bigSerial(name: "id", primaryKey: true),
@@ -382,7 +382,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         let metadata2 = Metadata(skills: ["jane", "age25", "inactive"])
         let metadata3 = Metadata(skills: ["bob", "age35", "active"])
 
-        _ = try await client.insert(
+        _ = try await client.connection.insert(
             into: "test_json_index_table",
             columns: ["metadata_json", "metadata_jsonb", "description"],
             values: [
@@ -393,7 +393,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         )
 
         // Create GIN index on JSONB (more appropriate for JSON data)
-        _ = try await client.createAdvancedIndex(
+        _ = try await client.admin.createAdvancedIndex(
             name: "idx_jsonb_value",
             table: "test_json_index_table",
             columns: [PostgresIndexColumn(name: "metadata_jsonb")],
@@ -407,8 +407,8 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         // JSONB index creation successful - JSON operations working correctly
 
         // Cleanup
-        _ = try await client.dropIndex(name: "idx_jsonb_value", ifExists: false)
-        _ = try await client.dropTable(name: "test_json_index_table", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_jsonb_value", ifExists: false)
+        _ = try await client.admin.dropTable(name: "test_json_index_table", ifExists: false)
 
         print("✓ JSON index operations test passed")
     }
@@ -418,11 +418,11 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
     func testUUIDArrayIndexOperations() async throws {
         print("=== Testing UUID/Array Index Operations ===")
 
-        _ = try await client.dropTable(name: "test_uuid_array_index_table", ifExists: true)
-        _ = try await client.dropIndex(name: "idx_uuid_value", ifExists: true)
+        _ = try await client.admin.dropTable(name: "test_uuid_array_index_table", ifExists: true)
+        _ = try await client.admin.dropIndex(name: "idx_uuid_value", ifExists: true)
 
         // Create table with UUID and array columns
-        _ = try await client.createTable(
+        _ = try await client.admin.createTable(
             name: "test_uuid_array_index_table",
             columns: [
                 .bigSerial(name: "id", primaryKey: true),
@@ -438,7 +438,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         let uuid2 = UUID(uuidString: "550e8400-e29b-41d4-a716-446655440001")!
         let uuid3 = UUID(uuidString: "550e8400-e29b-41d4-a716-446655440002")!
 
-        _ = try await client.insert(
+        _ = try await client.connection.insert(
             into: "test_uuid_array_index_table",
             columns: ["uuid_value", "tags", "numbers", "description"],
             values: [
@@ -449,7 +449,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         )
 
         // Create indexes on UUID and array columns
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_uuid_value",
             table: "test_uuid_array_index_table",
             columns: ["uuid_value"],
@@ -457,14 +457,14 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         )
 
         // Create GIN index on array columns
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_tags_gin",
             table: "test_uuid_array_index_table",
             columns: ["tags"],
             unique: false
         )
 
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_numbers_gin",
             table: "test_uuid_array_index_table",
             columns: ["numbers"],
@@ -475,10 +475,10 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         // UUID and array index creation successful - operations working correctly
 
         // Cleanup
-        _ = try await client.dropIndex(name: "idx_uuid_value", ifExists: false)
-        _ = try await client.dropIndex(name: "idx_tags_gin", ifExists: false)
-        _ = try await client.dropIndex(name: "idx_numbers_gin", ifExists: false)
-        _ = try await client.dropTable(name: "test_uuid_array_index_table", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_uuid_value", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_tags_gin", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_numbers_gin", ifExists: false)
+        _ = try await client.admin.dropTable(name: "test_uuid_array_index_table", ifExists: false)
 
         print("✓ UUID/Array index operations test passed")
     }
@@ -488,11 +488,11 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
     func testNetworkIndexOperations() async throws {
         print("=== Testing Network Index Operations ===")
 
-        _ = try await client.dropTable(name: "test_network_index_table", ifExists: true)
-        _ = try await client.dropIndex(name: "idx_inet_value", ifExists: true)
+        _ = try await client.admin.dropTable(name: "test_network_index_table", ifExists: true)
+        _ = try await client.admin.dropIndex(name: "idx_inet_value", ifExists: true)
 
         // Create table with network columns
-        _ = try await client.createTable(
+        _ = try await client.admin.createTable(
             name: "test_network_index_table",
             columns: [
                 .bigSerial(name: "id", primaryKey: true),
@@ -512,7 +512,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         let macAddress2 = MACAddress(string: "AA:BB:CC:DD:EE:FF")
         let macAddress3 = MACAddress(string: "11:22:33:44:55:66")
 
-        _ = try await client.insert(
+        _ = try await client.connection.insert(
             into: "test_network_index_table",
             columns: ["ip_address", "network_cidr", "mac_address", "description"],
             values: [
@@ -523,21 +523,21 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         )
 
         // Create indexes on network columns
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_inet_value",
             table: "test_network_index_table",
             columns: ["ip_address"],
             unique: false
         )
 
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_cidr_value",
             table: "test_network_index_table",
             columns: ["network_cidr"],
             unique: false
         )
 
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_mac_value",
             table: "test_network_index_table",
             columns: ["mac_address"],
@@ -549,7 +549,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
 
         // Test MAC address uniqueness
         do {
-            _ = try await client.insert(
+            _ = try await client.connection.insert(
                 into: "test_network_index_table",
                 columns: ["ip_address", "network_cidr", "mac_address", "description"],
                 values: [[.inet("192.168.1.101"), .cidr("192.168.1.0/24"), .macaddr("00:11:22:33:44:55"), "Duplicate MAC test"]]
@@ -561,10 +561,10 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         }
 
         // Cleanup
-        _ = try await client.dropIndex(name: "idx_inet_value", ifExists: false)
-        _ = try await client.dropIndex(name: "idx_cidr_value", ifExists: false)
-        _ = try await client.dropIndex(name: "idx_mac_value", ifExists: false)
-        _ = try await client.dropTable(name: "test_network_index_table", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_inet_value", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_cidr_value", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_mac_value", ifExists: false)
+        _ = try await client.admin.dropTable(name: "test_network_index_table", ifExists: false)
 
         print("✓ Network index operations test passed")
     }
@@ -574,11 +574,11 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
     func testComplexIndexTypes() async throws {
         print("=== Testing Complex Index Types ===")
 
-        _ = try await client.dropTable(name: "test_complex_index_table", ifExists: true)
-        _ = try await client.dropIndex(name: "idx_hash_value", ifExists: true)
+        _ = try await client.admin.dropTable(name: "test_complex_index_table", ifExists: true)
+        _ = try await client.admin.dropIndex(name: "idx_hash_value", ifExists: true)
 
         // Create table with various data types for complex index testing
-        _ = try await client.createTable(
+        _ = try await client.admin.createTable(
             name: "test_complex_index_table",
             columns: [
                 .bigSerial(name: "id", primaryKey: true),
@@ -604,7 +604,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         let attributes2 = Metadata(skills: ["smartphone", "256GB", "PhoneInc"])
         let attributes3 = Metadata(skills: ["tablet", "10inch", "TabletCo"])
 
-        _ = try await client.insert(
+        _ = try await client.connection.insert(
             into: "test_complex_index_table",
             columns: ["product_name", "category_id", "price", "created_at", "attributes"],
             values: [
@@ -615,14 +615,14 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         )
 
         // Create standard B-tree indexes
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_product_name",
             table: "test_complex_index_table",
             columns: ["product_name"],
             unique: false
         )
 
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_price",
             table: "test_complex_index_table",
             columns: ["price"],
@@ -632,9 +632,9 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         // Index created successfully - basic functionality test complete
 
         // Cleanup
-        _ = try await client.dropIndex(name: "idx_product_name", ifExists: false)
-        _ = try await client.dropIndex(name: "idx_price", ifExists: false)
-        _ = try await client.dropTable(name: "test_complex_index_table", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_product_name", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_price", ifExists: false)
+        _ = try await client.admin.dropTable(name: "test_complex_index_table", ifExists: false)
 
         print("✓ Complex index types test passed")
     }
@@ -644,11 +644,11 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
     func testIndexPerformanceWithLargeDataset() async throws {
         print("=== Testing Index Performance with Large Dataset ===")
 
-        _ = try await client.dropTable(name: "test_performance_table", ifExists: true)
-        _ = try await client.dropIndex(name: "idx_performance_column", ifExists: true)
+        _ = try await client.admin.dropTable(name: "test_performance_table", ifExists: true)
+        _ = try await client.admin.dropIndex(name: "idx_performance_column", ifExists: true)
 
         // Create table for performance testing
-        _ = try await client.createTable(
+        _ = try await client.admin.createTable(
             name: "test_performance_table",
             columns: [
                 .bigSerial(name: "id", primaryKey: true),
@@ -680,7 +680,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
             let end = min(start + batchSize, largeDataset.count)
             let batch = Array(largeDataset[start..<end])
 
-            _ = try await client.insert(
+            _ = try await client.connection.insert(
                 into: "test_performance_table",
                 columns: ["value_column", "data_column", "timestamp_column"],
                 values: batch
@@ -688,7 +688,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         }
 
         // Create index after data insertion
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_performance_column",
             table: "test_performance_table",
             columns: ["value_column"],
@@ -698,7 +698,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         // Test query performance with index
         let startTime = Date().timeIntervalSinceReferenceDate
 
-        let result = try await client.simpleQuery("SELECT COUNT(*) FROM test_performance_table WHERE value_column BETWEEN 1000 AND 9000")
+        let result = try await client.connection.simpleQuery("SELECT COUNT(*) FROM test_performance_table WHERE value_column BETWEEN 1000 AND 9000")
         var count = 0
         for try await row in result.decode((Int64?).self) {
             if let row = row {
@@ -714,8 +714,8 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         print("✓ Index performance test: \(count) records found in \(timeElapsed) seconds")
 
         // Cleanup
-        _ = try await client.dropIndex(name: "idx_performance_column", ifExists: false)
-        _ = try await client.dropTable(name: "test_performance_table", ifExists: false)
+        _ = try await client.admin.dropIndex(name: "idx_performance_column", ifExists: false)
+        _ = try await client.admin.dropTable(name: "test_performance_table", ifExists: false)
 
         print("✓ Index performance test passed")
     }

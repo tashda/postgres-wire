@@ -11,7 +11,7 @@ private actor NotificationCollector {
 }
 
 final class NotificationsTests: PostgresKitTestCase {
-    private var client: PostgresDatabaseClient!
+    private var client: PostgresKit.PostgresClient!
 
     override func setUp() async throws {
         try await super.setUp()
@@ -28,7 +28,7 @@ final class NotificationsTests: PostgresKitTestCase {
             useTLS: TestEnv.useTLS,
             applicationName: "NotificationsTests"
         )
-        client = try await PostgresDatabaseClient.connect(configuration: config, logger: Logger(label: "notif-tests"))
+        client = try await PostgresClient.connect(configuration: config, logger: Logger(label: "notif-tests"))
     }
 
     override func tearDown() async throws {

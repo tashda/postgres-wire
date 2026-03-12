@@ -2,11 +2,11 @@ import Foundation
 import PostgresWire
 
 /// High-level schema and object discovery.
-public extension PostgresDatabaseClient {
+public extension PostgresIntrospectionClient {
     /// List all databases that are not templates.
     func listDatabases() async throws -> [String] {
         var names: [String] = []
-        let rows = try await simpleQuery("SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname")
+        let rows = try await client.simpleQuery("SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname")
         for try await name in rows.decode(String.self) { names.append(name) }
         return names
     }
@@ -14,7 +14,7 @@ public extension PostgresDatabaseClient {
     /// Check if the current user has superuser privileges.
     func checkSuperuser() async throws -> Bool {
         let sql = "SELECT rolsuper FROM pg_roles WHERE rolname = current_user"
-        let rows = try await simpleQuery(sql)
+        let rows = try await client.simpleQuery(sql)
         for try await isSuper in rows.decode(Bool.self) {
             return isSuper
         }
@@ -31,7 +31,7 @@ public extension PostgresDatabaseClient {
             ORDER BY n.nspname
             """
         var results: [PostgresSchemaInfo] = []
-        let rows = try await simpleQuery(sql)
+        let rows = try await client.simpleQuery(sql)
         for try await v in rows.decode((String, String).self) {
             results.append(PostgresSchemaInfo(name: v.0, owner: v.1))
         }
@@ -46,8 +46,8 @@ public extension PostgresDatabaseClient {
             WHERE table_schema = $1
             ORDER BY table_name
             """
-        return try await withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [toPGData(value: schema)])
+        return try await client.withConnection { conn in
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema)])
             var objects: [SchemaObject] = []
             for row in rows {
                 let (s, n, t) = try row.decode((String, String, String).self)
@@ -71,8 +71,8 @@ public extension PostgresDatabaseClient {
             WHERE table_schema = $1 AND table_name = $2
             ORDER BY ordinal_position
             """
-        return try await withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [toPGData(value: schema), toPGData(value: table)])
+        return try await client.withConnection { conn in
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var out: [PostgresColumnInfo] = []
             for row in rows {
                 let (name, dataType, nullable, defaultValue) = try row.decode((String, String, String, String?).self)
@@ -86,7 +86,7 @@ public extension PostgresDatabaseClient {
     func columnsByTable(schema: String) async throws -> [String: [PostgresColumnDetail]] {
         struct ColRec { let name: String; let type: String; let nullable: Bool; let maxLength: Int?; let ordinal: Int }
         
-        let results = try await withConnection { conn in
+        let results = try await client.withConnection { conn in
             var columnsByTable: [String: [ColRec]] = [:]
             var primaryKeysByTable: [String: Set<String>] = [:]
             var foreignKeysByTable: [String: [String: PostgresColumnDetail.ForeignKeyRef]] = [:]
@@ -99,7 +99,7 @@ public extension PostgresDatabaseClient {
                 WHERE table_schema = $1
                 ORDER BY table_name, ordinal_position
                 """
-            let colRows = try await conn.queryPreparedRows(colSql, binds: [toPGData(value: schema)])
+            let colRows = try await conn.queryPreparedRows(colSql, binds: [client.toPGData(value: schema)])
             for row in colRows {
                 let (table, column, dataType, nullableText, maxLenText, ordinalText) = try row.decode((String, String, String, String, String?, String).self)
                 let isNullable = nullableText.uppercased() == "YES" || nullableText.uppercased() == "TRUE" || nullableText == "1"
@@ -116,7 +116,7 @@ public extension PostgresDatabaseClient {
                   ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
                 WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_schema = $1
                 """
-            let pkRows = try await conn.queryPreparedRows(pkSql, binds: [toPGData(value: schema)])
+            let pkRows = try await conn.queryPreparedRows(pkSql, binds: [client.toPGData(value: schema)])
             for row in pkRows {
                 let (table, column) = try row.decode((String, String).self)
                 primaryKeysByTable[table, default: []].insert(column)
@@ -138,7 +138,7 @@ public extension PostgresDatabaseClient {
                 WHERE con.contype = 'f' AND nsp.nspname = $1
                 ORDER BY cls.relname, idx.pos
                 """
-            let fkRows = try await conn.queryPreparedRows(fkSql, binds: [toPGData(value: schema)])
+            let fkRows = try await conn.queryPreparedRows(fkSql, binds: [client.toPGData(value: schema)])
             for row in fkRows {
                 let (table, column, refSchema, refTable, refColumn, conname) = try row.decode((String, String, String, String, String, String).self)
                 foreignKeysByTable[table, default: [:]][column] = PostgresColumnDetail.ForeignKeyRef(constraintName: conname, referencedSchema: refSchema, referencedTable: refTable, referencedColumn: refColumn)
@@ -154,7 +154,7 @@ public extension PostgresDatabaseClient {
                 WHERE n.nspname = $1 AND c.relkind = 'm' AND a.attnum > 0 AND NOT a.attisdropped
                 ORDER BY c.relname, a.attnum
                 """
-            let matRows = try await conn.queryPreparedRows(matSql, binds: [toPGData(value: schema)])
+            let matRows = try await conn.queryPreparedRows(matSql, binds: [client.toPGData(value: schema)])
             for row in matRows {
                 let (table, column, dataType, nullableText, ordinalText) = try row.decode((String, String, String, String, String).self)
                 let isNullable = nullableText.uppercased().hasPrefix("T") || nullableText == "1"
@@ -185,7 +185,7 @@ public extension PostgresDatabaseClient {
             ORDER BY e.extname
             """
         var out: [PostgresExtensionInfo] = []
-        let rows = try await simpleQuery(sql)
+        let rows = try await client.simpleQuery(sql)
         for try await (name, schema, version, reloc) in rows.decode((String, String, String, Bool).self) {
             out.append(PostgresExtensionInfo(name: name, schema: schema, version: version, relocatable: reloc))
         }
@@ -200,7 +200,7 @@ public extension PostgresDatabaseClient {
             ORDER BY name
             """
         var out: [PostgresAvailableExtensionInfo] = []
-        let rows = try await simpleQuery(sql)
+        let rows = try await client.simpleQuery(sql)
         for try await (name, defVer, instVer, comment) in rows.decode((String, String, String?, String?).self) {
             out.append(PostgresAvailableExtensionInfo(name: name, defaultVersion: defVer, installedVersion: instVer, comment: comment))
         }
@@ -240,14 +240,15 @@ public extension PostgresDatabaseClient {
             JOIN pg_extension e ON e.oid = d.refobjid
             JOIN pg_namespace n ON n.oid = obj.relnamespace
             WHERE d.refclassid = 'pg_extension'::regclass
-              AND e.extname = \(quoteLiteral(extensionName))
+              AND e.extname = \(client.quoteLiteral(extensionName))
             ORDER BY n.nspname, obj.objname
             """
         var out: [PostgresExtensionObject] = []
-        let rows = try await simpleQuery(sql)
+        let rows = try await client.simpleQuery(sql)
         for try await (schema, name, type) in rows.decode((String, String, String).self) {
             out.append(PostgresExtensionObject(schema: schema, name: name, type: type))
         }
         return out
     }
 }
+

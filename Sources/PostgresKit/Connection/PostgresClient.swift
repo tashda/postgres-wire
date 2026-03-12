@@ -7,16 +7,18 @@ import PostgresNIO
 /// Primary high-level client for PostgreSQL interaction.
 ///
 /// Use this client to manage connections, execute queries, and perform database administration.
-public final class PostgresDatabaseClient: @unchecked Sendable {
+public final class PostgresClient: @unchecked Sendable {
     internal let wire: PostgresWireClient
     internal let logger: Logger
     private let registry = PreparedRegistry()
+    internal var notifierActor: PostgresNotifier!
 
     private init(wire: PostgresWireClient, logger: Logger) {
         self.wire = wire
         var logger = logger
-        logger[metadataKey: "component"] = "PostgresDatabaseClient"
+        logger[metadataKey: "component"] = "PostgresClient"
         self.logger = logger
+        self.notifierActor = PostgresNotifier(client: self, logger: logger)
     }
 
     deinit { wire.close() }
@@ -25,10 +27,10 @@ public final class PostgresDatabaseClient: @unchecked Sendable {
     public static func connect(
         configuration: PostgresConfiguration,
         logger: Logger = .init(label: "postgres-kit")
-    ) async throws -> PostgresDatabaseClient {
-        let result: Result<PostgresDatabaseClient, PostgresError> = await PostgresDatabaseClient.executeWithEnhancedError {
+    ) async throws -> PostgresClient {
+        let result: Result<PostgresClient, PostgresError> = await PostgresClient.executeWithEnhancedError {
             let wire = try await PostgresWireClient.connect(configuration: configuration.makeWireConfiguration(), logger: logger)
-            return PostgresDatabaseClient(wire: wire, logger: logger)
+            return PostgresClient(wire: wire, logger: logger)
         }
         switch result {
         case .success(let client):
@@ -41,17 +43,15 @@ public final class PostgresDatabaseClient: @unchecked Sendable {
     /// Explicitly close all connections.
     public func close() { wire.close() }
 
-    public var activity: PostgresActivityMonitor { wire.activity }
-
     /// Borrow a single connection for multi-step operations (e.g., transactions).
     public func withConnection<T>(
-        _ body: @Sendable (PostgresDatabaseConnection) async throws -> T
+        _ body: @Sendable (PostgresConnection) async throws -> T
     ) async throws -> T {
         do {
             return try await wire.withConnection { connection in
                 let cache = await registry.statementCache(for: connection.id)
                 let serverCache = await registry.serverPreparedCache(for: connection.id)
-                return try await body(PostgresDatabaseConnection(wireConnection: connection, logger: logger, cache: cache, serverCache: serverCache))
+                return try await body(PostgresConnection(wireConnection: connection, logger: logger, cache: cache, serverCache: serverCache))
             }
         } catch {
             throw PostgresKit.PostgresError.from(error)
@@ -67,6 +67,30 @@ public final class PostgresDatabaseClient: @unchecked Sendable {
         } else {
             throw PostgresError.encodingError(type: type(of: value))
         }
+    }
+
+    /// Execute a DDL statement and return the number of affected rows.
+    @discardableResult
+    internal func executeDDL(_ sql: String) async throws -> Int {
+        let rows = try await wire.query(WireQuery(sql: sql))
+        var count = 0
+        for try await _ in rows.decode((String?).self) {
+            count += 1
+        }
+        return count
+    }
+
+    /// Quote an identifier to prevent SQL injection.
+    /// Handles schema-qualified names like "app.users" → "app"."users".
+    internal func quoteIdentifier(_ identifier: String) -> String {
+        identifier.split(separator: ".", maxSplits: 1)
+            .map { "\"\($0.replacingOccurrences(of: "\"", with: "\"\""))\"" }
+            .joined(separator: ".")
+    }
+
+    /// Quote a literal string to prevent SQL injection.
+    internal func quoteLiteral(_ literal: String) -> String {
+        return "'\(literal.replacingOccurrences(of: "'", with: "''"))'"
     }
 }
 

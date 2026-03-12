@@ -3,7 +3,7 @@ import XCTest
 import Logging
 
 final class MetadataIntegrationTests: PostgresKitTestCase {
-    private var client: PostgresDatabaseClient!
+    private var client: PostgresKit.PostgresClient!
     private let meta = PostgresMetadata()
 
     override func setUp() async throws {
@@ -15,7 +15,7 @@ final class MetadataIntegrationTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "MetadataIntegrationTests"
         )
-        client = try await PostgresDatabaseClient.connect(configuration: config, logger: Logger(label: "metadata-tests"))
+        client = try await PostgresClient.connect(configuration: config, logger: Logger(label: "metadata-tests"))
     }
 
     override func tearDown() {
@@ -65,20 +65,20 @@ final class MetadataIntegrationTests: PostgresKitTestCase {
         let table = uniqueName()
         let refTable = uniqueName("ref")
         defer { Task { [client = self.client!] in
-            _ = try? await client.dropTable(name: table, ifExists: true, cascade: true)
-            _ = try? await client.dropTable(name: refTable, ifExists: true, cascade: true)
+            _ = try? await client.admin.dropTable(name: table, ifExists: true, cascade: true)
+            _ = try? await client.admin.dropTable(name: refTable, ifExists: true, cascade: true)
         }}
 
-        try await client.createTable(name: refTable, columns: [
+        try await client.admin.createTable(name: refTable, columns: [
             PostgresColumnDefinition(name: "id", dataType: "INT", primaryKey: true),
             .text(name: "description")
         ])
-        try await client.createTable(name: table, columns: [
+        try await client.admin.createTable(name: table, columns: [
             PostgresColumnDefinition(name: "id", dataType: "INT", primaryKey: true),
             .text(name: "name"),
             .integer(name: "ref_id")
         ])
-        try await client.addForeignKey(table: table, column: "ref_id", referencesTable: refTable, referencesColumn: "id", constraintName: "fk_\(table)")
+        try await client.admin.addForeignKey(table: table, column: "ref_id", referencesTable: refTable, referencesColumn: "id", constraintName: "fk_\(table)")
 
         let byTable = try await meta.columnsByTable(using: client, schema: "public")
         guard let details = byTable[table] else {
@@ -123,15 +123,15 @@ final class MetadataIntegrationTests: PostgresKitTestCase {
 
     func testListIndexes() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.admin.dropTable(name: table, ifExists: true) } }
 
-        try await client.createTable(name: table, columns: [
+        try await client.admin.createTable(name: table, columns: [
             .serial(name: "id", primaryKey: true),
             .text(name: "name"),
             .text(name: "email")
         ])
-        try await client.createIndex(name: "idx_\(table)_name", table: table, columns: ["name"])
-        try await client.createIndex(name: "idx_\(table)_email", table: table, columns: ["email"], unique: true)
+        try await client.admin.createIndex(name: "idx_\(table)_name", table: table, columns: ["name"])
+        try await client.admin.createIndex(name: "idx_\(table)_email", table: table, columns: ["email"], unique: true)
 
         let indexes = try await meta.listIndexes(using: client, schema: "public", table: table)
         XCTAssertGreaterThanOrEqual(indexes.count, 2, "Should have at least PK index + name index + email index")
@@ -147,14 +147,14 @@ final class MetadataIntegrationTests: PostgresKitTestCase {
 
     func testUniqueConstraints() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.admin.dropTable(name: table, ifExists: true) } }
 
-        try await client.createTable(name: table, columns: [
+        try await client.admin.createTable(name: table, columns: [
             .serial(name: "id", primaryKey: true),
             PostgresColumnDefinition(name: "code", dataType: "TEXT", unique: true),
             .text(name: "email")
         ])
-        try await client.addUniqueConstraint(table: table, columns: ["email"], constraintName: "uq_\(table)_email")
+        try await client.admin.addUniqueConstraint(table: table, columns: ["email"], constraintName: "uq_\(table)_email")
 
         let constraints = try await meta.uniqueConstraints(using: client, schema: "public", table: table)
         XCTAssertGreaterThanOrEqual(constraints.count, 2, "Should have at least 2 unique constraints (code + email)")

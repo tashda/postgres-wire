@@ -3,7 +3,7 @@ import Logging
 @testable import PostgresKit
 
 final class AdminTests: PostgresKitTestCase {
-    private var client: PostgresDatabaseClient!
+    private var client: PostgresKit.PostgresClient!
 
     override func setUp() async throws {
         try await super.setUp()
@@ -20,7 +20,7 @@ final class AdminTests: PostgresKitTestCase {
             useTLS: TestEnv.useTLS,
             applicationName: "AdminTests"
         )
-        client = try await PostgresDatabaseClient.connect(configuration: config, logger: Logger(label: "admin-tests"))
+        client = try await PostgresClient.connect(configuration: config, logger: Logger(label: "admin-tests"))
     }
 
     override func tearDown() async throws {
@@ -44,11 +44,11 @@ final class AdminTests: PostgresKitTestCase {
 
     func testVacuumSpecificTable() async throws {
         // Create a temp table, vacuum it, drop it
-        try await client.createTable(name: "admin_vacuum_tmp", columns: [
+        try await client.admin.createTable(name: "admin_vacuum_tmp", columns: [
             .integer(name: "id")
         ], temporary: true)
-        try await client.insert(into: "admin_vacuum_tmp", columns: ["id"], values: [[1], [2], [3]])
-        try await client.delete(from: "admin_vacuum_tmp")
+        try await client.connection.insert(into: "admin_vacuum_tmp", columns: ["id"], values: [[1], [2], [3]])
+        try await client.connection.delete(from: "admin_vacuum_tmp")
         // VACUUM on a temp table is a no-op but must not throw
         try await admin.vacuum(table: "admin_vacuum_tmp")
     }
@@ -60,11 +60,11 @@ final class AdminTests: PostgresKitTestCase {
     }
 
     func testAnalyzeSpecificTable() async throws {
-        try await client.createTable(name: "admin_analyze_tmp", columns: [
+        try await client.admin.createTable(name: "admin_analyze_tmp", columns: [
             .integer(name: "id"),
             .text(name: "name")
         ], temporary: true)
-        try await client.insert(into: "admin_analyze_tmp", columns: ["id", "name"], values: [[1, "a"], [2, "b"]])
+        try await client.connection.insert(into: "admin_analyze_tmp", columns: ["id", "name"], values: [[1, "a"], [2, "b"]])
         try await admin.analyze(table: "admin_analyze_tmp")
     }
 

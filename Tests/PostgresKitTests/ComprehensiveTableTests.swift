@@ -3,7 +3,7 @@ import Logging
 @testable import PostgresKit
 
 final class ComprehensiveTableTests: PostgresKitTestCase {
-    private var client: PostgresDatabaseClient!
+    private var client: PostgresKit.PostgresClient!
     private var testLogger: Logger!
 
     override func setUp() async throws {
@@ -26,7 +26,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
             applicationName: "ComprehensiveTableTests"
         )
 
-        client = try await PostgresDatabaseClient.connect(configuration: config, logger: testLogger)
+        client = try await PostgresClient.connect(configuration: config, logger: testLogger)
     }
 
     override func tearDown() {
@@ -39,11 +39,11 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
     func testCreateTableWithAllDataTypes() async throws {
         print("=== Testing Table Creation with All Data Types ===")
 
-        _ = try await client.dropTable(name: "test_all_types", ifExists: true)
+        _ = try await client.admin.dropTable(name: "test_all_types", ifExists: true)
 
         // Create table with all supported PostgreSQL data types
         do {
-            _ = try await client.createTable(
+            _ = try await client.admin.createTable(
                 name: "test_all_types",
                 columns: [
                     // Numeric types
@@ -102,7 +102,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
 
         // Verify table was created successfully by checking table existence
         do {
-            let result = try await client.simpleQuery("""
+            let result = try await client.connection.simpleQuery("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables
                     WHERE table_name = 'test_all_types'
@@ -125,7 +125,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         }
 
         // Cleanup
-        _ = try await client.dropTable(name: "test_all_types", ifExists: false)
+        _ = try await client.admin.dropTable(name: "test_all_types", ifExists: false)
 
         print("✓ Table creation with all data types test passed")
     }
@@ -135,10 +135,10 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
     func testTableOperationsWithComplexDataTypes() async throws {
         print("=== Testing Table Operations with Complex Data Types ===")
 
-        _ = try await client.dropTable(name: "test_complex_table", ifExists: true)
+        _ = try await client.admin.dropTable(name: "test_complex_table", ifExists: true)
 
         // Create table with complex data types
-        _ = try await client.createTable(
+        _ = try await client.admin.createTable(
             name: "test_complex_table",
             columns: [
                 .bigSerial(name: "id", primaryKey: true),
@@ -151,7 +151,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
             ]
         )
 
-        _ = try await client.insert(
+        _ = try await client.connection.insert(
             into: "test_complex_table",
             columns: ["name", "metadata", "tags", "external_id", "binary_data", "description"],
             values: [
@@ -175,7 +175,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         )
 
         // Test JSONB queries
-        let jsonResult = try await client.simpleQuery("SELECT name, metadata->>'category' as category FROM test_complex_table WHERE metadata @> '{\"category\": \"electronics\"}'")
+        let jsonResult = try await client.connection.simpleQuery("SELECT name, metadata->>'category' as category FROM test_complex_table WHERE metadata @> '{\"category\": \"electronics\"}'")
         var electronicsCount = 0
         for try await (name, category) in jsonResult.decode((String, String).self) {
             electronicsCount += 1
@@ -184,7 +184,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         XCTAssertEqual(electronicsCount, 1, "Should find one electronics product")
 
         // Test array queries
-        let arrayResult = try await client.simpleQuery("SELECT name, tags FROM test_complex_table WHERE tags @> ARRAY['books']")
+        let arrayResult = try await client.connection.simpleQuery("SELECT name, tags FROM test_complex_table WHERE tags @> ARRAY['books']")
         var booksCount = 0
         for try await (name, tags) in arrayResult.decode((String, [String]).self) {
             booksCount += 1
@@ -193,7 +193,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         XCTAssertEqual(booksCount, 1, "Should find one book product")
 
         // Test UUID queries
-        let uuidResult = try await client.simpleQuery("SELECT name FROM test_complex_table WHERE external_id = '550e8400-e29b-41d4-a716-446655440001'")
+        let uuidResult = try await client.connection.simpleQuery("SELECT name FROM test_complex_table WHERE external_id = '550e8400-e29b-41d4-a716-446655440001'")
         var foundUUID = false
         for try await name in uuidResult.decode(String?.self) {
             if let name = name {
@@ -205,7 +205,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         XCTAssertTrue(foundUUID, "Should find product by UUID")
 
         // Cleanup
-        _ = try await client.dropTable(name: "test_complex_table", ifExists: false)
+        _ = try await client.admin.dropTable(name: "test_complex_table", ifExists: false)
 
         print("✓ Table operations with complex data types test passed")
     }
@@ -215,10 +215,10 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
     func testAlterTableOperations() async throws {
         print("=== Testing Alter Table Operations ===")
 
-        _ = try await client.dropTable(name: "test_alter_table", ifExists: true)
+        _ = try await client.admin.dropTable(name: "test_alter_table", ifExists: true)
 
         // Create initial table
-        _ = try await client.createTable(
+        _ = try await client.admin.createTable(
             name: "test_alter_table",
             columns: [
                 .bigSerial(name: "id", primaryKey: true),
@@ -228,22 +228,22 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         )
 
         // Insert initial data
-        _ = try await client.insert(
+        _ = try await client.connection.insert(
             into: "test_alter_table",
             columns: ["name", "value"],
             values: [["Item 1", 100], ["Item 2", 200]]
         )
 
         // Test adding columns with different data types
-        _ = try await client.addColumn(table: "test_alter_table", column: .text(name: "description"))
-        _ = try await client.addColumn(table: "test_alter_table", column: .timestamp(name: "created_at", defaultValue: "CURRENT_TIMESTAMP"))
-        _ = try await client.addColumn(table: "test_alter_table", column: .boolean(name: "is_active", defaultValue: true))
-        _ = try await client.addColumn(table: "test_alter_table", column: .decimal(name: "price", precision: 10, scale: 2))
-        _ = try await client.addColumn(table: "test_alter_table", column: .array(name: "tags", elementType: "TEXT"))
-        _ = try await client.addColumn(table: "test_alter_table", column: .jsonb(name: "metadata"))
-        _ = try await client.addColumn(table: "test_alter_table", column: .uuid(name: "external_id"))
+        _ = try await client.admin.addColumn(table: "test_alter_table", column: .text(name: "description"))
+        _ = try await client.admin.addColumn(table: "test_alter_table", column: .timestamp(name: "created_at", defaultValue: "CURRENT_TIMESTAMP"))
+        _ = try await client.admin.addColumn(table: "test_alter_table", column: .boolean(name: "is_active", defaultValue: true))
+        _ = try await client.admin.addColumn(table: "test_alter_table", column: .decimal(name: "price", precision: 10, scale: 2))
+        _ = try await client.admin.addColumn(table: "test_alter_table", column: .array(name: "tags", elementType: "TEXT"))
+        _ = try await client.admin.addColumn(table: "test_alter_table", column: .jsonb(name: "metadata"))
+        _ = try await client.admin.addColumn(table: "test_alter_table", column: .uuid(name: "external_id"))
 
-        _ = try await client.insert(
+        _ = try await client.connection.insert(
             into: "test_alter_table",
             columns: ["name", "value", "description", "price", "tags", "metadata", "external_id"],
             values: [
@@ -253,7 +253,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         )
 
         // Verify new columns exist and have correct data - simple validation
-        let countResult = try await client.simpleQuery("SELECT COUNT(*) FROM test_alter_table WHERE description IS NOT NULL")
+        let countResult = try await client.connection.simpleQuery("SELECT COUNT(*) FROM test_alter_table WHERE description IS NOT NULL")
         var itemCount = 0
         for try await rowCount in countResult.decode((Int64?).self) {
             if let rowCount = rowCount {
@@ -264,28 +264,28 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         XCTAssertEqual(itemCount, 2, "Should find 2 items with descriptions")
 
         // Test modifying column types
-        _ = try await client.alterColumnType(table: "test_alter_table", column: "value", newType: "BIGINT")
-        _ = try await client.alterColumnType(table: "test_alter_table", column: "name", newType: "VARCHAR(100)")
+        _ = try await client.admin.alterColumnType(table: "test_alter_table", column: "value", newType: "BIGINT")
+        _ = try await client.admin.alterColumnType(table: "test_alter_table", column: "name", newType: "VARCHAR(100)")
 
         // Test adding constraints
-        _ = try await client.addCheckConstraint(
+        _ = try await client.admin.addCheckConstraint(
             table: "test_alter_table",
             condition: "price > 0",
             constraintName: "ck_price_positive"
         )
 
-        _ = try await client.addUniqueConstraint(
+        _ = try await client.admin.addUniqueConstraint(
             table: "test_alter_table",
             columns: ["external_id"],
             constraintName: "uk_external_id"
         )
 
         // Test adding and dropping columns
-        _ = try await client.addColumn(table: "test_alter_table", column: .text(name: "dummy_column"))
-        _ = try await client.dropColumn(table: "test_alter_table", column: "dummy_column")
+        _ = try await client.admin.addColumn(table: "test_alter_table", column: .text(name: "dummy_column"))
+        _ = try await client.admin.dropColumn(table: "test_alter_table", column: "dummy_column")
 
         // Cleanup
-        _ = try await client.dropTable(name: "test_alter_table", ifExists: false)
+        _ = try await client.admin.dropTable(name: "test_alter_table", ifExists: false)
 
         print("✓ Alter table operations test passed")
     }
@@ -296,11 +296,11 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         print("=== Testing Truncate Table Operations ===")
 
         // Use fixed table names with proper cleanup at start
-        _ = try await client.dropTable(name: "test_truncate_table", ifExists: true, cascade: true)
-        _ = try await client.dropTable(name: "test_truncate_table2", ifExists: true, cascade: true)
+        _ = try await client.admin.dropTable(name: "test_truncate_table", ifExists: true, cascade: true)
+        _ = try await client.admin.dropTable(name: "test_truncate_table2", ifExists: true, cascade: true)
 
         // Create tables for truncate testing
-        _ = try await client.createTable(
+        _ = try await client.admin.createTable(
             name: "test_truncate_table",
             columns: [
                 .bigSerial(name: "id", primaryKey: true),
@@ -310,7 +310,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
             ]
         )
 
-        _ = try await client.createTable(
+        _ = try await client.admin.createTable(
             name: "test_truncate_table2",
             columns: [
                 .bigSerial(name: "id", primaryKey: true),
@@ -320,13 +320,13 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         )
 
         // Insert test data
-        _ = try await client.insert(
+        _ = try await client.connection.insert(
             into: "test_truncate_table",
             columns: ["name", "value"],
             values: [["Item 1", 100], ["Item 2", 200], ["Item 3", 300]]
         )
 
-        _ = try await client.insert(
+        _ = try await client.connection.insert(
             into: "test_truncate_table2",
             columns: ["category", "description"],
             values: [["Category A", "Description A"], ["Category B", "Description B"]]
@@ -334,7 +334,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
 
         // Verify data exists
         var count = 0
-        let result1 = try await client.simpleQuery("SELECT COUNT(*) FROM test_truncate_table")
+        let result1 = try await client.connection.simpleQuery("SELECT COUNT(*) FROM test_truncate_table")
         for try await rowCount in result1.decode((Int64?).self) {
             if let rowCount = rowCount {
                 count = Int(rowCount)
@@ -344,11 +344,11 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         XCTAssertEqual(count, 3, "Should have 3 rows before truncate")
 
         // Test truncate with identity reset
-        _ = try await client.truncate(table: "test_truncate_table", restartIdentity: true)
+        _ = try await client.connection.truncate(table: "test_truncate_table", restartIdentity: true)
 
         // Verify table is empty
         count = 0
-        let result2 = try await client.simpleQuery("SELECT COUNT(*) FROM test_truncate_table")
+        let result2 = try await client.connection.simpleQuery("SELECT COUNT(*) FROM test_truncate_table")
         for try await rowCount in result2.decode((Int64?).self) {
             if let rowCount = rowCount {
                 count = Int(rowCount)
@@ -358,13 +358,13 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         XCTAssertEqual(count, 0, "Should have 0 rows after truncate")
 
         // Test inserting after truncate (should restart from 1)
-        _ = try await client.insert(
+        _ = try await client.connection.insert(
             into: "test_truncate_table",
             columns: ["name", "value"],
             values: [["New Item 1", 1000]]
         )
 
-        let result3 = try await client.simpleQuery("SELECT id, name FROM test_truncate_table ORDER BY id")
+        let result3 = try await client.connection.simpleQuery("SELECT id, name FROM test_truncate_table ORDER BY id")
         var newId = 0
         for try await (id, name) in result3.decode((Int64, String).self) {
             newId = Int(id)
@@ -374,8 +374,8 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         XCTAssertEqual(newId, 1, "ID should restart from 1 after truncate with restartIdentity")
 
         // Cleanup with CASCADE
-        _ = try await client.dropTable(name: "test_truncate_table2", ifExists: true, cascade: true)
-        _ = try await client.dropTable(name: "test_truncate_table", ifExists: true, cascade: true)
+        _ = try await client.admin.dropTable(name: "test_truncate_table2", ifExists: true, cascade: true)
+        _ = try await client.admin.dropTable(name: "test_truncate_table", ifExists: true, cascade: true)
 
         print("✓ Truncate table operations test passed")
     }
@@ -385,10 +385,10 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
     func testTableOperationsWithLargeDatasets() async throws {
         print("=== Testing Table Operations with Large Datasets ===")
 
-        _ = try await client.dropTable(name: "test_large_dataset", ifExists: true)
+        _ = try await client.admin.dropTable(name: "test_large_dataset", ifExists: true)
 
         // Create table for large dataset testing
-        _ = try await client.createTable(
+        _ = try await client.admin.createTable(
             name: "test_large_dataset",
             columns: [
                 .bigSerial(name: "id", primaryKey: true),
@@ -402,21 +402,21 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         )
 
         // Create indexes for performance
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_large_name",
             table: "test_large_dataset",
             columns: ["name"],
             unique: false
         )
 
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_large_category",
             table: "test_large_dataset",
             columns: ["category_id"],
             unique: false
         )
 
-        _ = try await client.createIndex(
+        _ = try await client.admin.createIndex(
             name: "idx_large_active",
             table: "test_large_dataset",
             columns: ["is_active"],
@@ -449,7 +449,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
                 ]
             }
 
-            _ = try await client.insert(
+            _ = try await client.connection.insert(
                 into: "test_large_dataset",
                 columns: ["name", "category_id", "price", "created_at", "attributes", "is_active"],
                 values: rows
@@ -459,7 +459,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         // Test query performance
         let startTime = Date().timeIntervalSinceReferenceDate
 
-        let result = try await client.simpleQuery("""
+        let result = try await client.connection.simpleQuery("""
             SELECT COUNT(*) as count, AVG(price) as avg_price
             FROM test_large_dataset
             WHERE is_active = true AND category_id BETWEEN 3 AND 7
@@ -493,7 +493,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         // Large dataset operations completed successfully with proper indexing
 
         // Cleanup
-        _ = try await client.dropTable(name: "test_large_dataset", ifExists: false)
+        _ = try await client.admin.dropTable(name: "test_large_dataset", ifExists: false)
 
         print("✓ Large dataset operations test passed")
     }
@@ -504,11 +504,11 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         print("=== Testing Table Operations with Special Characters ===")
 
         // Test table and column names with special characters
-        _ = try await client.dropTable(name: "test_special_chars_table", ifExists: true)
-        _ = try await client.dropTable(name: "table_with_underscores", ifExists: true)
+        _ = try await client.admin.dropTable(name: "test_special_chars_table", ifExists: true)
+        _ = try await client.admin.dropTable(name: "table_with_underscores", ifExists: true)
 
         // Create table with special character column names
-        _ = try await client.createTable(
+        _ = try await client.admin.createTable(
             name: "test_special_chars_table",
             columns: [
                 .bigSerial(name: "id", primaryKey: true),
@@ -521,7 +521,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
             ]
         )
 
-        _ = try await client.insert(
+        _ = try await client.connection.insert(
             into: "test_special_chars_table",
             columns: ["user_name", "email_address", "full_description", "user_settings_data"],
             values: [
@@ -532,7 +532,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         )
 
         // Query special character data
-        let result = try await client.simpleQuery("SELECT user_name, email_address, full_description FROM test_special_chars_table ORDER BY id")
+        let result = try await client.connection.simpleQuery("SELECT user_name, email_address, full_description FROM test_special_chars_table ORDER BY id")
 
         var userCount = 0
         for try await (name, email, description) in result.decode((String, String, String).self) {
@@ -545,7 +545,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         XCTAssertEqual(userCount, 3, "Should retrieve all 3 users with special characters")
 
         // Test table with reserved word names
-        _ = try await client.createTable(
+        _ = try await client.admin.createTable(
             name: "table_with_underscores",
             columns: [
                 .bigSerial(name: "id", primaryKey: true),
@@ -555,15 +555,15 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
             ]
         )
 
-        _ = try await client.insert(
+        _ = try await client.connection.insert(
             into: "table_with_underscores",
             columns: ["user_key", "value_data", "order_column"],
             values: [["key1", "value1", "order1"], ["key2", "value2", "order2"]]
         )
 
         // Cleanup
-        _ = try await client.dropTable(name: "test_special_chars_table", ifExists: false)
-        _ = try await client.dropTable(name: "table_with_underscores", ifExists: false)
+        _ = try await client.admin.dropTable(name: "test_special_chars_table", ifExists: false)
+        _ = try await client.admin.dropTable(name: "table_with_underscores", ifExists: false)
 
         print("✓ Special character handling test passed")
     }

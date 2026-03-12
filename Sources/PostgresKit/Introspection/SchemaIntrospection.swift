@@ -240,13 +240,12 @@ public extension PostgresDatabaseClient {
             JOIN pg_extension e ON e.oid = d.refobjid
             JOIN pg_namespace n ON n.oid = obj.relnamespace
             WHERE d.refclassid = 'pg_extension'::regclass
-              AND e.extname = $1
+              AND e.extname = \(quoteLiteral(extensionName))
             ORDER BY n.nspname, obj.objname
             """
         var out: [PostgresExtensionObject] = []
-        let rows = try await queryPreparedRows(sql, binds: [toPGData(value: extensionName)])
-        for row in rows {
-            let (schema, name, type) = try row.decode((String, String, String).self)
+        let rows = try await simpleQuery(sql)
+        for try await (schema, name, type) in rows.decode((String, String, String).self) {
             out.append(PostgresExtensionObject(schema: schema, name: name, type: type))
         }
         return out

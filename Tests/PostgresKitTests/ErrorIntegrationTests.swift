@@ -185,6 +185,29 @@ final class ErrorIntegrationTests: PostgresKitTestCase {
         }
     }
 
+    // MARK: - PSQLError localizedDescription
+
+    func testPSQLErrorLocalizedDescriptionContainsServerMessage() async throws {
+        // simpleQuery throws raw PSQLError. Verify that our @retroactive
+        // LocalizedError conformance makes localizedDescription readable.
+        do {
+            _ = try await client.simpleQuery("SELECT * FROM nonexistent_table_\(uniqueName())")
+            XCTFail("Expected error for nonexistent table")
+        } catch let error as PSQLError {
+            let description = error.localizedDescription
+            // Should contain the actual Postgres message, not "PSQLError error 1"
+            XCTAssertFalse(description.contains("error 1"),
+                           "localizedDescription should not be the generic 'error 1' form, got: \(description)")
+            XCTAssertTrue(description.contains("does not exist") || description.contains("relation"),
+                          "localizedDescription should contain the server error message, got: \(description)")
+        } catch {
+            // If it's already wrapped as PostgresError, that's also fine
+            let description = error.localizedDescription
+            XCTAssertFalse(description.contains("error 1"),
+                           "localizedDescription should not be the generic 'error 1' form, got: \(description)")
+        }
+    }
+
     // MARK: - Error Conversion from Traditional catch
 
     func testTraditionalCatchConvertsToPostgresError() async throws {

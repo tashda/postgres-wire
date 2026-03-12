@@ -41,6 +41,8 @@ public final class PostgresDatabaseClient: @unchecked Sendable {
     /// Explicitly close all connections.
     public func close() { wire.close() }
 
+    public var activity: PostgresActivityMonitor { wire.activity }
+
     /// Borrow a single connection for multi-step operations (e.g., transactions).
     public func withConnection<T>(
         _ body: @Sendable (PostgresDatabaseConnection) async throws -> T

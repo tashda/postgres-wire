@@ -30,18 +30,35 @@ public extension PostgresDatabaseClient {
     func foreignKeys(schema: String, table: String) async throws -> [PostgresForeignKeyInfo] {
         struct Row { let name: String; let column: String; let refSchema: String; let refTable: String; let refColumn: String; let onUpdate: String?; let onDelete: String?; let position: Int }
         let sql = """
-            SELECT tc.constraint_name::text, kcu.column_name::text, ccu.table_schema::text,
-                   ccu.table_name::text, ccu.column_name::text, rc.update_rule::text,
-                   rc.delete_rule::text, kcu.ordinal_position::text
-            FROM information_schema.table_constraints AS tc
-            JOIN information_schema.key_column_usage AS kcu
-              ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
-            JOIN information_schema.referential_constraints AS rc
-              ON rc.constraint_name = tc.constraint_name AND rc.constraint_schema = tc.table_schema
-            JOIN information_schema.constraint_column_usage AS ccu
-              ON ccu.constraint_name = tc.constraint_name AND ccu.constraint_schema = tc.constraint_schema
-            WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = $1 AND tc.table_name = $2
-            ORDER BY tc.constraint_name, kcu.ordinal_position
+            SELECT
+                c.conname::text AS constraint_name,
+                a.attname::text AS column_name,
+                rns.nspname::text AS ref_schema,
+                rcl.relname::text AS ref_table,
+                ra.attname::text AS ref_column,
+                CASE c.confupdtype
+                    WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT'
+                    WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL'
+                    WHEN 'd' THEN 'SET DEFAULT' ELSE NULL
+                END::text AS update_rule,
+                CASE c.confdeltype
+                    WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT'
+                    WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL'
+                    WHEN 'd' THEN 'SET DEFAULT' ELSE NULL
+                END::text AS delete_rule,
+                u.ord::text AS ordinal_position
+            FROM pg_constraint c
+            JOIN pg_class cl ON cl.oid = c.conrelid
+            JOIN pg_namespace ns ON ns.oid = cl.relnamespace
+            JOIN pg_class rcl ON rcl.oid = c.confrelid
+            JOIN pg_namespace rns ON rns.oid = rcl.relnamespace
+            CROSS JOIN LATERAL unnest(c.conkey, c.confkey) WITH ORDINALITY AS u(local_attnum, ref_attnum, ord)
+            JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = u.local_attnum
+            JOIN pg_attribute ra ON ra.attrelid = c.confrelid AND ra.attnum = u.ref_attnum
+            WHERE c.contype = 'f'
+              AND ns.nspname = $1
+              AND cl.relname = $2
+            ORDER BY c.conname, u.ord
             """
         return try await withConnection { conn in
             let rows = try await conn.queryPreparedRows(sql, binds: [toPGData(value: schema), toPGData(value: table)])

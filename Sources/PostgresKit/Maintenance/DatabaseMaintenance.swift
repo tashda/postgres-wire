@@ -58,17 +58,50 @@ public extension PostgresDatabaseClient {
         return try await executeDDL(parts.joined(separator: " "))
     }
 
-    /// Install a PostgreSQL extension.
+    /// Create a new PostgreSQL extension.
     @discardableResult
     func createExtension(
         _ name: String,
         ifNotExists: Bool = true,
-        schema: String? = nil
+        schema: String? = nil,
+        version: String? = nil,
+        cascade: Bool = false
     ) async throws -> Int {
         var parts: [String] = ["CREATE EXTENSION"]
         if ifNotExists { parts.append("IF NOT EXISTS") }
         parts.append(quoteIdentifier(name))
         if let schema { parts.append("WITH SCHEMA \(quoteIdentifier(schema))") }
+        if let version { parts.append("VERSION \(quoteLiteral(version))") }
+        if cascade { parts.append("CASCADE") }
+        return try await executeDDL(parts.joined(separator: " "))
+    }
+
+    /// Remove a PostgreSQL extension.
+    @discardableResult
+    func dropExtension(
+        _ name: String,
+        ifExists: Bool = true,
+        cascade: Bool = false
+    ) async throws -> Int {
+        var parts: [String] = ["DROP EXTENSION"]
+        if ifExists { parts.append("IF NOT EXISTS") }
+        parts.append(quoteIdentifier(name))
+        if cascade { parts.append("CASCADE") }
+        return try await executeDDL(parts.joined(separator: " "))
+    }
+
+    /// Update a PostgreSQL extension to a specific version.
+    @discardableResult
+    func updateExtension(
+        _ name: String,
+        to version: String? = nil
+    ) async throws -> Int {
+        var parts: [String] = ["ALTER EXTENSION"]
+        parts.append(quoteIdentifier(name))
+        parts.append("UPDATE")
+        if let version {
+            parts.append("TO \(quoteLiteral(version))")
+        }
         return try await executeDDL(parts.joined(separator: " "))
     }
 }

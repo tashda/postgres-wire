@@ -11,6 +11,16 @@ public extension PostgresDatabaseClient {
         return names
     }
 
+    /// Check if the current user has superuser privileges.
+    func checkSuperuser() async throws -> Bool {
+        let sql = "SELECT rolsuper FROM pg_roles WHERE rolname = current_user"
+        let rows = try await simpleQuery(sql)
+        for try await isSuper in rows.decode(Bool.self) {
+            return isSuper
+        }
+        return false
+    }
+
     /// List all user schemas.
     func listSchemas() async throws -> [PostgresSchemaInfo] {
         let sql = """
@@ -178,6 +188,66 @@ public extension PostgresDatabaseClient {
         let rows = try await simpleQuery(sql)
         for try await (name, schema, version, reloc) in rows.decode((String, String, String, Bool).self) {
             out.append(PostgresExtensionInfo(name: name, schema: schema, version: version, relocatable: reloc))
+        }
+        return out
+    }
+
+    /// List all available PostgreSQL extensions (installed or not).
+    func listAvailableExtensions() async throws -> [PostgresAvailableExtensionInfo] {
+        let sql = """
+            SELECT name, default_version, installed_version, comment
+            FROM pg_available_extensions
+            ORDER BY name
+            """
+        var out: [PostgresAvailableExtensionInfo] = []
+        let rows = try await simpleQuery(sql)
+        for try await (name, defVer, instVer, comment) in rows.decode((String, String, String?, String?).self) {
+            out.append(PostgresAvailableExtensionInfo(name: name, defaultVersion: defVer, installedVersion: instVer, comment: comment))
+        }
+        return out
+    }
+
+    /// List all objects (tables, functions, types) owned by an extension.
+    func listExtensionObjects(_ extensionName: String) async throws -> [PostgresExtensionObject] {
+        let sql = """
+            SELECT 
+                n.nspname as schema,
+                obj.objname as name,
+                obj.objtype as type
+            FROM (
+                -- Tables, Views, Sequences, etc
+                SELECT c.relnamespace, c.relname as objname, 
+                       CASE c.relkind 
+                         WHEN 'r' THEN 'TABLE' 
+                         WHEN 'v' THEN 'VIEW' 
+                         WHEN 'm' THEN 'MATERIALIZED VIEW' 
+                         WHEN 'i' THEN 'INDEX' 
+                         WHEN 'S' THEN 'SEQUENCE' 
+                         ELSE 'OTHER' 
+                       END as objtype,
+                       c.oid
+                FROM pg_class c
+                UNION ALL
+                -- Functions / Procedures
+                SELECT p.pronamespace, p.proname, 'FUNCTION', p.oid
+                FROM pg_proc p
+                UNION ALL
+                -- Types
+                SELECT t.typnamespace, t.typname, 'TYPE', t.oid
+                FROM pg_type t
+            ) obj
+            JOIN pg_depend d ON d.objid = obj.oid
+            JOIN pg_extension e ON e.oid = d.refobjid
+            JOIN pg_namespace n ON n.oid = obj.relnamespace
+            WHERE d.refclassid = 'pg_extension'::regclass
+              AND e.extname = $1
+            ORDER BY n.nspname, obj.objname
+            """
+        var out: [PostgresExtensionObject] = []
+        let rows = try await queryPreparedRows(sql, binds: [toPGData(value: extensionName)])
+        for row in rows {
+            let (schema, name, type) = try row.decode((String, String, String).self)
+            out.append(PostgresExtensionObject(schema: schema, name: name, type: type))
         }
         return out
     }

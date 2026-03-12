@@ -5,6 +5,16 @@ import PostgresWire
 public extension PostgresDatabaseClient {
     /// Fetch comprehensive properties for a specific database.
     func fetchDatabaseProperties(name: String) async throws -> PostgresDatabaseProperties {
+        // daticulocale was added in PostgreSQL 15 — try the full query first,
+        // fall back to a query without it for older server versions.
+        if let result = try? await fetchDatabasePropertiesFull(name: name) {
+            return result
+        }
+        return try await fetchDatabasePropertiesLegacy(name: name)
+    }
+
+    /// Full query including daticulocale (PostgreSQL 15+).
+    private func fetchDatabasePropertiesFull(name: String) async throws -> PostgresDatabaseProperties {
         let sql = """
             SELECT
                 d.oid::text,
@@ -41,6 +51,52 @@ public extension PostgresDatabaseClient {
                 activeConnections: Int(v.12) ?? 0,
                 description: v.13.isEmpty ? nil : v.13,
                 acl: v.14.isEmpty ? nil : v.14
+            )
+        }
+
+        guard let result = props else {
+            throw PostgresError.protocolError("Database '\(name)' not found")
+        }
+        return result
+    }
+
+    /// Fallback query without daticulocale (PostgreSQL < 15).
+    private func fetchDatabasePropertiesLegacy(name: String) async throws -> PostgresDatabaseProperties {
+        let sql = """
+            SELECT
+                d.oid::text,
+                d.datname,
+                pg_catalog.pg_get_userbyid(d.datdba) AS owner,
+                pg_catalog.pg_encoding_to_char(d.encoding) AS encoding,
+                d.datcollate AS collation,
+                d.datctype AS ctype,
+                d.datconnlimit::text AS connection_limit,
+                d.datistemplate::text AS is_template,
+                d.datallowconn::text AS allow_connections,
+                COALESCE(t.spcname, 'pg_default') AS tablespace,
+                pg_catalog.pg_database_size(d.datname)::text AS size_bytes,
+                (SELECT count(*)::text FROM pg_catalog.pg_stat_activity WHERE datname = d.datname) AS active_connections,
+                COALESCE(pg_catalog.shobj_description(d.oid, 'pg_database'), '') AS description,
+                COALESCE(d.datacl::text, '') AS acl
+            FROM pg_catalog.pg_database d
+            LEFT JOIN pg_catalog.pg_tablespace t ON t.oid = d.dattablespace
+            WHERE d.datname = \(quoteLiteral(name))
+            """
+
+        let rows = try await simpleQuery(sql)
+        var props: PostgresDatabaseProperties?
+        for try await v in rows.decode((String, String, String, String, String, String, String, String, String, String, String, String, String, String).self) {
+            props = PostgresDatabaseProperties(
+                oid: v.0, name: v.1, owner: v.2, encoding: v.3, collation: v.4, ctype: v.5,
+                icuLocale: nil,
+                connectionLimit: Int(v.6) ?? -1,
+                isTemplate: v.7 == "t" || v.7 == "true",
+                allowConnections: v.8 == "t" || v.8 == "true",
+                tablespace: v.9,
+                sizeBytes: Int64(v.10) ?? 0,
+                activeConnections: Int(v.11) ?? 0,
+                description: v.12.isEmpty ? nil : v.12,
+                acl: v.13.isEmpty ? nil : v.13
             )
         }
 

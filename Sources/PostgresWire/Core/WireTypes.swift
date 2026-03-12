@@ -30,6 +30,7 @@ public typealias PostgresError = PostgresNIO.PostgresError
 public typealias PostgresDataType = PostgresNIO.PostgresDataType
 public typealias PostgresFormat = PostgresNIO.PostgresFormat
 public typealias PostgresCell = PostgresNIO.PostgresCell
+public typealias PostgresRow = PostgresNIO.PostgresRow
 public typealias PostgresData = PostgresNIO.PostgresData
 public typealias PostgresBindings = PostgresNIO.PostgresBindings
 public typealias PostgresListenContext = PostgresNIO.PostgresListenContext

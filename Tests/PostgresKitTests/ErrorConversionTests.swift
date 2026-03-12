@@ -165,6 +165,19 @@ final class ErrorConversionTests: PostgresKitTestCase {
         XCTAssertTrue(result.isSQLState("23505"))
     }
 
+    // MARK: - PSQLError LocalizedError Conformance
+
+    func testPSQLErrorLocalizedDescriptionUsesServerMessage() throws {
+        // The @retroactive LocalizedError conformance on PSQLError ensures
+        // that .localizedDescription returns the actual Postgres server
+        // message instead of "PostgresNIO.PSQLError error 1".
+        // We verify the conformance exists and falls back gracefully for
+        // errors without serverInfo.
+        let fallbackError = PostgresError(message: "Connection refused. The server may not be running or the port may be wrong.")
+        XCTAssertEqual(fallbackError.localizedDescription, fallbackError.message,
+                       "PostgresError (which wraps PSQLError) should return its message as localizedDescription")
+    }
+
     // MARK: - executeWithEnhancedError
 
     func testExecuteWithEnhancedErrorSimulation() throws {

@@ -5,6 +5,7 @@ import Logging
 public final class PostgresActivityMonitor: @unchecked Sendable {
     private let client: PostgresWireClient
     private let baselineLock = NIOLock()
+    private let logger = Logger(label: "dk.tippr.postgres-wire.activity-monitor")
 
     private var lastWaits: [String: PostgresWaitStat] = [:]
     private var lastDatabaseStats: [String: PostgresDatabaseStat] = [:]
@@ -17,11 +18,26 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
     public func snapshot(options: PostgresActivityOptions = .init()) async throws -> PostgresActivitySnapshot {
         let now = Date()
         
-        // Parallel fetch
-        async let processes = fetchProcesses(options: options)
-        async let databaseStats = fetchDatabaseStats()
-        async let waitStats = fetchWaits()
-        async let expensive = fetchExpensiveQueries(options: options)
+        // Use task groups or async let with catch blocks for resilience
+        async let processes: [PostgresProcessInfo] = {
+            do { return try await fetchProcesses(options: options) }
+            catch { logger.error("Activity Monitor: Failed to fetch processes: \(error)"); return [] }
+        }()
+        
+        async let databaseStats: [PostgresDatabaseStat] = {
+            do { return try await fetchDatabaseStats() }
+            catch { logger.error("Activity Monitor: Failed to fetch DB stats: \(error)"); return [] }
+        }()
+        
+        async let waitStats: [PostgresWaitStat] = {
+            do { return try await fetchWaits() }
+            catch { logger.error("Activity Monitor: Failed to fetch waits: \(error)"); return [] }
+        }()
+        
+        async let expensive: [PostgresExpensiveQuery] = {
+            do { return try await fetchExpensiveQueries(options: options) }
+            catch { logger.error("Activity Monitor: Failed to fetch expensive queries: \(error)"); return [] }
+        }()
         
         let (procs, dbStats, waits, expensiveQueries) = try await (processes, databaseStats, waitStats, expensive)
         
@@ -38,7 +54,7 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         let ioRate = elapsed > 0 ? (Double(totalBlocksReadDelta) * 8192) / (1024 * 1024 * elapsed) : 0
         
         let overview = PostgresActivityOverview(
-            processorTimePercent: 0, // Hard to get from SQL without extensions like pg_proctab
+            processorTimePercent: 0, 
             waitingTasksCount: waitingTasks,
             databaseIOMBPerSec: ioRate,
             transactionsPerSec: xactRate
@@ -68,8 +84,7 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
                         let snap = try await self.snapshot(options: options)
                         continuation.yield(snap)
                     } catch {
-                        continuation.finish(throwing: error)
-                        return
+                        logger.error("Activity Monitor: Stream snapshot error: \(error)")
                     }
                     try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
                 }
@@ -210,7 +225,9 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
                     waitEvent: w.waitEvent,
                     countDelta: max(0, w.count - prev.count)
                 )
-                deltas.append(d)
+                if d.countDelta > 0 {
+                    deltas.append(d)
+                }
             }
         }
         // update baseline

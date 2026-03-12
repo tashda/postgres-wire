@@ -2,6 +2,7 @@ import Foundation
 import Logging
 
 /// Engine responsible for formatting PostgreSQL data into display strings
+@available(*, deprecated, message: "Use PostgresCellFormatter instead for lower overhead per-cell formatting.")
 public actor PostgresFormatterEngine {
 
     // MARK: - Configuration

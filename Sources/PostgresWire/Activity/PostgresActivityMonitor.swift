@@ -10,6 +10,7 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
     private var lastWaits: [String: PostgresWaitStat] = [:]
     private var lastDatabaseStats: [String: PostgresDatabaseStat] = [:]
     private var lastSnapshotTime: Date?
+    private var maxConnections: Int?
 
     public init(client: PostgresWireClient) {
         self.client = client
@@ -18,6 +19,13 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
     public func snapshot(options: PostgresActivityOptions = .init()) async throws -> PostgresActivitySnapshot {
         let now = Date()
         
+        // Fetch max_connections once if not already fetched
+        if maxConnections == nil {
+            if let row = try? await client.query(WireQuery(sql: "SHOW max_connections")).first() {
+                maxConnections = row.column("max_connections")?.int
+            }
+        }
+
         // Use task groups or async let with catch blocks for resilience
         async let processes: [PostgresProcessInfo] = {
             do { return try await fetchProcesses(options: options) }
@@ -46,6 +54,20 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         
         // Overview calculation
         let waitingTasks = procs.filter { $0.waitEvent != nil }.count
+        
+        // Estimate CPU usage based on active (non-idle) backends
+        let activeBackends = procs.filter { 
+            guard let state = $0.state else { return false }
+            return !state.contains("idle") 
+        }.count
+        
+        let cpuEstimate: Double
+        if let max = maxConnections, max > 0 {
+            cpuEstimate = min(100.0, (Double(activeBackends) / Double(max)) * 100.0)
+        } else {
+            cpuEstimate = 0
+        }
+
         let totalXactDelta = dbStatsDelta.reduce(0) { $0 + $1.xact_commit_delta + $1.xact_rollback_delta }
         let totalBlocksReadDelta = dbStatsDelta.reduce(0) { $0 + $1.blks_read_delta }
         
@@ -54,7 +76,7 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         let ioRate = elapsed > 0 ? (Double(totalBlocksReadDelta) * 8192) / (1024 * 1024 * elapsed) : 0
         
         let overview = PostgresActivityOverview(
-            processorTimePercent: 0, 
+            processorTimePercent: cpuEstimate, 
             waitingTasksCount: waitingTasks,
             databaseIOMBPerSec: ioRate,
             transactionsPerSec: xactRate

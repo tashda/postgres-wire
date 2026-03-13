@@ -132,6 +132,16 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         }
     }
 
+    /// Terminates a backend process by its PID.
+    public func killSession(pid: Int32) async throws {
+        let sql = "SELECT pg_terminate_backend(\(pid))"
+        let rows = try await client.query(WireQuery(sql: sql))
+        for try await _ in rows {
+            // Success
+            break
+        }
+    }
+
     // MARK: - Internal Queries
 
     private func fetchProcesses(options: PostgresActivityOptions) async throws -> [PostgresProcessInfo] {

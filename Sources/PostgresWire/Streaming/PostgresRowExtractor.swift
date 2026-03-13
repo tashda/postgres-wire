@@ -32,6 +32,8 @@ public struct PostgresRowExtractor: Sendable {
     ///
     /// Binary format per cell: `0x00` (null) **or** `0x01` + UInt32-LE length + raw bytes.
     ///
+    /// Uses unsafe pointer writes to avoid `Data.append` CoW overhead per cell.
+    ///
     /// - Parameters:
     ///   - row: The Postgres row to encode.
     ///   - formatPreview: When `true`, also formats each cell to a display string.
@@ -44,29 +46,50 @@ public struct PostgresRowExtractor: Sendable {
         formatter: PostgresCellFormatter,
         formattingEnabled: Bool = true
     ) -> (encodedRow: Data, preview: [String?]?) {
-        // Single pass: encode binary and optionally format preview strings together.
-        // Use a growable Data buffer with generous initial capacity to minimize reallocations.
         let columnCount = row.count
-        var encoded = Data()
-        encoded.reserveCapacity(columnCount * 40)
         var preview: [String?]? = formatPreview ? [] : nil
         preview?.reserveCapacity(columnCount)
 
+        // Estimate buffer size: flag(1) + length(4) + avgData(~32) per column
+        var capacity = columnCount * 40
+        var rawBuffer = UnsafeMutableRawPointer.allocate(byteCount: capacity, alignment: 8)
+        var offset = 0
+
         for cell in row {
-            if let buffer = cell.bytes {
-                encoded.append(0x01)
-                let count = buffer.readableBytes
-                var length = UInt32(count).littleEndian
-                withUnsafeBytes(of: &length) { encoded.append(contentsOf: $0) }
-                if count > 0 {
-                    buffer.withUnsafeReadableBytes { bufPtr in
-                        if let p = bufPtr.baseAddress {
-                            encoded.append(UnsafeBufferPointer(start: p.assumingMemoryBound(to: UInt8.self), count: count))
+            if let cellBytes = cell.bytes {
+                let byteCount = cellBytes.readableBytes
+                let needed = offset + 5 + byteCount // flag(1) + length(4) + data
+                if needed > capacity {
+                    let newCapacity = max(needed, capacity * 2)
+                    let newBuffer = UnsafeMutableRawPointer.allocate(byteCount: newCapacity, alignment: 8)
+                    newBuffer.copyMemory(from: rawBuffer, byteCount: offset)
+                    rawBuffer.deallocate()
+                    rawBuffer = newBuffer
+                    capacity = newCapacity
+                }
+                rawBuffer.storeBytes(of: UInt8(0x01), toByteOffset: offset, as: UInt8.self)
+                offset &+= 1
+                rawBuffer.storeBytes(of: UInt32(byteCount).littleEndian, toByteOffset: offset, as: UInt32.self)
+                offset &+= 4
+                if byteCount > 0 {
+                    cellBytes.withUnsafeReadableBytes { src in
+                        if let base = src.baseAddress {
+                            (rawBuffer + offset).copyMemory(from: base, byteCount: byteCount)
                         }
                     }
                 }
+                offset &+= byteCount
             } else {
-                encoded.append(0x00)
+                if offset + 1 > capacity {
+                    let newCapacity = max(offset + 1, capacity * 2)
+                    let newBuffer = UnsafeMutableRawPointer.allocate(byteCount: newCapacity, alignment: 8)
+                    newBuffer.copyMemory(from: rawBuffer, byteCount: offset)
+                    rawBuffer.deallocate()
+                    rawBuffer = newBuffer
+                    capacity = newCapacity
+                }
+                rawBuffer.storeBytes(of: UInt8(0x00), toByteOffset: offset, as: UInt8.self)
+                offset &+= 1
             }
             if formatPreview {
                 if formattingEnabled {
@@ -80,6 +103,7 @@ public struct PostgresRowExtractor: Sendable {
             }
         }
 
+        let encoded = Data(bytesNoCopy: rawBuffer, count: offset, deallocator: .custom { ptr, _ in ptr.deallocate() })
         return (encoded, preview)
     }
 

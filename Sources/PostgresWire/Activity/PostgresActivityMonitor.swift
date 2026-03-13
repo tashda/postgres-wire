@@ -21,8 +21,10 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         
         // Fetch max_connections once if not already fetched
         if maxConnections == nil {
-            if let row = try? await client.query(WireQuery(sql: "SHOW max_connections")).first() {
+            let rows = try await client.query(WireQuery(sql: "SHOW max_connections"))
+            for try await row in rows {
                 maxConnections = row.column("max_connections")?.int
+                break
             }
         }
 

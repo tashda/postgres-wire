@@ -4,7 +4,7 @@ import PostgresWire
 public extension PostgresAdminClient {
     /// Set a server configuration parameter.
     @discardableResult
-    func setConfiguration(parameter: String, value: String, local: Bool = false) async throws -> Int {
+    func set(_ parameter: String, value: String, local: Bool = false) async throws -> Int {
         let sql = "SET\(local ? " LOCAL" : "") \(client.quoteIdentifier(parameter)) TO '\(value.replacingOccurrences(of: "'", with: "''"))'"
         return try await client.executeDDL(sql)
     }
@@ -17,7 +17,7 @@ public extension PostgresAdminClient {
     }
 
     /// Show the current value of a server configuration parameter.
-    func showConfiguration(parameter: String) async throws -> String? {
+    func show(_ parameter: String) async throws -> String? {
         let rows = try await client.simpleQuery("SHOW \(client.quoteIdentifier(parameter))")
         for try await value in rows.decode(String?.self) { return value }
         return nil

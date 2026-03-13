@@ -15,7 +15,7 @@ final class BulkCopyTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "BulkCopyTests"
         )
-        client = try await PostgresClient.connect(configuration: config, logger: Logger(label: "bulk-copy-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "bulk-copy-tests"))
     }
 
     override func tearDown() {

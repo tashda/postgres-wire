@@ -99,7 +99,7 @@ public extension PostgresAdminClient {
     }
 
     /// Update the database comment/description.
-    func commentOnDatabase(name: String, comment: String?) async throws {
+    func addDatabaseComment(name: String, comment: String?) async throws {
         let sql: String
         if let comment {
             sql = "COMMENT ON DATABASE \(client.quoteIdentifier(name)) IS \(client.quoteLiteral(comment))"

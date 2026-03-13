@@ -14,7 +14,7 @@ final class UniqueConstraintTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "UniqueConstraintTests"
         )
-        client = try await PostgresClient.connect(configuration: config, logger: Logger(label: "unique-constraint-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "unique-constraint-tests"))
     }
 
     override func tearDown() {

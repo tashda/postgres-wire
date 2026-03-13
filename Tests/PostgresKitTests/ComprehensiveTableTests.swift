@@ -26,7 +26,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
             applicationName: "ComprehensiveTableTests"
         )
 
-        client = try await PostgresClient.connect(configuration: config, logger: testLogger)
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: testLogger)
     }
 
     override func tearDown() {

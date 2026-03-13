@@ -16,7 +16,7 @@ final class SampleDataIntegrationTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "SampleDataIntegrationTests"
         )
-        client = try await PostgresClient.connect(configuration: config, logger: Logger(label: "sample-data-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "sample-data-tests"))
     }
 
     override func tearDown() { client?.close(); super.tearDown() }
@@ -243,13 +243,13 @@ final class SampleDataIntegrationTests: PostgresKitTestCase {
 
     func testTableComments() async throws {
         let meta = PostgresMetadata()
-        let comment = try await meta.tableComment(using: client, schema: "app", table: "users")
+        let comment = try await meta.fetchTableComment(using: client, schema: "app", table: "users")
         XCTAssertEqual(comment, "Core user accounts table")
     }
 
     func testColumnComments() async throws {
         let meta = PostgresMetadata()
-        let comments = try await meta.columnComments(using: client, schema: "app", table: "users")
+        let comments = try await meta.fetchColumnComments(using: client, schema: "app", table: "users")
         let metadataComment = comments.first { $0.column == "metadata" }
         XCTAssertNotNil(metadataComment, "metadata column should have a comment")
     }

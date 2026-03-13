@@ -46,7 +46,7 @@ public extension PostgresIntrospectionClient {
     }
 
     /// Fetch the comment/description for a table.
-    func tableComment(schema: String, table: String) async throws -> String? {
+    func fetchTableComment(schema: String, table: String) async throws -> String? {
         let sql = "SELECT obj_description(format('%I.%I', $1::text, $2::text)::regclass, 'pg_class')"
         return try await client.withConnection { conn in
             let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
@@ -56,7 +56,7 @@ public extension PostgresIntrospectionClient {
     }
 
     /// Fetch comments for all columns in a table.
-    func columnComments(schema: String, table: String) async throws -> [PostgresColumnComment] {
+    func fetchColumnComments(schema: String, table: String) async throws -> [PostgresColumnComment] {
         let sql = """
             SELECT a.attname, col_description(c.oid, a.attnum)
             FROM pg_class c
@@ -77,7 +77,7 @@ public extension PostgresIntrospectionClient {
     }
 
     /// Fetch the comment for a function.
-    func functionComment(schema: String, name: String) async throws -> String? {
+    func fetchFunctionComment(schema: String, name: String) async throws -> String? {
         let sql = """
             SELECT obj_description(p.oid, 'pg_proc')
             FROM pg_proc p
@@ -93,7 +93,7 @@ public extension PostgresIntrospectionClient {
     }
 
     /// Fetch the comment for a trigger.
-    func triggerComment(schema: String, name: String) async throws -> String? {
+    func fetchTriggerComment(schema: String, name: String) async throws -> String? {
         let sql = """
             SELECT obj_description(t.oid, 'pg_trigger')
             FROM pg_trigger t
@@ -110,7 +110,7 @@ public extension PostgresIntrospectionClient {
     }
 
     /// Fetch the comment for the current database.
-    func databaseComment() async throws -> String? {
+    func fetchDatabaseComment() async throws -> String? {
         let rows = try await client.simpleQuery("""
             SELECT obj_description(d.oid, 'pg_database')
             FROM pg_database d WHERE d.datname = current_database() LIMIT 1

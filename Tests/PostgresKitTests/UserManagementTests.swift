@@ -25,7 +25,7 @@ final class UserManagementTests: PostgresKitTestCase {
             applicationName: "UserManagementTests"
         )
 
-        client = try await PostgresClient.connect(configuration: config, logger: testLogger)
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: testLogger)
     }
 
     override func tearDown() {
@@ -58,9 +58,9 @@ final class UserManagementTests: PostgresKitTestCase {
         defer {
             Task.detached { [client] in
                 for r in roleNames {
-                    _ = try? await client?.dropRole(name: r, ifExists: true)
+                    _ = try? await client?.security.dropRole(name: r, ifExists: true)
                 }
-                _ = try? await client?.dropRole(name: superName, ifExists: true)
+                _ = try? await client?.security.dropRole(name: superName, ifExists: true)
             }
         }
 
@@ -110,8 +110,8 @@ final class UserManagementTests: PostgresKitTestCase {
 
         defer {
             Task.detached { [client] in
-                _ = try? await client?.dropUser(name: renamedName, ifExists: true)
-                _ = try? await client?.dropUser(name: userName, ifExists: true)
+                _ = try? await client?.security.dropUser(name: renamedName, ifExists: true)
+                _ = try? await client?.security.dropUser(name: userName, ifExists: true)
             }
         }
 
@@ -148,7 +148,7 @@ final class UserManagementTests: PostgresKitTestCase {
         defer {
             Task.detached { [client] in
                 for n in allNames {
-                    _ = try? await client?.dropRole(name: n, ifExists: true)
+                    _ = try? await client?.security.dropRole(name: n, ifExists: true)
                 }
             }
         }
@@ -197,9 +197,9 @@ final class UserManagementTests: PostgresKitTestCase {
 
         defer {
             Task.detached { [client] in
-                _ = try? await client?.dropSchema(name: schemaName, ifExists: true, cascade: true)
-                _ = try? await client?.dropUser(name: userName, ifExists: true)
-                _ = try? await client?.dropRole(name: roleName, ifExists: true)
+                _ = try? await client?.admin.dropSchema(name: schemaName, ifExists: true, cascade: true)
+                _ = try? await client?.security.dropUser(name: userName, ifExists: true)
+                _ = try? await client?.security.dropRole(name: roleName, ifExists: true)
             }
         }
 
@@ -249,9 +249,9 @@ final class UserManagementTests: PostgresKitTestCase {
 
         defer {
             Task.detached { [client] in
-                _ = try? await client?.dropTable(name: table, ifExists: true)
-                _ = try? await client?.dropUser(name: alice, ifExists: true)
-                _ = try? await client?.dropUser(name: bob, ifExists: true)
+                _ = try? await client?.admin.dropTable(name: table, ifExists: true)
+                _ = try? await client?.security.dropUser(name: alice, ifExists: true)
+                _ = try? await client?.security.dropUser(name: bob, ifExists: true)
             }
         }
 

@@ -93,23 +93,23 @@ public struct PostgresMetadata: Sendable {
         try await client.introspection.listExtensionObjects(name)
     }
 
-    public func tableComment(using client: PostgresClient, schema: String, table: String) async throws -> String? {
-        try await client.introspection.tableComment(schema: schema, table: table)
+    public func fetchTableComment(using client: PostgresClient, schema: String, table: String) async throws -> String? {
+        try await client.introspection.fetchTableComment(schema: schema, table: table)
     }
 
-    public func columnComments(using client: PostgresClient, schema: String, table: String) async throws -> [PostgresColumnComment] {
-        try await client.introspection.columnComments(schema: schema, table: table)
+    public func fetchColumnComments(using client: PostgresClient, schema: String, table: String) async throws -> [PostgresColumnComment] {
+        try await client.introspection.fetchColumnComments(schema: schema, table: table)
     }
 
-    public func functionComment(using client: PostgresClient, schema: String, name: String) async throws -> String? {
-        try await client.introspection.functionComment(schema: schema, name: name)
+    public func fetchFunctionComment(using client: PostgresClient, schema: String, name: String) async throws -> String? {
+        try await client.introspection.fetchFunctionComment(schema: schema, name: name)
     }
 
-    public func triggerComment(using client: PostgresClient, schema: String, name: String) async throws -> String? {
-        try await client.introspection.triggerComment(schema: schema, name: name)
+    public func fetchTriggerComment(using client: PostgresClient, schema: String, name: String) async throws -> String? {
+        try await client.introspection.fetchTriggerComment(schema: schema, name: name)
     }
 
-    public func databaseComment(using client: PostgresClient) async throws -> String? {
-        try await client.introspection.databaseComment()
+    public func fetchDatabaseComment(using client: PostgresClient) async throws -> String? {
+        try await client.introspection.fetchDatabaseComment()
     }
 }

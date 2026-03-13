@@ -15,7 +15,7 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "PermissionAndRoleTests"
         )
-        client = try await PostgresClient.connect(configuration: config, logger: Logger(label: "permission-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "permission-tests"))
     }
 
     override func tearDown() { client?.close(); super.tearDown() }

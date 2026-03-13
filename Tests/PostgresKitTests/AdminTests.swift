@@ -20,15 +20,15 @@ final class AdminTests: PostgresKitTestCase {
             useTLS: TestEnv.useTLS,
             applicationName: "AdminTests"
         )
-        client = try await PostgresClient.connect(configuration: config, logger: Logger(label: "admin-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "admin-tests"))
     }
 
     override func tearDown() async throws {
         client?.close()
     }
 
-    private var admin: PostgresAdmin {
-        PostgresAdmin(client: client, logger: Logger(label: "admin"))
+    private var admin: PostgresAdminClient {
+        client.admin
     }
 
     // MARK: - VACUUM

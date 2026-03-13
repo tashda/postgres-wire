@@ -22,7 +22,7 @@ final class EncodableRoundTripTests: PostgresKitTestCase {
             useTLS: TestEnv.useTLS,
             applicationName: "EncodableRoundTripTests"
         )
-        client = try await PostgresClient.connect(configuration: config, logger: Logger(label: "encodable-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "encodable-tests"))
     }
 
     override func tearDown() async throws {

@@ -14,7 +14,7 @@ final class PostgresExecutionOptionsTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "ExecutionOptionsTests"
         )
-        client = try await PostgresClient.connect(configuration: config)
+        client = try await PostgresKit.PostgresClient.connect(configuration: config)
     }
 
     override func tearDown() {

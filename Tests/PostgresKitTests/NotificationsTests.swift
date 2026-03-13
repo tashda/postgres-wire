@@ -28,7 +28,7 @@ final class NotificationsTests: PostgresKitTestCase {
             useTLS: TestEnv.useTLS,
             applicationName: "NotificationsTests"
         )
-        client = try await PostgresClient.connect(configuration: config, logger: Logger(label: "notif-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "notif-tests"))
     }
 
     override func tearDown() async throws {

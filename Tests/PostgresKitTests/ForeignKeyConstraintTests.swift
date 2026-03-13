@@ -14,7 +14,7 @@ final class ForeignKeyConstraintTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "ForeignKeyConstraintTests"
         )
-        client = try await PostgresClient.connect(configuration: config, logger: Logger(label: "fk-constraint-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "fk-constraint-tests"))
     }
 
     override func tearDown() {

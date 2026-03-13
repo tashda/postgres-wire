@@ -14,7 +14,7 @@ final class PrimaryKeyConstraintTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "PrimaryKeyConstraintTests"
         )
-        client = try await PostgresClient.connect(configuration: config, logger: Logger(label: "pk-constraint-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "pk-constraint-tests"))
     }
 
     override func tearDown() {

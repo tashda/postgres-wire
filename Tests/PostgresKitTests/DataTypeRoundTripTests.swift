@@ -16,7 +16,7 @@ final class DataTypeRoundTripTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "DataTypeRoundTripTests"
         )
-        client = try await PostgresClient.connect(configuration: config, logger: Logger(label: "datatype-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "datatype-tests"))
     }
 
     override func tearDown() { client?.close(); super.tearDown() }

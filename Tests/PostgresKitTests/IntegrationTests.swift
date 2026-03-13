@@ -18,7 +18,7 @@ final class IntegrationTests: PostgresKitTestCase {
             applicationName: "PostgresKitTests"
         )
         
-        let client = try await PostgresClient.connect(configuration: config, logger: .init(label: "tests"))
+        let client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: .init(label: "tests"))
         defer { client.close() }
         let rows = try await client.connection.simpleQuery("SELECT 1")
         var values: [Int] = []
@@ -46,7 +46,7 @@ final class IntegrationTests: PostgresKitTestCase {
         
         for _ in 0..<5 {
             do {
-                client = try await PostgresClient.connect(configuration: config, logger: .init(label: "tests"))
+                client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: .init(label: "tests"))
                 break
             } catch {
                 lastError = error

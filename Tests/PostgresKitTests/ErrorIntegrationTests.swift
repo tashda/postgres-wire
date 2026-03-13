@@ -17,7 +17,7 @@ final class ErrorIntegrationTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "ErrorIntegrationTests"
         )
-        client = try await PostgresClient.connect(configuration: config, logger: Logger(label: "error-integration-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "error-integration-tests"))
     }
 
     override func tearDown() {

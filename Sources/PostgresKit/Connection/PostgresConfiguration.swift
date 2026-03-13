@@ -19,11 +19,16 @@ public struct PostgresConfiguration: Sendable {
     public var database: String
     public var username: String
     public var password: String?
-    public var useTLS: Bool
+    public var sslMode: PostgresSSLMode
+    /// Path to a PEM-encoded root CA certificate file for verify-ca / verify-full modes.
+    public var sslRootCertPath: String?
     public var applicationName: String?
     public var pool: PostgresPoolConfiguration
     /// TCP connect timeout in seconds. Defaults to 10.
     public var connectTimeout: Int
+
+    /// Whether TLS is enabled (any mode other than `disable`).
+    public var useTLS: Bool { sslMode != .disable }
 
     public init(
         host: String,
@@ -31,7 +36,8 @@ public struct PostgresConfiguration: Sendable {
         database: String = "postgres",
         username: String,
         password: String?,
-        useTLS: Bool = false,
+        sslMode: PostgresSSLMode = .disable,
+        sslRootCertPath: String? = nil,
         applicationName: String? = nil,
         pool: PostgresPoolConfiguration = .init(),
         connectTimeout: Int = 10
@@ -41,10 +47,36 @@ public struct PostgresConfiguration: Sendable {
         self.database = database
         self.username = username
         self.password = password
-        self.useTLS = useTLS
+        self.sslMode = sslMode
+        self.sslRootCertPath = sslRootCertPath
         self.applicationName = applicationName
         self.pool = pool
         self.connectTimeout = connectTimeout
+    }
+
+    /// Backward-compatible initializer using a simple `useTLS` boolean.
+    public init(
+        host: String,
+        port: Int = 5432,
+        database: String = "postgres",
+        username: String,
+        password: String?,
+        useTLS: Bool,
+        applicationName: String? = nil,
+        pool: PostgresPoolConfiguration = .init(),
+        connectTimeout: Int = 10
+    ) {
+        self.init(
+            host: host,
+            port: port,
+            database: database,
+            username: username,
+            password: password,
+            sslMode: useTLS ? .require : .disable,
+            applicationName: applicationName,
+            pool: pool,
+            connectTimeout: connectTimeout
+        )
     }
 }
 
@@ -56,7 +88,8 @@ extension PostgresConfiguration {
             username: username,
             password: password,
             database: database,
-            useTLS: useTLS,
+            sslMode: sslMode,
+            sslRootCertPath: sslRootCertPath,
             applicationName: applicationName,
             connectTimeout: connectTimeout
         )

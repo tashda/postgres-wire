@@ -14,9 +14,11 @@ public struct PostgresRowExtractor: Sendable {
         var result: [ColumnInfo] = []
         result.reserveCapacity(row.count)
         for cell in row {
+            // Store dataType as "TYPE(OID)" e.g. "INTEGER(23)" for type-aware spool decode
+            let typeString = "\(cell.dataType)(\(cell.dataType.rawValue))"
             result.append(ColumnInfo(
                 name: cell.columnName,
-                dataType: "\(cell.dataType)",
+                dataType: typeString,
                 isPrimaryKey: false,
                 isNullable: true,
                 maxLength: nil

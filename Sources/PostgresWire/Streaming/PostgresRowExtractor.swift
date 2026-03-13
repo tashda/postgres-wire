@@ -44,34 +44,16 @@ public struct PostgresRowExtractor: Sendable {
         formatter: PostgresCellFormatter,
         formattingEnabled: Bool = true
     ) -> (encodedRow: Data, preview: [String?]?) {
-        // Single-pass: encode binary row and optionally collect preview strings
-        var encoded = Data()
-        encoded.reserveCapacity(row.count * 32)
+        // Pass 1: compute exact encoded size and optionally format preview strings
+        var totalSize = 0
         var preview: [String?]? = formatPreview ? [] : nil
         preview?.reserveCapacity(row.count)
 
         for cell in row {
+            totalSize &+= 1
             if let buffer = cell.bytes {
-                encoded.append(0x01)
-                let count = buffer.readableBytes
-                var length = UInt32(count).littleEndian
-                withUnsafeBytes(of: &length) { encoded.append(contentsOf: $0) }
-                if count > 0 {
-                    buffer.withUnsafeReadableBytes { bufPtr in
-                        if let p = bufPtr.baseAddress {
-                            encoded.append(
-                                UnsafeBufferPointer(
-                                    start: p.assumingMemoryBound(to: UInt8.self),
-                                    count: count
-                                )
-                            )
-                        }
-                    }
-                }
-            } else {
-                encoded.append(0x00)
+                totalSize &+= 4 &+ buffer.readableBytes
             }
-
             if formatPreview {
                 if formattingEnabled {
                     preview?.append(formatter.stringValue(for: cell))
@@ -80,6 +62,36 @@ public struct PostgresRowExtractor: Sendable {
                         PostgresCellFormatter.cheapStringValue(for: cell)
                             ?? formatter.stringValue(for: cell)
                     )
+                }
+            }
+        }
+
+        // Pass 2: encode binary row with pre-sized allocation (zero reallocation)
+        var encoded = Data(count: totalSize)
+        encoded.withUnsafeMutableBytes { mutableBytes in
+            guard let base = mutableBytes.baseAddress else { return }
+            var offset = 0
+            for cell in row {
+                if let buffer = cell.bytes {
+                    base.storeBytes(of: UInt8(0x01), toByteOffset: offset, as: UInt8.self)
+                    offset &+= 1
+                    let count = buffer.readableBytes
+                    var length = UInt32(count).littleEndian
+                    withUnsafeBytes(of: &length) { ptr in
+                        memcpy(base.advanced(by: offset), ptr.baseAddress!, 4)
+                    }
+                    offset &+= 4
+                    if count > 0 {
+                        buffer.withUnsafeReadableBytes { bufPtr in
+                            if let p = bufPtr.baseAddress {
+                                memcpy(base.advanced(by: offset), p, count)
+                            }
+                        }
+                        offset &+= count
+                    }
+                } else {
+                    base.storeBytes(of: UInt8(0x00), toByteOffset: offset, as: UInt8.self)
+                    offset &+= 1
                 }
             }
         }

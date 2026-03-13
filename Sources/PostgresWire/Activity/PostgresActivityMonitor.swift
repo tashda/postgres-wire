@@ -45,7 +45,7 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
                 break
             }
         } catch {
-            // Ignore error, might just not have permissions
+            // Ignore error
         }
 
         // Use task groups or async let with catch blocks for resilience
@@ -85,15 +85,12 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         
         var cpuEstimate: Double = 0
         if activeBackends > 0 {
-            if let max = maxConnections, max > 0 {
-                // Use a logarithmic-ish scale or a floor so it's visible.
-                // If 1 process is active out of 100, it's 1%, but we might want to scale it
-                // so the graph isn't just a flat line at 0.
-                let rawRatio = Double(activeBackends) / Double(max)
-                // Floor at 1% per active backend for visibility, capped at 100%
-                cpuEstimate = min(100.0, max(Double(activeBackends) * 2.0, rawRatio * 100.0))
+            if let maxConn = maxConnections, maxConn > 0 {
+                let rawRatio = Double(activeBackends) / Double(maxConn)
+                // Use Swift.max to avoid confusion if we have local variables
+                cpuEstimate = Swift.min(100.0, Swift.max(Double(activeBackends) * 2.0, rawRatio * 100.0))
             } else {
-                cpuEstimate = Double(min(activeBackends * 5, 100))
+                cpuEstimate = Double(Swift.min(activeBackends * 5, 100))
             }
         }
 

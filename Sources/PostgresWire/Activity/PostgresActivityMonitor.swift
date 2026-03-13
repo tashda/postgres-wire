@@ -28,6 +28,19 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
             }
         }
 
+        // Check if pg_stat_statements exists
+        let checkSql = "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements'"
+        var pgStatStatementsExists = false
+        do {
+            let checkRows = try await client.query(WireQuery(sql: checkSql))
+            for try await _ in checkRows {
+                pgStatStatementsExists = true
+                break
+            }
+        } catch {
+            logger.error("Activity Monitor: Failed to check for pg_stat_statements: \(error)")
+        }
+
         // Use task groups or async let with catch blocks for resilience
         async let processes: [PostgresProcessInfo] = {
             do { return try await fetchProcesses(options: options) }
@@ -96,7 +109,8 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
             waitsDelta: waitsDelta,
             databaseStats: dbStats,
             databaseStatsDelta: dbStatsDelta,
-            expensiveQueries: expensiveQueries
+            expensiveQueries: expensiveQueries,
+            pgStatStatementsAvailable: pgStatStatementsExists
         )
     }
 
@@ -202,17 +216,6 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
     }
 
     private func fetchExpensiveQueries(options: PostgresActivityOptions) async throws -> [PostgresExpensiveQuery] {
-        // First check if pg_stat_statements exists
-        let checkSql = "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements'"
-        let checkRows = try await client.query(WireQuery(sql: checkSql))
-        var exists = false
-        for try await _ in checkRows {
-            exists = true
-            break
-        }
-        
-        if !exists { return [] }
-        
         let sql = """
         SELECT queryid, query, calls, total_exec_time, min_exec_time, max_exec_time, mean_exec_time, rows
         FROM pg_stat_statements

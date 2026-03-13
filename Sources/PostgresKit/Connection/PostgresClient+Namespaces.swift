@@ -30,6 +30,10 @@ public struct PostgresAgentClient: Sendable {
     public func streamSnapshots(every seconds: TimeInterval = 5.0, options: PostgresActivityOptions = .init()) -> AsyncThrowingStream<PostgresActivitySnapshot, Error> {
         client.wire.activity.streamSnapshots(every: seconds, options: options)
     }
+
+    public func killSession(pid: Int32) async throws {
+        try await client.wire.activity.killSession(pid: pid)
+    }
 }
 
 public struct PostgresIntrospectionClient: Sendable {

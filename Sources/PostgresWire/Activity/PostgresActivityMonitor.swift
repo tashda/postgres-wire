@@ -21,10 +21,17 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         
         // Fetch max_connections once if not already fetched
         if maxConnections == nil {
-            let rows = try await client.query(WireQuery(sql: "SHOW max_connections"))
-            for try await row in rows {
-                maxConnections = row.column("max_connections")?.int
-                break
+            do {
+                let rows = try await client.query(WireQuery(sql: "SHOW max_connections"))
+                for try await row in rows {
+                    if let val = row.column("max_connections")?.int {
+                        maxConnections = val
+                        logger.debug("Activity Monitor: max_connections is \(val)")
+                    }
+                    break
+                }
+            } catch {
+                logger.error("Activity Monitor: Failed to fetch max_connections: \(error)")
             }
         }
 
@@ -38,7 +45,7 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
                 break
             }
         } catch {
-            logger.error("Activity Monitor: Failed to check for pg_stat_statements: \(error)")
+            // Ignore error, might just not have permissions
         }
 
         // Use task groups or async let with catch blocks for resilience
@@ -76,11 +83,18 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
             return !state.contains("idle") 
         }.count
         
-        let cpuEstimate: Double
-        if let max = maxConnections, max > 0 {
-            cpuEstimate = min(100.0, (Double(activeBackends) / Double(max)) * 100.0)
-        } else {
-            cpuEstimate = 0
+        var cpuEstimate: Double = 0
+        if activeBackends > 0 {
+            if let max = maxConnections, max > 0 {
+                // Use a logarithmic-ish scale or a floor so it's visible.
+                // If 1 process is active out of 100, it's 1%, but we might want to scale it
+                // so the graph isn't just a flat line at 0.
+                let rawRatio = Double(activeBackends) / Double(max)
+                // Floor at 1% per active backend for visibility, capped at 100%
+                cpuEstimate = min(100.0, max(Double(activeBackends) * 2.0, rawRatio * 100.0))
+            } else {
+                cpuEstimate = Double(min(activeBackends * 5, 100))
+            }
         }
 
         let totalXactDelta = dbStatsDelta.reduce(0) { $0 + $1.xact_commit_delta + $1.xact_rollback_delta }
@@ -137,7 +151,6 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         let sql = "SELECT pg_terminate_backend(\(pid))"
         let rows = try await client.query(WireQuery(sql: sql))
         for try await _ in rows {
-            // Success
             break
         }
     }

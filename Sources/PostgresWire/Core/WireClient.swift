@@ -31,6 +31,10 @@ public struct PostgresWireConfiguration: Sendable {
     public var sslMode: PostgresSSLMode
     /// Path to a PEM-encoded root CA certificate file for verify-ca / verify-full modes.
     public var sslRootCertPath: String?
+    /// Path to a PEM-encoded client certificate file for mTLS.
+    public var sslCertPath: String?
+    /// Path to a PEM-encoded client private key file for mTLS.
+    public var sslKeyPath: String?
     public var applicationName: String?
     /// TCP connect timeout in seconds. Defaults to 10.
     public var connectTimeout: Int
@@ -46,6 +50,8 @@ public struct PostgresWireConfiguration: Sendable {
         database: String? = nil,
         sslMode: PostgresSSLMode = .disable,
         sslRootCertPath: String? = nil,
+        sslCertPath: String? = nil,
+        sslKeyPath: String? = nil,
         applicationName: String? = nil,
         connectTimeout: Int = 10
     ) {
@@ -56,6 +62,8 @@ public struct PostgresWireConfiguration: Sendable {
         self.database = database
         self.sslMode = sslMode
         self.sslRootCertPath = sslRootCertPath
+        self.sslCertPath = sslCertPath
+        self.sslKeyPath = sslKeyPath
         self.applicationName = applicationName
         self.connectTimeout = connectTimeout
     }
@@ -113,6 +121,8 @@ public final class PostgresWireClient: @unchecked Sendable {
         let connTLS = try Self.makeConnectionTLS(
             sslMode: configuration.sslMode,
             sslRootCertPath: configuration.sslRootCertPath,
+            sslCertPath: configuration.sslCertPath,
+            sslKeyPath: configuration.sslKeyPath,
             serverHostname: configuration.host
         )
 
@@ -160,6 +170,8 @@ public final class PostgresWireClient: @unchecked Sendable {
         let poolTLS = try Self.makePoolTLS(
             sslMode: configuration.sslMode,
             sslRootCertPath: configuration.sslRootCertPath,
+            sslCertPath: configuration.sslCertPath,
+            sslKeyPath: configuration.sslKeyPath,
             serverHostname: configuration.host
         )
 
@@ -465,10 +477,23 @@ public final class PostgresWireClient: @unchecked Sendable {
 // MARK: - TLS Configuration Mapping
 
 extension PostgresWireClient {
+    /// Apply client certificate and key to a TLS configuration for mTLS.
+    private static func applyClientCertificate(
+        to config: inout TLSConfiguration,
+        certPath: String?,
+        keyPath: String?
+    ) throws {
+        guard let certPath, let keyPath else { return }
+        config.certificateChain = try NIOSSLCertificate.fromPEMFile(certPath).map { .certificate($0) }
+        config.privateKey = .file(keyPath)
+    }
+
     /// Build `PostgresConnection.Configuration.TLS` from the sslMode spectrum.
     private static func makeConnectionTLS(
         sslMode: PostgresSSLMode,
         sslRootCertPath: String?,
+        sslCertPath: String?,
+        sslKeyPath: String?,
         serverHostname: String
     ) throws -> PostgresConnection.Configuration.TLS {
         switch sslMode {
@@ -476,37 +501,36 @@ extension PostgresWireClient {
             return .disable
 
         case .allow, .prefer:
-            // prefer/allow: attempt TLS but don't verify certificates.
-            // PostgresNIO's `.prefer` handles fallback automatically.
             var tlsConfig = TLSConfiguration.makeClientConfiguration()
             tlsConfig.certificateVerification = .none
+            try applyClientCertificate(to: &tlsConfig, certPath: sslCertPath, keyPath: sslKeyPath)
             let ctx = try NIOSSLContext(configuration: tlsConfig)
             return .prefer(ctx)
 
         case .require:
-            // Require TLS but skip certificate verification (like libpq require).
             var tlsConfig = TLSConfiguration.makeClientConfiguration()
             tlsConfig.certificateVerification = .none
+            try applyClientCertificate(to: &tlsConfig, certPath: sslCertPath, keyPath: sslKeyPath)
             let ctx = try NIOSSLContext(configuration: tlsConfig)
             return .require(ctx)
 
         case .verifyCA:
-            // Require TLS, verify the CA signature but not the hostname.
             var tlsConfig = TLSConfiguration.makeClientConfiguration()
             tlsConfig.certificateVerification = .noHostnameVerification
             if let rootCertPath = sslRootCertPath {
                 tlsConfig.trustRoots = .file(rootCertPath)
             }
+            try applyClientCertificate(to: &tlsConfig, certPath: sslCertPath, keyPath: sslKeyPath)
             let ctx = try NIOSSLContext(configuration: tlsConfig)
             return .require(ctx)
 
         case .verifyFull:
-            // Require TLS, verify CA + hostname match.
             var tlsConfig = TLSConfiguration.makeClientConfiguration()
             tlsConfig.certificateVerification = .fullVerification
             if let rootCertPath = sslRootCertPath {
                 tlsConfig.trustRoots = .file(rootCertPath)
             }
+            try applyClientCertificate(to: &tlsConfig, certPath: sslCertPath, keyPath: sslKeyPath)
             let ctx = try NIOSSLContext(configuration: tlsConfig)
             return .require(ctx)
         }
@@ -516,6 +540,8 @@ extension PostgresWireClient {
     private static func makePoolTLS(
         sslMode: PostgresSSLMode,
         sslRootCertPath: String?,
+        sslCertPath: String?,
+        sslKeyPath: String?,
         serverHostname: String
     ) throws -> PostgresClient.Configuration.TLS {
         switch sslMode {
@@ -525,11 +551,13 @@ extension PostgresWireClient {
         case .allow, .prefer:
             var tlsConfig = TLSConfiguration.makeClientConfiguration()
             tlsConfig.certificateVerification = .none
+            try applyClientCertificate(to: &tlsConfig, certPath: sslCertPath, keyPath: sslKeyPath)
             return .prefer(tlsConfig)
 
         case .require:
             var tlsConfig = TLSConfiguration.makeClientConfiguration()
             tlsConfig.certificateVerification = .none
+            try applyClientCertificate(to: &tlsConfig, certPath: sslCertPath, keyPath: sslKeyPath)
             return .require(tlsConfig)
 
         case .verifyCA:
@@ -538,6 +566,7 @@ extension PostgresWireClient {
             if let rootCertPath = sslRootCertPath {
                 tlsConfig.trustRoots = .file(rootCertPath)
             }
+            try applyClientCertificate(to: &tlsConfig, certPath: sslCertPath, keyPath: sslKeyPath)
             return .require(tlsConfig)
 
         case .verifyFull:
@@ -546,6 +575,7 @@ extension PostgresWireClient {
             if let rootCertPath = sslRootCertPath {
                 tlsConfig.trustRoots = .file(rootCertPath)
             }
+            try applyClientCertificate(to: &tlsConfig, certPath: sslCertPath, keyPath: sslKeyPath)
             return .require(tlsConfig)
         }
     }

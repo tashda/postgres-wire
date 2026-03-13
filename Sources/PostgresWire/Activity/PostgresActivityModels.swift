@@ -38,6 +38,7 @@ public struct PostgresActivitySnapshot: Sendable {
     public let databaseStats: [PostgresDatabaseStat]
     public let databaseStatsDelta: [PostgresDatabaseStatDelta]?
     public let expensiveQueries: [PostgresExpensiveQuery]
+    public let pgStatStatementsAvailable: Bool
 
     public init(
         capturedAt: Date = Date(),
@@ -47,7 +48,8 @@ public struct PostgresActivitySnapshot: Sendable {
         waitsDelta: [PostgresWaitStatDelta]? = nil,
         databaseStats: [PostgresDatabaseStat],
         databaseStatsDelta: [PostgresDatabaseStatDelta]? = nil,
-        expensiveQueries: [PostgresExpensiveQuery]
+        expensiveQueries: [PostgresExpensiveQuery],
+        pgStatStatementsAvailable: Bool = true
     ) {
         self.capturedAt = capturedAt
         self.overview = overview
@@ -57,6 +59,7 @@ public struct PostgresActivitySnapshot: Sendable {
         self.databaseStats = databaseStats
         self.databaseStatsDelta = databaseStatsDelta
         self.expensiveQueries = expensiveQueries
+        self.pgStatStatementsAvailable = pgStatStatementsAvailable
     }
 }
 

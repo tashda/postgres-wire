@@ -27,6 +27,60 @@ public struct PostgresRowExtractor: Sendable {
         return result
     }
 
+    // MARK: - Reusable Encoding Context
+
+    /// Pre-allocated encoding buffer that can be reused across rows to avoid per-row malloc.
+    public final class EncodingContext: @unchecked Sendable {
+        private var buffer: UnsafeMutableRawPointer
+        private(set) var capacity: Int
+
+        public init(initialCapacity: Int = 4096) {
+            self.capacity = max(initialCapacity, 256)
+            self.buffer = .allocate(byteCount: self.capacity, alignment: 8)
+        }
+
+        deinit { buffer.deallocate() }
+
+        /// Encode a row into the reusable buffer and return the result as Data (copies bytes).
+        func encode(row: PostgresRow) -> Data {
+            var offset = 0
+            for cell in row {
+                if let cellBytes = cell.bytes {
+                    let byteCount = cellBytes.readableBytes
+                    ensureCapacity(offset + 5 + byteCount)
+                    buffer.storeBytes(of: UInt8(0x01), toByteOffset: offset, as: UInt8.self)
+                    offset &+= 1
+                    buffer.storeBytes(of: UInt32(byteCount).littleEndian, toByteOffset: offset, as: UInt32.self)
+                    offset &+= 4
+                    if byteCount > 0 {
+                        cellBytes.withUnsafeReadableBytes { src in
+                            if let base = src.baseAddress {
+                                (self.buffer + offset).copyMemory(from: base, byteCount: byteCount)
+                            }
+                        }
+                    }
+                    offset &+= byteCount
+                } else {
+                    ensureCapacity(offset + 1)
+                    buffer.storeBytes(of: UInt8(0x00), toByteOffset: offset, as: UInt8.self)
+                    offset &+= 1
+                }
+            }
+            // Single memcpy, no malloc per row — Data allocates its own storage and copies
+            return Data(bytes: buffer, count: offset)
+        }
+
+        private func ensureCapacity(_ needed: Int) {
+            guard needed > capacity else { return }
+            let newCapacity = max(needed, capacity * 2)
+            let newBuffer = UnsafeMutableRawPointer.allocate(byteCount: newCapacity, alignment: 8)
+            newBuffer.copyMemory(from: buffer, byteCount: capacity)
+            buffer.deallocate()
+            buffer = newBuffer
+            capacity = newCapacity
+        }
+    }
+
     // MARK: - Single-Pass Encode
 
     /// Encode a ``PostgresRow`` directly into compact binary row format and optionally
@@ -34,25 +88,31 @@ public struct PostgresRowExtractor: Sendable {
     ///
     /// Binary format per cell: `0x00` (null) **or** `0x01` + UInt32-LE length + raw bytes.
     ///
-    /// Uses unsafe pointer writes to avoid `Data.append` CoW overhead per cell.
-    ///
     /// - Parameters:
     ///   - row: The Postgres row to encode.
     ///   - formatPreview: When `true`, also formats each cell to a display string.
     ///   - formatter: The cell formatter to use for preview strings.
     ///   - formattingEnabled: When `false`, uses the cheap fast-path for preview.
+    ///   - context: Optional reusable encoding context to avoid per-row allocation.
     /// - Returns: The encoded binary data and optional preview strings.
     public nonisolated static func encodeBinaryRow(
         from row: PostgresRow,
         formatPreview: Bool,
         formatter: PostgresCellFormatter,
-        formattingEnabled: Bool = true
+        formattingEnabled: Bool = true,
+        context: EncodingContext? = nil
     ) -> (encodedRow: Data, preview: [String?]?) {
         let columnCount = row.count
         var preview: [String?]? = formatPreview ? [] : nil
         preview?.reserveCapacity(columnCount)
 
-        // Estimate buffer size: flag(1) + length(4) + avgData(~32) per column
+        // Fast path: use reusable context when not formatting preview
+        if !formatPreview, let ctx = context {
+            let encoded = ctx.encode(row: row)
+            return (encoded, nil)
+        }
+
+        // Allocating path (preview rows only — typically ≤200 rows)
         var capacity = columnCount * 40
         var rawBuffer = UnsafeMutableRawPointer.allocate(byteCount: capacity, alignment: 8)
         var offset = 0
@@ -60,7 +120,7 @@ public struct PostgresRowExtractor: Sendable {
         for cell in row {
             if let cellBytes = cell.bytes {
                 let byteCount = cellBytes.readableBytes
-                let needed = offset + 5 + byteCount // flag(1) + length(4) + data
+                let needed = offset + 5 + byteCount
                 if needed > capacity {
                     let newCapacity = max(needed, capacity * 2)
                     let newBuffer = UnsafeMutableRawPointer.allocate(byteCount: newCapacity, alignment: 8)

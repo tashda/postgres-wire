@@ -131,5 +131,120 @@ public extension PostgresIntrospectionClient {
         for try await name in rows.decode(String.self) { names.append(name) }
         return names
     }
+
+    /// Fetch all server settings configurable at the database level.
+    func fetchDatabaseConfigurableSettings() async throws -> [PostgresSettingDefinition] {
+        let sql = """
+            SELECT name, vartype, min_val, max_val,
+                   coalesce(enumvals::text, ''),
+                   boot_val, coalesce(unit, ''),
+                   short_desc, context, category
+            FROM pg_catalog.pg_settings
+            WHERE context IN ('user', 'superuser')
+            ORDER BY category, name
+            """
+        var results: [PostgresSettingDefinition] = []
+        let rows = try await client.simpleQuery(sql)
+        for try await v in rows.decode((String, String, String, String, String, String, String, String, String, String).self) {
+            let enumVals: [String]
+            if !v.4.isEmpty {
+                let trimmed = v.4.trimmingCharacters(in: CharacterSet(charactersIn: "{}"))
+                enumVals = trimmed.split(separator: ",").map { String($0) }
+            } else {
+                enumVals = []
+            }
+            results.append(PostgresSettingDefinition(
+                name: v.0, vartype: v.1, minVal: v.2, maxVal: v.3,
+                enumVals: enumVals, bootVal: v.5, unit: v.6,
+                shortDesc: v.7, context: v.8, category: v.9
+            ))
+        }
+        return results
+    }
+
+    /// Fetch default privileges from `pg_default_acl`.
+    func fetchDefaultPrivileges() async throws -> [PostgresDefaultPrivilege] {
+        let sql = """
+            SELECT
+                COALESCE(n.nspname, '') AS schema_name,
+                pg_catalog.pg_get_userbyid(d.defaclrole) AS owner,
+                d.defaclobjtype::text,
+                COALESCE(d.defaclacl::text, '') AS acl
+            FROM pg_catalog.pg_default_acl d
+            LEFT JOIN pg_catalog.pg_namespace n ON n.oid = d.defaclnamespace
+            ORDER BY schema_name, owner
+            """
+
+        var results: [PostgresDefaultPrivilege] = []
+        let rows = try await client.simpleQuery(sql)
+        for try await v in rows.decode((String, String, String, String).self) {
+            let objectType = mapDefaclObjType(v.2)
+            let entries = PostgresACLEntry.parse(acl: v.3)
+            for entry in entries {
+                results.append(PostgresDefaultPrivilege(
+                    schema: v.0, owner: v.1, objectType: objectType,
+                    grantee: entry.grantee, privileges: entry.privileges
+                ))
+            }
+        }
+        return results
+    }
+
+    /// Map `defaclobjtype` character to `PostgresObjectType`.
+    private func mapDefaclObjType(_ code: String) -> PostgresObjectType {
+        switch code {
+        case "r": return .tables
+        case "S": return .sequences
+        case "f": return .functions
+        case "T": return .types
+        case "n": return .schemas
+        default: return .tables
+        }
+    }
+
+    /// Generate a `CREATE DATABASE` SQL statement from properties.
+    func generateCreateDatabaseSQL(
+        props: PostgresDatabaseProperties,
+        params: [PostgresDatabaseParameter]
+    ) -> String {
+        var sql = "CREATE DATABASE \(quoteIdentifier(props.name))"
+        var options: [String] = []
+
+        options.append("    OWNER = \(quoteIdentifier(props.owner))")
+        options.append("    ENCODING = '\(props.encoding)'")
+        options.append("    LC_COLLATE = '\(props.collation)'")
+        options.append("    LC_CTYPE = '\(props.ctype)'")
+        if let icu = props.icuLocale {
+            options.append("    ICU_LOCALE = '\(icu)'")
+        }
+        options.append("    TABLESPACE = \(quoteIdentifier(props.tablespace))")
+        if props.connectionLimit != -1 {
+            options.append("    CONNECTION LIMIT = \(props.connectionLimit)")
+        }
+        if props.isTemplate {
+            options.append("    IS_TEMPLATE = true")
+        }
+        if !props.allowConnections {
+            options.append("    ALLOW_CONNECTIONS = false")
+        }
+
+        sql += "\n    WITH\n" + options.joined(separator: "\n") + ";"
+
+        if let desc = props.description, !desc.isEmpty {
+            let escaped = desc.replacingOccurrences(of: "'", with: "''")
+            sql += "\n\nCOMMENT ON DATABASE \(quoteIdentifier(props.name)) IS '\(escaped)';"
+        }
+
+        for param in params {
+            let escaped = param.value.replacingOccurrences(of: "'", with: "''")
+            sql += "\n\nALTER DATABASE \(quoteIdentifier(props.name)) SET \(param.name) = '\(escaped)';"
+        }
+
+        return sql
+    }
+
+    private func quoteIdentifier(_ name: String) -> String {
+        "\"\(name.replacingOccurrences(of: "\"", with: "\"\""))\""
+    }
 }
 

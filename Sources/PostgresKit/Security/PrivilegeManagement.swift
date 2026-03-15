@@ -96,6 +96,38 @@ public extension PostgresSecurityClient {
         return try await client.executeDDL(parts.joined(separator: " "))
     }
 
+    /// Grant privileges on a database to a user or role.
+    @discardableResult
+    func grantDatabasePrivileges(
+        privileges: [PostgresPrivilege],
+        onDatabase: String,
+        to: String,
+        withGrantOption: Bool = false
+    ) async throws -> Int {
+        var parts: [String] = ["GRANT"]
+        parts.append(privileges.map { $0.rawValue }.joined(separator: ", "))
+        parts.append("ON DATABASE \(client.quoteIdentifier(onDatabase))")
+        parts.append("TO \(client.quoteIdentifier(to))")
+        if withGrantOption { parts.append("WITH GRANT OPTION") }
+        return try await client.executeDDL(parts.joined(separator: " "))
+    }
+
+    /// Revoke privileges on a database from a user or role.
+    @discardableResult
+    func revokeDatabasePrivileges(
+        privileges: [PostgresPrivilege],
+        onDatabase: String,
+        from: String,
+        cascade: Bool = false
+    ) async throws -> Int {
+        var parts: [String] = ["REVOKE"]
+        parts.append(privileges.map { $0.rawValue }.joined(separator: ", "))
+        parts.append("ON DATABASE \(client.quoteIdentifier(onDatabase))")
+        parts.append("FROM \(client.quoteIdentifier(from))")
+        if cascade { parts.append("CASCADE") }
+        return try await client.executeDDL(parts.joined(separator: " "))
+    }
+
     /// Alter default privileges for objects created in a schema.
     @discardableResult
     func alterDefaultPrivileges(

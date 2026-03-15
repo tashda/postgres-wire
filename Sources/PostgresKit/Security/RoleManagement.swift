@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// High-level User and Role management.
-public extension PostgresDatabaseClient {
+public extension PostgresSecurityClient {
     /// Create a new database user or role.
     @discardableResult
     func createUser(
@@ -21,7 +21,7 @@ public extension PostgresDatabaseClient {
         admin: [String] = []
     ) async throws -> Int {
         var parts: [String] = ["CREATE USER"]
-        parts.append(quoteIdentifier(name))
+        parts.append(client.quoteIdentifier(name))
 
         if let password {
             parts.append(encrypted ? "WITH ENCRYPTED PASSWORD '\(password)'" : "WITH PASSWORD '\(password)'")
@@ -38,18 +38,18 @@ public extension PostgresDatabaseClient {
         if let validUntil { parts.append("VALID UNTIL '\(validUntil)'") }
 
         if !inRole.isEmpty {
-            parts.append("IN ROLE \(inRole.map(quoteIdentifier).joined(separator: ", "))")
+            parts.append("IN ROLE \(inRole.map(client.quoteIdentifier).joined(separator: ", "))")
         }
 
         if !role.isEmpty {
-            parts.append("ROLE \(role.map(quoteIdentifier).joined(separator: ", "))")
+            parts.append("ROLE \(role.map(client.quoteIdentifier).joined(separator: ", "))")
         }
 
         if !admin.isEmpty {
-            parts.append("ADMIN \(admin.map(quoteIdentifier).joined(separator: ", "))")
+            parts.append("ADMIN \(admin.map(client.quoteIdentifier).joined(separator: ", "))")
         }
 
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Drop an existing user.
@@ -57,8 +57,8 @@ public extension PostgresDatabaseClient {
     func dropUser(name: String, ifExists: Bool = false) async throws -> Int {
         var parts: [String] = ["DROP USER"]
         if ifExists { parts.append("IF EXISTS") }
-        parts.append(quoteIdentifier(name))
-        return try await executeDDL(parts.joined(separator: " "))
+        parts.append(client.quoteIdentifier(name))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Drop an existing role.
@@ -66,8 +66,8 @@ public extension PostgresDatabaseClient {
     func dropRole(name: String, ifExists: Bool = false) async throws -> Int {
         var parts: [String] = ["DROP ROLE"]
         if ifExists { parts.append("IF EXISTS") }
-        parts.append(quoteIdentifier(name))
-        return try await executeDDL(parts.joined(separator: " "))
+        parts.append(client.quoteIdentifier(name))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Create a new role (without LOGIN by default, unlike createUser).
@@ -86,7 +86,7 @@ public extension PostgresDatabaseClient {
         validUntil: String? = nil
     ) async throws -> Int {
         var parts: [String] = ["CREATE ROLE"]
-        parts.append(quoteIdentifier(name))
+        parts.append(client.quoteIdentifier(name))
 
         var options: [String] = []
         if let password {
@@ -106,7 +106,7 @@ public extension PostgresDatabaseClient {
             parts.append("WITH \(options.joined(separator: " "))")
         }
 
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Modify an existing user or role's attributes.
@@ -129,9 +129,9 @@ public extension PostgresDatabaseClient {
         var parts: [String] = ["ALTER USER"]
 
         if let rename {
-            parts.append("\(quoteIdentifier(name)) RENAME TO \(quoteIdentifier(rename))")
+            parts.append("\(client.quoteIdentifier(name)) RENAME TO \(client.quoteIdentifier(rename))")
         } else {
-            parts.append(quoteIdentifier(name))
+            parts.append(client.quoteIdentifier(name))
             if let password {
                 parts.append(encrypted ? "WITH ENCRYPTED PASSWORD '\(password)'" : "WITH PASSWORD '\(password)'")
             }
@@ -146,41 +146,41 @@ public extension PostgresDatabaseClient {
             if let validUntil { parts.append("VALID UNTIL '\(validUntil)'") }
         }
 
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Reassign all objects owned by one role to another role.
     func reassignOwned(from oldRole: String, to newRole: String) async throws {
-        let sql = "REASSIGN OWNED BY \(quoteIdentifier(oldRole)) TO \(quoteIdentifier(newRole))"
-        _ = try await executeDDL(sql)
+        let sql = "REASSIGN OWNED BY \(client.quoteIdentifier(oldRole)) TO \(client.quoteIdentifier(newRole))"
+        _ = try await client.executeDDL(sql)
     }
 
     /// Drop all objects owned by a role.
     func dropOwned(by role: String) async throws {
-        let sql = "DROP OWNED BY \(quoteIdentifier(role))"
-        _ = try await executeDDL(sql)
+        let sql = "DROP OWNED BY \(client.quoteIdentifier(role))"
+        _ = try await client.executeDDL(sql)
     }
 
     /// Set a role-level configuration parameter.
     func alterRoleSet(role: String, parameter: String, value: String) async throws {
-        let sql = "ALTER ROLE \(quoteIdentifier(role)) SET \(quoteIdentifier(parameter)) TO \(quoteLiteral(value))"
-        _ = try await executeDDL(sql)
+        let sql = "ALTER ROLE \(client.quoteIdentifier(role)) SET \(client.quoteIdentifier(parameter)) TO \(client.quoteLiteral(value))"
+        _ = try await client.executeDDL(sql)
     }
 
     /// Reset a role-level configuration parameter.
     func alterRoleReset(role: String, parameter: String) async throws {
-        let sql = "ALTER ROLE \(quoteIdentifier(role)) RESET \(quoteIdentifier(parameter))"
-        _ = try await executeDDL(sql)
+        let sql = "ALTER ROLE \(client.quoteIdentifier(role)) RESET \(client.quoteIdentifier(parameter))"
+        _ = try await client.executeDDL(sql)
     }
 
     /// Set or clear the comment on a role.
     func setRoleComment(role: String, comment: String?) async throws {
         let sql: String
         if let comment, !comment.isEmpty {
-            sql = "COMMENT ON ROLE \(quoteIdentifier(role)) IS \(quoteLiteral(comment))"
+            sql = "COMMENT ON ROLE \(client.quoteIdentifier(role)) IS \(client.quoteLiteral(comment))"
         } else {
-            sql = "COMMENT ON ROLE \(quoteIdentifier(role)) IS NULL"
+            sql = "COMMENT ON ROLE \(client.quoteIdentifier(role)) IS NULL"
         }
-        _ = try await executeDDL(sql)
+        _ = try await client.executeDDL(sql)
     }
 }

@@ -4,7 +4,7 @@ import Logging
 
 final class TransactionDebugTests: PostgresKitTestCase {
 
-    private var client: PostgresDatabaseClient!
+    private var client: PostgresKit.PostgresClient!
     private var testLogger: Logger!
 
     override func setUp() async throws {
@@ -25,7 +25,7 @@ final class TransactionDebugTests: PostgresKitTestCase {
             applicationName: "TransactionDebugTests"
         )
 
-        client = try await PostgresDatabaseClient.connect(configuration: config, logger: testLogger)
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: testLogger)
     }
 
     override func tearDown() {
@@ -37,7 +37,7 @@ final class TransactionDebugTests: PostgresKitTestCase {
     func testTemporaryTableBehavior() async throws {
         print("=== Testing Temporary Table Behavior ===")
 
-        let result = try await client.withConnection { conn in
+        let result = try await client.connection.withConnection { conn in
             // Create temporary table and test its behavior
             _ = try await conn.createTable(
                 name: "debug_tx",
@@ -105,7 +105,7 @@ final class TransactionDebugTests: PostgresKitTestCase {
     func testTransactionIsolation() async throws {
         print("=== Testing Transaction Isolation ===")
 
-        let result = try await client.withConnection { conn in
+        let result = try await client.connection.withConnection { conn in
             // Start transaction
             _ = try await conn.beginTransaction()
 
@@ -154,7 +154,7 @@ final class TransactionDebugTests: PostgresKitTestCase {
     func testRollbackBehavior() async throws {
         print("=== Testing Rollback Behavior ===")
 
-        let result = try await client.withConnection { conn in
+        let result = try await client.connection.withConnection { conn in
             // Create table outside transaction so it persists after rollback
             _ = try await conn.createTable(
                 name: "rollback_tx",

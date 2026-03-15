@@ -4,7 +4,7 @@ import Foundation
 @testable import PostgresKit
 
 final class BulkCopyTests: PostgresKitTestCase {
-    private var client: PostgresDatabaseClient!
+    private var client: PostgresKit.PostgresClient!
 
     override func setUp() async throws {
         try await super.setUp()
@@ -15,7 +15,7 @@ final class BulkCopyTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "BulkCopyTests"
         )
-        client = try await PostgresDatabaseClient.connect(configuration: config, logger: Logger(label: "bulk-copy-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "bulk-copy-tests"))
     }
 
     override func tearDown() {
@@ -35,14 +35,14 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyOutBasicCSV() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.admin.dropTable(name: table, ifExists: true) } }
 
-        try await client.createTable(name: table, columns: [
+        try await client.admin.createTable(name: table, columns: [
             .integer(name: "id"),
             .text(name: "name"),
             .integer(name: "score")
         ])
-        _ = try await client.insert(into: table, columns: ["id", "name", "score"], values: [
+        _ = try await client.connection.insert(into: table, columns: ["id", "name", "score"], values: [
             [1, "Alice", 95],
             [2, "Bob", 87],
             [3, "Carol", 92]
@@ -67,9 +67,9 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyOutEmptyTable() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.admin.dropTable(name: table, ifExists: true) } }
 
-        try await client.createTable(name: table, columns: [
+        try await client.admin.createTable(name: table, columns: [
             .integer(name: "id"),
             .text(name: "name")
         ])
@@ -88,14 +88,14 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyOutWithNulls() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.admin.dropTable(name: table, ifExists: true) } }
 
-        try await client.createTable(name: table, columns: [
+        try await client.admin.createTable(name: table, columns: [
             .integer(name: "id"),
             .text(name: "name"),
             .text(name: "notes")
         ])
-        _ = try await client.insert(into: table, values: [
+        _ = try await client.connection.insert(into: table, values: [
             [1, "Alice", nil],
             [2, nil, "has notes"]
         ])
@@ -112,13 +112,13 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyOutWithSpecialCharacters() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.admin.dropTable(name: table, ifExists: true) } }
 
-        try await client.createTable(name: table, columns: [
+        try await client.admin.createTable(name: table, columns: [
             .integer(name: "id"),
             .text(name: "name")
         ])
-        _ = try await client.insert(into: table, columns: ["id", "name"], values: [
+        _ = try await client.connection.insert(into: table, columns: ["id", "name"], values: [
             [1, "O'Brien"],
             [2, "Hello, World"],
             [3, "Line1"]
@@ -141,9 +141,9 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyInBasicCSV() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.admin.dropTable(name: table, ifExists: true) } }
 
-        try await client.createTable(name: table, columns: [
+        try await client.admin.createTable(name: table, columns: [
             .integer(name: "id"),
             .text(name: "name"),
             .integer(name: "score")
@@ -161,7 +161,7 @@ final class BulkCopyTests: PostgresKitTestCase {
         )
 
         // Verify data was inserted
-        let rows = try await client.simpleQuery("SELECT count(*) FROM \(table)")
+        let rows = try await client.connection.simpleQuery("SELECT count(*) FROM \(table)")
         var count: Int64 = 0
         for try await c in rows.decode(Int64.self) { count = c }
         XCTAssertEqual(count, 3, "Should have inserted 3 rows")
@@ -169,9 +169,9 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testCopyInLargeDataset() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.admin.dropTable(name: table, ifExists: true) } }
 
-        try await client.createTable(name: table, columns: [
+        try await client.admin.createTable(name: table, columns: [
             .integer(name: "id"),
             .text(name: "value")
         ])
@@ -200,7 +200,7 @@ final class BulkCopyTests: PostgresKitTestCase {
             source: source
         )
 
-        let rows = try await client.simpleQuery("SELECT count(*) FROM \(table)")
+        let rows = try await client.connection.simpleQuery("SELECT count(*) FROM \(table)")
         var count: Int64 = 0
         for try await c in rows.decode(Int64.self) { count = c }
         XCTAssertEqual(count, 1000, "Should have inserted 1000 rows")
@@ -212,20 +212,20 @@ final class BulkCopyTests: PostgresKitTestCase {
         let sourceTable = uniqueName("src")
         let destTable = uniqueName("dst")
         defer { Task { [client = self.client!] in
-            _ = try? await client.dropTable(name: sourceTable, ifExists: true)
-            _ = try? await client.dropTable(name: destTable, ifExists: true)
+            _ = try? await client.admin.dropTable(name: sourceTable, ifExists: true)
+            _ = try? await client.admin.dropTable(name: destTable, ifExists: true)
         }}
 
-        try await client.createTable(name: sourceTable, columns: [
+        try await client.admin.createTable(name: sourceTable, columns: [
             .integer(name: "id"),
             .text(name: "name")
         ])
-        _ = try await client.insert(into: sourceTable, columns: ["id", "name"], values: [
+        _ = try await client.connection.insert(into: sourceTable, columns: ["id", "name"], values: [
             [1, "Alice"],
             [2, "Bob"],
             [3, "Carol"]
         ])
-        try await client.createTable(name: destTable, columns: [
+        try await client.admin.createTable(name: destTable, columns: [
             .integer(name: "id"),
             .text(name: "name")
         ])
@@ -252,7 +252,7 @@ final class BulkCopyTests: PostgresKitTestCase {
         }
 
         // Verify destination has same data
-        let rows = try await client.simpleQuery("SELECT count(*) FROM \(destTable)")
+        let rows = try await client.connection.simpleQuery("SELECT count(*) FROM \(destTable)")
         var count: Int64 = 0
         for try await c in rows.decode(Int64.self) { count = c }
         XCTAssertEqual(count, 3, "Destination should have same 3 rows")
@@ -262,9 +262,9 @@ final class BulkCopyTests: PostgresKitTestCase {
 
     func testBulkCopyWithCustomOptions() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.admin.dropTable(name: table, ifExists: true) } }
 
-        try await client.createTable(name: table, columns: [
+        try await client.admin.createTable(name: table, columns: [
             .integer(name: "id"),
             .text(name: "name")
         ])
@@ -286,7 +286,7 @@ final class BulkCopyTests: PostgresKitTestCase {
             source: source
         )
 
-        let rows = try await client.simpleQuery("SELECT count(*) FROM \(table)")
+        let rows = try await client.connection.simpleQuery("SELECT count(*) FROM \(table)")
         var count: Int64 = 0
         for try await c in rows.decode(Int64.self) { count = c }
         XCTAssertEqual(count, 2)

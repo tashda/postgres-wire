@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// High-level Index Data Definition Language (DDL) operations.
-public extension PostgresDatabaseClient {
+public extension PostgresAdminClient {
     /// Create a standard index.
     @discardableResult
     func createIndex(
@@ -15,13 +15,13 @@ public extension PostgresDatabaseClient {
         if unique { parts.append("UNIQUE") }
         parts.append("INDEX")
         if ifNotExists { parts.append("IF NOT EXISTS") }
-        parts.append(quoteIdentifier(name))
-        parts.append("ON \(quoteIdentifier(table))")
+        parts.append(client.quoteIdentifier(name))
+        parts.append("ON \(client.quoteIdentifier(table))")
 
-        let columnList = columns.map { quoteIdentifier($0) }.joined(separator: ", ")
+        let columnList = columns.map { client.quoteIdentifier($0) }.joined(separator: ", ")
         parts.append("(\(columnList))")
 
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Drop an existing index.
@@ -29,9 +29,9 @@ public extension PostgresDatabaseClient {
     func dropIndex(name: String, ifExists: Bool = false, cascade: Bool = false) async throws -> Int {
         var parts: [String] = ["DROP INDEX"]
         if ifExists { parts.append("IF EXISTS") }
-        parts.append(quoteIdentifier(name))
+        parts.append(client.quoteIdentifier(name))
         if cascade { parts.append("CASCADE") }
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Create an index with advanced configuration.
@@ -51,13 +51,13 @@ public extension PostgresDatabaseClient {
         if unique { parts.append("UNIQUE") }
         parts.append("INDEX")
         if ifNotExists { parts.append("IF NOT EXISTS") }
-        parts.append(quoteIdentifier(name))
-        parts.append("ON \(quoteIdentifier(table))")
+        parts.append(client.quoteIdentifier(name))
+        parts.append("ON \(client.quoteIdentifier(table))")
 
         parts.append("USING \(indexType)")
 
         let columnList = columns.map { column in
-            var colDef = quoteIdentifier(column.name)
+            var colDef = client.quoteIdentifier(column.name)
             if let order = column.order { colDef += " " + order.rawValue }
             if let nullsOrder = column.nullsOrder { colDef += " NULLS " + nullsOrder.rawValue }
             return colDef
@@ -65,9 +65,9 @@ public extension PostgresDatabaseClient {
         parts.append("(\(columnList))")
 
         if let whereClause { parts.append("WHERE \(whereClause)") }
-        if let tablespace { parts.append("TABLESPACE \(quoteIdentifier(tablespace))") }
+        if let tablespace { parts.append("TABLESPACE \(client.quoteIdentifier(tablespace))") }
         if !nullsDistinct { parts.append("NULLS NOT DISTINCT") }
 
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 }

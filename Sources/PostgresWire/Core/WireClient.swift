@@ -6,16 +6,41 @@ import NIOPosix
 import NIOSSL
 import PostgresNIO
 
+/// SSL mode matching libpq's `sslmode` parameter.
+public enum PostgresSSLMode: String, Sendable, CaseIterable {
+    /// No SSL/TLS encryption.
+    case disable
+    /// Try non-SSL first, then SSL if the server requires it.
+    case allow
+    /// Try SSL first, fall back to non-SSL if the server doesn't support it.
+    case prefer
+    /// Require SSL but don't verify the server certificate.
+    case require
+    /// Require SSL and verify that the server certificate is signed by a trusted CA.
+    case verifyCA = "verify-ca"
+    /// Require SSL, verify the CA, and verify that the server hostname matches the certificate.
+    case verifyFull = "verify-full"
+}
+
 public struct PostgresWireConfiguration: Sendable {
     public var host: String
     public var port: Int
     public var username: String
     public var password: String?
     public var database: String?
-    public var useTLS: Bool
+    public var sslMode: PostgresSSLMode
+    /// Path to a PEM-encoded root CA certificate file for verify-ca / verify-full modes.
+    public var sslRootCertPath: String?
+    /// Path to a PEM-encoded client certificate file for mTLS.
+    public var sslCertPath: String?
+    /// Path to a PEM-encoded client private key file for mTLS.
+    public var sslKeyPath: String?
     public var applicationName: String?
     /// TCP connect timeout in seconds. Defaults to 10.
     public var connectTimeout: Int
+
+    /// Whether TLS is enabled (any mode other than `disable`).
+    public var useTLS: Bool { sslMode != .disable }
 
     public init(
         host: String,
@@ -23,7 +48,10 @@ public struct PostgresWireConfiguration: Sendable {
         username: String,
         password: String?,
         database: String? = nil,
-        useTLS: Bool = false,
+        sslMode: PostgresSSLMode = .disable,
+        sslRootCertPath: String? = nil,
+        sslCertPath: String? = nil,
+        sslKeyPath: String? = nil,
         applicationName: String? = nil,
         connectTimeout: Int = 10
     ) {
@@ -32,9 +60,35 @@ public struct PostgresWireConfiguration: Sendable {
         self.username = username
         self.password = password
         self.database = database
-        self.useTLS = useTLS
+        self.sslMode = sslMode
+        self.sslRootCertPath = sslRootCertPath
+        self.sslCertPath = sslCertPath
+        self.sslKeyPath = sslKeyPath
         self.applicationName = applicationName
         self.connectTimeout = connectTimeout
+    }
+
+    /// Backward-compatible initializer using a simple `useTLS` boolean.
+    public init(
+        host: String,
+        port: Int = 5432,
+        username: String,
+        password: String?,
+        database: String? = nil,
+        useTLS: Bool,
+        applicationName: String? = nil,
+        connectTimeout: Int = 10
+    ) {
+        self.init(
+            host: host,
+            port: port,
+            username: username,
+            password: password,
+            database: database,
+            sslMode: useTLS ? .require : .disable,
+            applicationName: applicationName,
+            connectTimeout: connectTimeout
+        )
     }
 }
 
@@ -64,13 +118,13 @@ public final class PostgresWireClient: @unchecked Sendable {
         // Phase 1: Eager validation with a direct (non-pooled) connection.
         // This gives us immediate feedback: wrong credentials return an auth
         // error right away instead of the pool retrying until timeout.
-        let connTLS: PostgresConnection.Configuration.TLS
-        if configuration.useTLS {
-            let sslContext = try NIOSSLContext(configuration: .makeClientConfiguration())
-            connTLS = .require(sslContext)
-        } else {
-            connTLS = .disable
-        }
+        let connTLS = try Self.makeConnectionTLS(
+            sslMode: configuration.sslMode,
+            sslRootCertPath: configuration.sslRootCertPath,
+            sslCertPath: configuration.sslCertPath,
+            sslKeyPath: configuration.sslKeyPath,
+            serverHostname: configuration.host
+        )
 
         var probeConfig = PostgresConnection.Configuration(
             host: configuration.host,
@@ -113,9 +167,13 @@ public final class PostgresWireClient: @unchecked Sendable {
         }
 
         // Phase 2: Probe succeeded — create the pool-based client for ongoing use.
-        let poolTLS: PostgresClient.Configuration.TLS = configuration.useTLS
-            ? .require(.makeClientConfiguration())
-            : .disable
+        let poolTLS = try Self.makePoolTLS(
+            sslMode: configuration.sslMode,
+            sslRootCertPath: configuration.sslRootCertPath,
+            sslCertPath: configuration.sslCertPath,
+            sslKeyPath: configuration.sslKeyPath,
+            serverHostname: configuration.host
+        )
 
         var clientConfig = PostgresClient.Configuration(
             host: configuration.host,
@@ -141,6 +199,10 @@ public final class PostgresWireClient: @unchecked Sendable {
         try await client.withConnection { connection in
             try await operation(WireConnection(connection))
         }
+    }
+
+    public var activity: PostgresActivityMonitor {
+        PostgresActivityMonitor(client: self)
     }
 
     public func query(_ query: WireQuery, logger: Logger? = nil) async throws -> WireRowSequence {
@@ -409,6 +471,113 @@ public final class PostgresWireClient: @unchecked Sendable {
 
     private func getColumnsFromStream(_ dataStream: PostgresDataStream) async -> [ColumnInfo] {
         return await dataStream.columns
+    }
+}
+
+// MARK: - TLS Configuration Mapping
+
+extension PostgresWireClient {
+    /// Apply client certificate and key to a TLS configuration for mTLS.
+    private static func applyClientCertificate(
+        to config: inout TLSConfiguration,
+        certPath: String?,
+        keyPath: String?
+    ) throws {
+        guard let certPath, let keyPath else { return }
+        config.certificateChain = try NIOSSLCertificate.fromPEMFile(certPath).map { .certificate($0) }
+        config.privateKey = .file(keyPath)
+    }
+
+    /// Build `PostgresConnection.Configuration.TLS` from the sslMode spectrum.
+    private static func makeConnectionTLS(
+        sslMode: PostgresSSLMode,
+        sslRootCertPath: String?,
+        sslCertPath: String?,
+        sslKeyPath: String?,
+        serverHostname: String
+    ) throws -> PostgresConnection.Configuration.TLS {
+        switch sslMode {
+        case .disable:
+            return .disable
+
+        case .allow, .prefer:
+            var tlsConfig = TLSConfiguration.makeClientConfiguration()
+            tlsConfig.certificateVerification = .none
+            try applyClientCertificate(to: &tlsConfig, certPath: sslCertPath, keyPath: sslKeyPath)
+            let ctx = try NIOSSLContext(configuration: tlsConfig)
+            return .prefer(ctx)
+
+        case .require:
+            var tlsConfig = TLSConfiguration.makeClientConfiguration()
+            tlsConfig.certificateVerification = .none
+            try applyClientCertificate(to: &tlsConfig, certPath: sslCertPath, keyPath: sslKeyPath)
+            let ctx = try NIOSSLContext(configuration: tlsConfig)
+            return .require(ctx)
+
+        case .verifyCA:
+            var tlsConfig = TLSConfiguration.makeClientConfiguration()
+            tlsConfig.certificateVerification = .noHostnameVerification
+            if let rootCertPath = sslRootCertPath {
+                tlsConfig.trustRoots = .file(rootCertPath)
+            }
+            try applyClientCertificate(to: &tlsConfig, certPath: sslCertPath, keyPath: sslKeyPath)
+            let ctx = try NIOSSLContext(configuration: tlsConfig)
+            return .require(ctx)
+
+        case .verifyFull:
+            var tlsConfig = TLSConfiguration.makeClientConfiguration()
+            tlsConfig.certificateVerification = .fullVerification
+            if let rootCertPath = sslRootCertPath {
+                tlsConfig.trustRoots = .file(rootCertPath)
+            }
+            try applyClientCertificate(to: &tlsConfig, certPath: sslCertPath, keyPath: sslKeyPath)
+            let ctx = try NIOSSLContext(configuration: tlsConfig)
+            return .require(ctx)
+        }
+    }
+
+    /// Build `PostgresClient.Configuration.TLS` (pool-level) from the sslMode spectrum.
+    private static func makePoolTLS(
+        sslMode: PostgresSSLMode,
+        sslRootCertPath: String?,
+        sslCertPath: String?,
+        sslKeyPath: String?,
+        serverHostname: String
+    ) throws -> PostgresClient.Configuration.TLS {
+        switch sslMode {
+        case .disable:
+            return .disable
+
+        case .allow, .prefer:
+            var tlsConfig = TLSConfiguration.makeClientConfiguration()
+            tlsConfig.certificateVerification = .none
+            try applyClientCertificate(to: &tlsConfig, certPath: sslCertPath, keyPath: sslKeyPath)
+            return .prefer(tlsConfig)
+
+        case .require:
+            var tlsConfig = TLSConfiguration.makeClientConfiguration()
+            tlsConfig.certificateVerification = .none
+            try applyClientCertificate(to: &tlsConfig, certPath: sslCertPath, keyPath: sslKeyPath)
+            return .require(tlsConfig)
+
+        case .verifyCA:
+            var tlsConfig = TLSConfiguration.makeClientConfiguration()
+            tlsConfig.certificateVerification = .noHostnameVerification
+            if let rootCertPath = sslRootCertPath {
+                tlsConfig.trustRoots = .file(rootCertPath)
+            }
+            try applyClientCertificate(to: &tlsConfig, certPath: sslCertPath, keyPath: sslKeyPath)
+            return .require(tlsConfig)
+
+        case .verifyFull:
+            var tlsConfig = TLSConfiguration.makeClientConfiguration()
+            tlsConfig.certificateVerification = .fullVerification
+            if let rootCertPath = sslRootCertPath {
+                tlsConfig.trustRoots = .file(rootCertPath)
+            }
+            try applyClientCertificate(to: &tlsConfig, certPath: sslCertPath, keyPath: sslKeyPath)
+            return .require(tlsConfig)
+        }
     }
 }
 

@@ -1,81 +1,81 @@
 import PostgresWire
 
 /// High-level COMMENT operations for database objects.
-public extension PostgresDatabaseClient {
+public extension PostgresAdminClient {
     /// Set or clear the comment on a table.
     @discardableResult
-    func commentOnTable(_ table: String, comment: String?) async throws -> Int {
-        let commentSQL = comment.map { quoteLiteral($0) } ?? "NULL"
-        return try await executeDDL("COMMENT ON TABLE \(quoteIdentifier(table)) IS \(commentSQL)")
+    func addTableComment(name: String, comment: String?) async throws -> Int {
+        let commentSQL = comment.map { client.quoteLiteral($0) } ?? "NULL"
+        return try await client.executeDDL("COMMENT ON TABLE \(client.quoteIdentifier(name)) IS \(commentSQL)")
     }
 
     /// Set or clear the comment on a column.
     @discardableResult
-    func commentOnColumn(table: String, column: String, comment: String?) async throws -> Int {
-        let commentSQL = comment.map { quoteLiteral($0) } ?? "NULL"
-        return try await executeDDL("COMMENT ON COLUMN \(quoteIdentifier(table)).\(quoteIdentifier(column)) IS \(commentSQL)")
+    func addColumnComment(table: String, column: String, comment: String?) async throws -> Int {
+        let commentSQL = comment.map { client.quoteLiteral($0) } ?? "NULL"
+        return try await client.executeDDL("COMMENT ON COLUMN \(client.quoteIdentifier(table)).\(client.quoteIdentifier(column)) IS \(commentSQL)")
     }
 
     /// Set or clear the comment on an index.
     @discardableResult
-    func commentOnIndex(_ index: String, comment: String?) async throws -> Int {
-        let commentSQL = comment.map { quoteLiteral($0) } ?? "NULL"
-        return try await executeDDL("COMMENT ON INDEX \(quoteIdentifier(index)) IS \(commentSQL)")
+    func addIndexComment(name: String, comment: String?) async throws -> Int {
+        let commentSQL = comment.map { client.quoteLiteral($0) } ?? "NULL"
+        return try await client.executeDDL("COMMENT ON INDEX \(client.quoteIdentifier(name)) IS \(commentSQL)")
     }
 
     /// Set or clear the comment on a constraint.
     @discardableResult
-    func commentOnConstraint(_ constraint: String, table: String, comment: String?) async throws -> Int {
-        let commentSQL = comment.map { quoteLiteral($0) } ?? "NULL"
-        return try await executeDDL("COMMENT ON CONSTRAINT \(quoteIdentifier(constraint)) ON \(quoteIdentifier(table)) IS \(commentSQL)")
+    func addConstraintComment(name: String, table: String, comment: String?) async throws -> Int {
+        let commentSQL = comment.map { client.quoteLiteral($0) } ?? "NULL"
+        return try await client.executeDDL("COMMENT ON CONSTRAINT \(client.quoteIdentifier(name)) ON \(client.quoteIdentifier(table)) IS \(commentSQL)")
     }
 
     /// Set or clear the comment on a function.
     @discardableResult
-    func commentOnFunction(_ function: String, parameters: String = "", comment: String?) async throws -> Int {
-        let commentSQL = comment.map { quoteLiteral($0) } ?? "NULL"
-        return try await executeDDL("COMMENT ON FUNCTION \(quoteIdentifier(function))(\(parameters)) IS \(commentSQL)")
+    func addFunctionComment(name: String, parameters: String = "", comment: String?) async throws -> Int {
+        let commentSQL = comment.map { client.quoteLiteral($0) } ?? "NULL"
+        return try await client.executeDDL("COMMENT ON FUNCTION \(client.quoteIdentifier(name))(\(parameters)) IS \(commentSQL)")
     }
 
     /// Set or clear the comment on a trigger.
     @discardableResult
-    func commentOnTrigger(_ trigger: String, table: String, comment: String?) async throws -> Int {
-        let commentSQL = comment.map { quoteLiteral($0) } ?? "NULL"
-        return try await executeDDL("COMMENT ON TRIGGER \(quoteIdentifier(trigger)) ON \(quoteIdentifier(table)) IS \(commentSQL)")
+    func addTriggerComment(name: String, table: String, comment: String?) async throws -> Int {
+        let commentSQL = comment.map { client.quoteLiteral($0) } ?? "NULL"
+        return try await client.executeDDL("COMMENT ON TRIGGER \(client.quoteIdentifier(name)) ON \(client.quoteIdentifier(table)) IS \(commentSQL)")
     }
 
     /// Set or clear the comment on a schema.
     @discardableResult
-    func commentOnSchema(_ schema: String, comment: String?) async throws -> Int {
-        let commentSQL = comment.map { quoteLiteral($0) } ?? "NULL"
-        return try await executeDDL("COMMENT ON SCHEMA \(quoteIdentifier(schema)) IS \(commentSQL)")
+    func addSchemaComment(name: String, comment: String?) async throws -> Int {
+        let commentSQL = comment.map { client.quoteLiteral($0) } ?? "NULL"
+        return try await client.executeDDL("COMMENT ON SCHEMA \(client.quoteIdentifier(name)) IS \(commentSQL)")
     }
 
     /// Set or clear the comment on a view.
     @discardableResult
-    func commentOnView(_ view: String, comment: String?) async throws -> Int {
-        let commentSQL = comment.map { quoteLiteral($0) } ?? "NULL"
-        return try await executeDDL("COMMENT ON VIEW \(quoteIdentifier(view)) IS \(commentSQL)")
+    func addViewComment(name: String, comment: String?) async throws -> Int {
+        let commentSQL = comment.map { client.quoteLiteral($0) } ?? "NULL"
+        return try await client.executeDDL("COMMENT ON VIEW \(client.quoteIdentifier(name)) IS \(commentSQL)")
     }
 
     /// Set or clear the comment on a sequence.
     @discardableResult
-    func commentOnSequence(_ sequence: String, comment: String?) async throws -> Int {
-        let commentSQL = comment.map { quoteLiteral($0) } ?? "NULL"
-        return try await executeDDL("COMMENT ON SEQUENCE \(quoteIdentifier(sequence)) IS \(commentSQL)")
+    func addSequenceComment(name: String, comment: String?) async throws -> Int {
+        let commentSQL = comment.map { client.quoteLiteral($0) } ?? "NULL"
+        return try await client.executeDDL("COMMENT ON SEQUENCE \(client.quoteIdentifier(name)) IS \(commentSQL)")
     }
 
     /// Set or clear the comment on an extension.
     @discardableResult
-    func commentOnExtension(_ extensionName: String, comment: String?) async throws -> Int {
-        let commentSQL = comment.map { quoteLiteral($0) } ?? "NULL"
-        return try await executeDDL("COMMENT ON EXTENSION \(quoteIdentifier(extensionName)) IS \(commentSQL)")
+    func addExtensionComment(name: String, comment: String?) async throws -> Int {
+        let commentSQL = comment.map { client.quoteLiteral($0) } ?? "NULL"
+        return try await client.executeDDL("COMMENT ON EXTENSION \(client.quoteIdentifier(name)) IS \(commentSQL)")
     }
 
     /// Set or clear the comment on a type.
     @discardableResult
-    func commentOnType(_ type: String, comment: String?) async throws -> Int {
-        let commentSQL = comment.map { quoteLiteral($0) } ?? "NULL"
-        return try await executeDDL("COMMENT ON TYPE \(quoteIdentifier(type)) IS \(commentSQL)")
+    func addTypeComment(name: String, comment: String?) async throws -> Int {
+        let commentSQL = comment.map { client.quoteLiteral($0) } ?? "NULL"
+        return try await client.executeDDL("COMMENT ON TYPE \(client.quoteIdentifier(name)) IS \(commentSQL)")
     }
 }

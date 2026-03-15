@@ -4,7 +4,7 @@ import Logging
 
 final class UserManagementTests: PostgresKitTestCase {
 
-    private var client: PostgresDatabaseClient!
+    private var client: PostgresKit.PostgresClient!
     private var testLogger: Logger!
 
     override func setUp() async throws {
@@ -25,7 +25,7 @@ final class UserManagementTests: PostgresKitTestCase {
             applicationName: "UserManagementTests"
         )
 
-        client = try await PostgresDatabaseClient.connect(configuration: config, logger: testLogger)
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: testLogger)
     }
 
     override func tearDown() {
@@ -38,11 +38,11 @@ final class UserManagementTests: PostgresKitTestCase {
     private let suffix = UInt32.random(in: 0..<UInt32.max)
 
     private func dropRoleIfExists(_ name: String) async {
-        _ = try? await client.dropRole(name: name, ifExists: true)
+        _ = try? await client.security.dropRole(name: name, ifExists: true)
     }
 
     private func dropUserIfExists(_ name: String) async {
-        _ = try? await client.dropUser(name: name, ifExists: true)
+        _ = try? await client.security.dropUser(name: name, ifExists: true)
     }
 
     // MARK: - Role/User Management
@@ -58,18 +58,18 @@ final class UserManagementTests: PostgresKitTestCase {
         defer {
             Task.detached { [client] in
                 for r in roleNames {
-                    _ = try? await client?.dropRole(name: r, ifExists: true)
+                    _ = try? await client?.security.dropRole(name: r, ifExists: true)
                 }
-                _ = try? await client?.dropRole(name: superName, ifExists: true)
+                _ = try? await client?.security.dropRole(name: superName, ifExists: true)
             }
         }
 
         let allRoles = roleNames + [superName]
 
         for roleName in roleNames {
-            try await client.createRole(name: roleName, password: "test123", login: true)
+            try await client.security.createRole(name: roleName, password: "test123", login: true)
         }
-        try await client.createRole(
+        try await client.security.createRole(
             name: superName,
             password: "superpass123",
             superuser: true,
@@ -80,7 +80,7 @@ final class UserManagementTests: PostgresKitTestCase {
 
         // Verify roles exist
         let nameList = allRoles.joined(separator: "','")
-        let verifyRows = try await client.simpleQuery("""
+        let verifyRows = try await client.connection.simpleQuery("""
             SELECT rolname FROM pg_roles WHERE rolname = ANY(ARRAY['\(nameList)'])
         """)
         var verified: [String] = []
@@ -89,10 +89,10 @@ final class UserManagementTests: PostgresKitTestCase {
 
         // Drop and verify
         for r in allRoles {
-            try await client.dropRole(name: r, ifExists: true)
+            try await client.security.dropRole(name: r, ifExists: true)
         }
 
-        let afterRows = try await client.simpleQuery("""
+        let afterRows = try await client.connection.simpleQuery("""
             SELECT rolname FROM pg_roles WHERE rolname = ANY(ARRAY['\(nameList)'])
         """)
         var remaining: [String] = []
@@ -110,17 +110,17 @@ final class UserManagementTests: PostgresKitTestCase {
 
         defer {
             Task.detached { [client] in
-                _ = try? await client?.dropUser(name: renamedName, ifExists: true)
-                _ = try? await client?.dropUser(name: userName, ifExists: true)
+                _ = try? await client?.security.dropUser(name: renamedName, ifExists: true)
+                _ = try? await client?.security.dropUser(name: userName, ifExists: true)
             }
         }
 
-        try await client.createRole(name: userName, password: "attrpass123", login: true, connectionLimit: 5)
-        try await client.alterUser(name: userName, connectionLimit: 10)
-        try await client.alterUser(name: userName, rename: renamedName)
-        try await client.alterUser(name: renamedName, validUntil: "infinity")
+        try await client.security.createRole(name: userName, password: "attrpass123", login: true, connectionLimit: 5)
+        try await client.security.alterUser(name: userName, connectionLimit: 10)
+        try await client.security.alterUser(name: userName, rename: renamedName)
+        try await client.security.alterUser(name: renamedName, validUntil: "infinity")
 
-        let userRows = try await client.simpleQuery("""
+        let userRows = try await client.connection.simpleQuery("""
             SELECT rolname, rolcanlogin FROM pg_roles WHERE rolname = '\(renamedName)'
         """)
         var found = false
@@ -148,23 +148,23 @@ final class UserManagementTests: PostgresKitTestCase {
         defer {
             Task.detached { [client] in
                 for n in allNames {
-                    _ = try? await client?.dropRole(name: n, ifExists: true)
+                    _ = try? await client?.security.dropRole(name: n, ifExists: true)
                 }
             }
         }
 
-        try await client.createRole(name: deptEng)
-        try await client.createRole(name: deptSales)
-        try await client.createUser(name: john, password: "pass123")
-        try await client.createUser(name: jane, password: "pass123")
-        try await client.createUser(name: bob, password: "pass123")
+        try await client.security.createRole(name: deptEng)
+        try await client.security.createRole(name: deptSales)
+        try await client.security.createUser(name: john, password: "pass123")
+        try await client.security.createUser(name: jane, password: "pass123")
+        try await client.security.createUser(name: bob, password: "pass123")
 
-        try await client.grantRole(role: deptEng, to: john)
-        try await client.grantRole(role: deptSales, to: jane)
-        try await client.grantRole(role: deptEng, to: bob)
-        try await client.grantRole(role: deptSales, to: bob)
+        try await client.security.grantRole(role: deptEng, to: john)
+        try await client.security.grantRole(role: deptSales, to: jane)
+        try await client.security.grantRole(role: deptEng, to: bob)
+        try await client.security.grantRole(role: deptSales, to: bob)
 
-        let membershipRows = try await client.simpleQuery("""
+        let membershipRows = try await client.connection.simpleQuery("""
             SELECT ur1.rolname AS user_role, ur2.rolname AS role_membership
             FROM pg_roles ur1
             JOIN pg_auth_members pam ON ur1.oid = pam.member
@@ -197,31 +197,31 @@ final class UserManagementTests: PostgresKitTestCase {
 
         defer {
             Task.detached { [client] in
-                _ = try? await client?.dropSchema(name: schemaName, ifExists: true, cascade: true)
-                _ = try? await client?.dropUser(name: userName, ifExists: true)
-                _ = try? await client?.dropRole(name: roleName, ifExists: true)
+                _ = try? await client?.admin.dropSchema(name: schemaName, ifExists: true, cascade: true)
+                _ = try? await client?.security.dropUser(name: userName, ifExists: true)
+                _ = try? await client?.security.dropRole(name: roleName, ifExists: true)
             }
         }
 
-        try await client.createRole(name: roleName)
-        try await client.createUser(name: userName, password: "test123")
-        try await client.grantRole(role: roleName, to: userName)
-        try await client.createSchema(name: schemaName)
-        try await client.grantSchemaPrivileges(privileges: [.usage], onSchema: schemaName, to: roleName)
+        try await client.security.createRole(name: roleName)
+        try await client.security.createUser(name: userName, password: "test123")
+        try await client.security.grantRole(role: roleName, to: userName)
+        try await client.admin.createSchema(name: schemaName)
+        try await client.security.grantSchemaPrivileges(privileges: [.usage], onSchema: schemaName, to: roleName)
 
-        try await client.alterDefaultPrivileges(
+        try await client.security.alterDefaultPrivileges(
             schema: schemaName,
             grant: [.select, .insert, .update, .delete],
             onObjectType: .tables,
             to: roleName
         )
 
-        try await client.createTable(
+        try await client.admin.createTable(
             name: "\(schemaName).test_tbl",
             columns: [.serial(name: "id", primaryKey: true), .text(name: "name")]
         )
 
-        let aclRows = try await client.simpleQuery("""
+        let aclRows = try await client.connection.simpleQuery("""
             SELECT privilege_type
             FROM information_schema.role_table_grants
             WHERE table_schema = '\(schemaName)' AND table_name = 'test_tbl' AND grantee = '\(roleName)'
@@ -249,39 +249,39 @@ final class UserManagementTests: PostgresKitTestCase {
 
         defer {
             Task.detached { [client] in
-                _ = try? await client?.dropTable(name: table, ifExists: true)
-                _ = try? await client?.dropUser(name: alice, ifExists: true)
-                _ = try? await client?.dropUser(name: bob, ifExists: true)
+                _ = try? await client?.admin.dropTable(name: table, ifExists: true)
+                _ = try? await client?.security.dropUser(name: alice, ifExists: true)
+                _ = try? await client?.security.dropUser(name: bob, ifExists: true)
             }
         }
 
-        try await client.createTable(name: table, columns: [
+        try await client.admin.createTable(name: table, columns: [
             PostgresColumnDefinition(name: "id", dataType: "SERIAL", primaryKey: true),
             PostgresColumnDefinition(name: "owner", dataType: "TEXT"),
             PostgresColumnDefinition(name: "category", dataType: "TEXT"),
             PostgresColumnDefinition(name: "data", dataType: "TEXT"),
         ])
 
-        try await client.createUser(name: alice, password: "alice123")
-        try await client.createUser(name: bob, password: "bob123")
+        try await client.security.createUser(name: alice, password: "alice123")
+        try await client.security.createUser(name: bob, password: "bob123")
 
-        try await client.insert(into: table, columns: ["owner", "category", "data"], values: [
+        try await client.connection.insert(into: table, columns: ["owner", "category", "data"], values: [
             ["alice", "personal", "Alice personal data"],
             ["bob", "work", "Bob work data"],
             ["alice", "public", "Alice public data"],
             ["bob", "public", "Bob public data"]
         ])
 
-        try await client.enableRowLevelSecurity(table: table)
+        try await client.security.enableRowLevelSecurity(table: table)
 
-        try await client.createPolicy(
+        try await client.security.createPolicy(
             name: "alice_policy_\(s)",
             table: table,
             to: [alice],
             using: "owner = 'alice' OR category = 'public'"
         )
 
-        try await client.createPolicy(
+        try await client.security.createPolicy(
             name: "bob_policy_\(s)",
             table: table,
             to: [bob],
@@ -289,7 +289,7 @@ final class UserManagementTests: PostgresKitTestCase {
         )
 
         // Verify policies exist
-        let policyRows = try await client.simpleQuery("""
+        let policyRows = try await client.connection.simpleQuery("""
             SELECT policyname, cmd FROM pg_policies WHERE tablename = '\(table)' ORDER BY policyname
         """)
 
@@ -301,7 +301,7 @@ final class UserManagementTests: PostgresKitTestCase {
         XCTAssertEqual(policies.count, 2, "Should have 2 RLS policies")
 
         // Verify data count (as superuser, sees all rows)
-        let countRows = try await client.simpleQuery("SELECT COUNT(*)::text FROM \(table)")
+        let countRows = try await client.connection.simpleQuery("SELECT COUNT(*)::text FROM \(table)")
         var totalCount = 0
         for try await countStr in countRows.decode(String.self) {
             totalCount = Int(countStr) ?? 0

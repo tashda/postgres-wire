@@ -3,7 +3,7 @@ import Logging
 @testable import PostgresKit
 
 final class QuickAPITests: PostgresKitTestCase {
-    private var client: PostgresDatabaseClient!
+    private var client: PostgresKit.PostgresClient!
     private var testLogger: Logger!
 
     override func setUp() async throws {
@@ -26,7 +26,7 @@ final class QuickAPITests: PostgresKitTestCase {
             applicationName: "QuickAPITests"
         )
 
-        client = try await PostgresDatabaseClient.connect(configuration: config, logger: testLogger)
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: testLogger)
     }
 
     override func tearDown() {
@@ -39,10 +39,10 @@ final class QuickAPITests: PostgresKitTestCase {
 
         do {
             // Clean up first
-            _ = try await client.dropTable(name: "quick_test", ifExists: true)
+            _ = try await client.admin.dropTable(name: "quick_test", ifExists: true)
 
             // Test createTable API
-            _ = try await client.createTable(
+            _ = try await client.admin.createTable(
                 name: "quick_test",
                 columns: [
                     .bigSerial(name: "id", primaryKey: true),
@@ -53,7 +53,7 @@ final class QuickAPITests: PostgresKitTestCase {
             print("✅ createTable API successful!")
 
             // Test insert API
-            _ = try await client.insert(
+            _ = try await client.connection.insert(
                 into: "quick_test",
                 columns: ["name"],
                 values: [["Test Record"]]
@@ -61,7 +61,7 @@ final class QuickAPITests: PostgresKitTestCase {
             print("✅ insert API successful!")
 
             // Verify data exists
-            let result = try await client.simpleQuery("SELECT COUNT(*)::text FROM quick_test")
+            let result = try await client.connection.simpleQuery("SELECT COUNT(*)::text FROM quick_test")
             for try await count in result.decode(String.self) {
                 print("Record count: \(count)")
                 XCTAssertEqual(count, "1")
@@ -69,7 +69,7 @@ final class QuickAPITests: PostgresKitTestCase {
             }
 
             // Clean up
-            _ = try await client.dropTable(name: "quick_test", ifExists: false)
+            _ = try await client.admin.dropTable(name: "quick_test", ifExists: false)
             print("✅ dropTable API successful!")
 
         } catch {
@@ -84,24 +84,24 @@ final class QuickAPITests: PostgresKitTestCase {
 
         do {
             // Clean up first
-            _ = try await client.dropSequence(name: "quick_test_seq", ifExists: true)
+            _ = try await client.admin.dropSequence(name: "quick_test_seq", ifExists: true)
 
             // Test createSequence API
-            _ = try await client.createSequence(name: "quick_test_seq")
+            _ = try await client.admin.createSequence(name: "quick_test_seq")
             print("✅ createSequence API successful!")
 
             // Test nextval API
-            let next1 = try await client.nextval("quick_test_seq")
+            let next1 = try await client.admin.nextval("quick_test_seq")
             print("✅ nextval API successful! First value: \(next1)")
 
-            let next2 = try await client.nextval("quick_test_seq")
+            let next2 = try await client.admin.nextval("quick_test_seq")
             print("✅ nextval API successful! Second value: \(next2)")
 
             // Verify sequence increments
             XCTAssertEqual(next2, next1 + 1)
 
             // Clean up
-            _ = try await client.dropSequence(name: "quick_test_seq", ifExists: false)
+            _ = try await client.admin.dropSequence(name: "quick_test_seq", ifExists: false)
             print("✅ dropSequence API successful!")
 
         } catch {

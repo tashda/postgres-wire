@@ -3,7 +3,7 @@ import Logging
 @testable import PostgresKit
 
 final class PrimaryKeyConstraintTests: PostgresKitTestCase {
-    private var client: PostgresDatabaseClient!
+    private var client: PostgresKit.PostgresClient!
 
     override func setUp() async throws {
         try await super.setUp()
@@ -14,7 +14,7 @@ final class PrimaryKeyConstraintTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "PrimaryKeyConstraintTests"
         )
-        client = try await PostgresDatabaseClient.connect(configuration: config, logger: Logger(label: "pk-constraint-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "pk-constraint-tests"))
     }
 
     override func tearDown() {
@@ -30,20 +30,20 @@ final class PrimaryKeyConstraintTests: PostgresKitTestCase {
 
     func testAddPrimaryKeyToExistingColumn() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.admin.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.createTable(name: table, columns: [
+        _ = try await client.admin.createTable(name: table, columns: [
             .bigSerial(name: "id"),
             .integer(name: "code", nullable: false),
             .text(name: "name", nullable: false)
         ])
 
-        _ = try await client.addPrimaryKey(table: table, column: "code", constraintName: "\(table)_pk")
+        _ = try await client.admin.addPrimaryKey(table: table, column: "code", constraintName: "\(table)_pk")
 
-        _ = try await client.insert(into: table, columns: ["code", "name"], values: [[100, "Item A"], [200, "Item B"]])
+        _ = try await client.connection.insert(into: table, columns: ["code", "name"], values: [[100, "Item A"], [200, "Item B"]])
 
         // Verify data was inserted
-        let rows = try await client.simpleQuery("SELECT code FROM \(table) ORDER BY code")
+        let rows = try await client.connection.simpleQuery("SELECT code FROM \(table) ORDER BY code")
         var codes: [Int] = []
         for try await code in rows.decode(Int.self) { codes.append(code) }
         XCTAssertEqual(codes, [100, 200])
@@ -51,19 +51,19 @@ final class PrimaryKeyConstraintTests: PostgresKitTestCase {
 
     func testPrimaryKeyViolation() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.admin.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.createTable(name: table, columns: [
+        _ = try await client.admin.createTable(name: table, columns: [
             .bigSerial(name: "id"),
             .integer(name: "code", nullable: false),
             .text(name: "name", nullable: false)
         ])
-        _ = try await client.addPrimaryKey(table: table, column: "code", constraintName: "\(table)_pk")
+        _ = try await client.admin.addPrimaryKey(table: table, column: "code", constraintName: "\(table)_pk")
 
-        _ = try await client.insert(into: table, columns: ["code", "name"], values: [[100, "Item A"]])
+        _ = try await client.connection.insert(into: table, columns: ["code", "name"], values: [[100, "Item A"]])
 
         do {
-            _ = try await client.insert(into: table, columns: ["code", "name"], values: [[100, "Item C"]])
+            _ = try await client.connection.insert(into: table, columns: ["code", "name"], values: [[100, "Item C"]])
             XCTFail("Expected primary key violation")
         } catch {
             let pgError = PostgresError.from(error)
@@ -73,16 +73,16 @@ final class PrimaryKeyConstraintTests: PostgresKitTestCase {
 
     func testBigSerialPrimaryKey() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.admin.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.createTable(name: table, columns: [
+        _ = try await client.admin.createTable(name: table, columns: [
             .bigSerial(name: "id", primaryKey: true),
             .text(name: "name", nullable: false)
         ])
 
-        _ = try await client.insert(into: table, columns: ["name"], values: [["First"], ["Second"]])
+        _ = try await client.connection.insert(into: table, columns: ["name"], values: [["First"], ["Second"]])
 
-        let rows = try await client.simpleQuery("SELECT id FROM \(table) ORDER BY id")
+        let rows = try await client.connection.simpleQuery("SELECT id FROM \(table) ORDER BY id")
         var ids: [Int] = []
         for try await id in rows.decode(Int.self) { ids.append(id) }
         XCTAssertEqual(ids.count, 2)
@@ -93,24 +93,24 @@ final class PrimaryKeyConstraintTests: PostgresKitTestCase {
 
     func testCompositePrimaryKey() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.admin.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.createTable(name: table, columns: [
+        _ = try await client.admin.createTable(name: table, columns: [
             .text(name: "department", nullable: false),
             .integer(name: "employee_id", nullable: false),
             .varchar(name: "name", length: 100, nullable: false)
         ])
 
-        _ = try await client.addPrimaryKey(table: table, column: "department", constraintName: "\(table)_pk")
+        _ = try await client.admin.addPrimaryKey(table: table, column: "department", constraintName: "\(table)_pk")
 
-        _ = try await client.insert(into: table, columns: ["department", "employee_id", "name"], values: [
+        _ = try await client.connection.insert(into: table, columns: ["department", "employee_id", "name"], values: [
             ["IT", 1, "John Doe"],
             ["HR", 2, "Jane Smith"]
         ])
 
         // Same department should violate PK
         do {
-            _ = try await client.insert(into: table, columns: ["department", "employee_id", "name"], values: [["IT", 3, "Another"]])
+            _ = try await client.connection.insert(into: table, columns: ["department", "employee_id", "name"], values: [["IT", 3, "Another"]])
             XCTFail("Expected composite primary key violation")
         } catch {
             let pgError = PostgresError.from(error)
@@ -122,20 +122,20 @@ final class PrimaryKeyConstraintTests: PostgresKitTestCase {
 
     func testUUIDPrimaryKey() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.admin.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.createTable(name: table, columns: [
+        _ = try await client.admin.createTable(name: table, columns: [
             .uuid(name: "id", nullable: false),
             .text(name: "name", nullable: false)
         ])
-        _ = try await client.addPrimaryKey(table: table, column: "id", constraintName: "\(table)_pk")
+        _ = try await client.admin.addPrimaryKey(table: table, column: "id", constraintName: "\(table)_pk")
 
         let id = UUID()
-        _ = try await client.insert(into: table, columns: ["id", "name"], values: [[id, "Test"]])
+        _ = try await client.connection.insert(into: table, columns: ["id", "name"], values: [[id, "Test"]])
 
         // Same UUID should violate
         do {
-            _ = try await client.insert(into: table, columns: ["id", "name"], values: [[id, "Duplicate"]])
+            _ = try await client.connection.insert(into: table, columns: ["id", "name"], values: [[id, "Duplicate"]])
             XCTFail("Expected UUID primary key violation")
         } catch {
             let pgError = PostgresError.from(error)
@@ -145,18 +145,18 @@ final class PrimaryKeyConstraintTests: PostgresKitTestCase {
 
     func testTextPrimaryKey() async throws {
         let table = uniqueName()
-        defer { Task { [client = self.client!] in _ = try? await client.dropTable(name: table, ifExists: true) } }
+        defer { Task { [client = self.client!] in _ = try? await client.admin.dropTable(name: table, ifExists: true) } }
 
-        _ = try await client.createTable(name: table, columns: [
+        _ = try await client.admin.createTable(name: table, columns: [
             .varchar(name: "code", length: 20, nullable: false),
             .text(name: "description")
         ])
-        _ = try await client.addPrimaryKey(table: table, column: "code", constraintName: "\(table)_pk")
+        _ = try await client.admin.addPrimaryKey(table: table, column: "code", constraintName: "\(table)_pk")
 
-        _ = try await client.insert(into: table, columns: ["code", "description"], values: [["ABC", "First"]])
+        _ = try await client.connection.insert(into: table, columns: ["code", "description"], values: [["ABC", "First"]])
 
         do {
-            _ = try await client.insert(into: table, columns: ["code", "description"], values: [["ABC", "Duplicate"]])
+            _ = try await client.connection.insert(into: table, columns: ["code", "description"], values: [["ABC", "Duplicate"]])
             XCTFail("Expected text primary key violation")
         } catch {
             let pgError = PostgresError.from(error)

@@ -1,7 +1,7 @@
 import PostgresWire
 
-/// Error handling extensions for PostgresDatabaseClient.
-public extension PostgresDatabaseClient {
+/// Error handling extensions for PostgresClient.
+public extension PostgresClient {
     /// Execute an operation with enhanced error handling.
     /// - Parameter operation: The asynchronous operation to perform.
     /// - Returns: A Result containing the operation's success value or a PostgresError on failure.

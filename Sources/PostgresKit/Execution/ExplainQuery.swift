@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// Query plan analysis operations.
-public extension PostgresDatabaseClient {
+public extension PostgresConnectionClient {
     /// Run EXPLAIN on a query and return the plan as an array of strings.
     func explain(
         _ query: String,
@@ -23,7 +23,7 @@ public extension PostgresDatabaseClient {
             sql = "EXPLAIN (\(options.joined(separator: ", "))) \(query)"
         }
 
-        let rows = try await simpleQuery(sql)
+        let rows = try await client.simpleQuery(sql)
         var result: [String] = []
         for try await line in rows.decode(String.self) {
             result.append(line)
@@ -31,6 +31,7 @@ public extension PostgresDatabaseClient {
         return result
     }
 }
+
 
 /// Output format for EXPLAIN.
 public enum ExplainFormat: String, Sendable {

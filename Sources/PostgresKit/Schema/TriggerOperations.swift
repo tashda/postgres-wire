@@ -2,7 +2,7 @@ import PostgresWire
 import PostgresNIO
 
 /// High-level Trigger and Function Data Definition Language (DDL) operations.
-public extension PostgresDatabaseClient {
+public extension PostgresAdminClient {
     /// Create a new SQL function.
     @discardableResult
     func createFunction(
@@ -24,10 +24,10 @@ public extension PostgresDatabaseClient {
         var parts: [String] = ["CREATE"]
         if orReplace { parts.append("OR REPLACE") }
         parts.append("FUNCTION")
-        parts.append(quoteIdentifier(name))
+        parts.append(client.quoteIdentifier(name))
 
         let paramList = parameters.map { param in
-            var paramDef = "\(quoteIdentifier(param.name)) \(param.dataType)"
+            var paramDef = "\(client.quoteIdentifier(param.name)) \(param.dataType)"
             if let defaultValue = param.defaultValue { paramDef += " DEFAULT \(defaultValue)" }
             if param.mode == .`in` { paramDef = "IN " + paramDef }
             else if param.mode == .`out` { paramDef = "OUT " + paramDef }
@@ -52,8 +52,8 @@ public extension PostgresDatabaseClient {
         if let cost { parts.append("COST \(cost)") }
         if let rows { parts.append("ROWS \(rows)") }
 
-        parts.append("AS \(quoteLiteral(body))")
-        return try await executeDDL(parts.joined(separator: " "))
+        parts.append("AS \(client.quoteLiteral(body))")
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Drop an existing function.
@@ -61,10 +61,10 @@ public extension PostgresDatabaseClient {
     func dropFunction(name: String, parameters: [String] = [], ifExists: Bool = false, cascade: Bool = false) async throws -> Int {
         var parts: [String] = ["DROP FUNCTION"]
         if ifExists { parts.append("IF EXISTS") }
-        parts.append(quoteIdentifier(name))
+        parts.append(client.quoteIdentifier(name))
         if !parameters.isEmpty { parts.append("(\(parameters.joined(separator: ", ")))") }
         if cascade { parts.append("CASCADE") }
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Execute a function and decode the first returned value.
@@ -74,10 +74,10 @@ public extension PostgresDatabaseClient {
         decodeTo: T.Type
     ) async throws -> T {
         let paramPlaceholders = parameters.enumerated().map { index, _ in "$\(index + 1)" }.joined(separator: ", ")
-        let binds = try parameters.map { try toPGData(value: $0) }
-        let sql = "SELECT * FROM \(quoteIdentifier(name))(\(paramPlaceholders))"
+        let binds = try parameters.map { try client.toPGData(value: $0) }
+        let sql = "SELECT * FROM \(client.quoteIdentifier(name))(\(paramPlaceholders))"
 
-        return try await withConnection { conn in
+        return try await client.withConnection { conn in
             let rows = try await conn.query(sql, binds: binds)
             for try await value in rows.decode(decodeTo) { return value }
             throw PostgresKit.PostgresError.protocolError("Function \(name) returned no value")
@@ -101,18 +101,18 @@ public extension PostgresDatabaseClient {
         if orReplace { parts.append("OR REPLACE") }
         parts.append("TRIGGER")
         if constraint { parts.append("CONSTRAINT") }
-        parts.append(quoteIdentifier(name))
+        parts.append(client.quoteIdentifier(name))
         parts.append(event.rawValue)
 
         let operationList = operations.map { $0.rawValue }.joined(separator: " OR ")
         parts.append(operationList)
-        parts.append("ON \(quoteIdentifier(table))")
+        parts.append("ON \(client.quoteIdentifier(table))")
 
         if let when { parts.append("WHEN (\(when))") }
         parts.append("FOR EACH \(forEach.rawValue)")
         parts.append("EXECUTE FUNCTION \(procedure)")
 
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Drop an existing trigger from a table.
@@ -120,15 +120,15 @@ public extension PostgresDatabaseClient {
     func dropTrigger(name: String, table: String, ifExists: Bool = false) async throws -> Int {
         var parts: [String] = ["DROP TRIGGER"]
         if ifExists { parts.append("IF EXISTS") }
-        parts.append(quoteIdentifier(name))
-        parts.append("ON \(quoteIdentifier(table))")
-        return try await executeDDL(parts.joined(separator: " "))
+        parts.append(client.quoteIdentifier(name))
+        parts.append("ON \(client.quoteIdentifier(table))")
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Enable or disable a trigger on a table.
     @discardableResult
     func alterTrigger(name: String, table: String, enabled: Bool) async throws -> Int {
-        let sql = "ALTER TABLE \(quoteIdentifier(table)) \(enabled ? "ENABLE" : "DISABLE") TRIGGER \(quoteIdentifier(name))"
-        return try await executeDDL(sql)
+        let sql = "ALTER TABLE \(client.quoteIdentifier(table)) \(enabled ? "ENABLE" : "DISABLE") TRIGGER \(client.quoteIdentifier(name))"
+        return try await client.executeDDL(sql)
     }
 }

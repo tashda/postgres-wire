@@ -166,6 +166,34 @@ public struct PostgresExtensionInfo: Sendable {
     }
 }
 
+/// Information about an object owned by an extension.
+public struct PostgresExtensionObject: Sendable {
+    public let schema: String
+    public let name: String
+    public let type: String
+
+    public init(schema: String, name: String, type: String) {
+        self.schema = schema
+        self.name = name
+        self.type = type
+    }
+}
+
+/// Available extension information.
+public struct PostgresAvailableExtensionInfo: Sendable {
+    public let name: String
+    public let defaultVersion: String
+    public let installedVersion: String?
+    public let comment: String?
+
+    public init(name: String, defaultVersion: String, installedVersion: String?, comment: String?) {
+        self.name = name
+        self.defaultVersion = defaultVersion
+        self.installedVersion = installedVersion
+        self.comment = comment
+    }
+}
+
 /// Column comment information.
 public struct PostgresColumnComment: Sendable {
     public let column: String

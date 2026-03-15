@@ -2,7 +2,7 @@ import Foundation
 import PostgresWire
 
 /// High-level role introspection.
-public extension PostgresDatabaseClient {
+public extension PostgresSecurityClient {
     /// List all non-system roles with their attributes.
     func listRoles() async throws -> [PostgresRoleInfo] {
         let sql = """
@@ -16,7 +16,7 @@ public extension PostgresDatabaseClient {
             ORDER BY r.rolname
             """
         var results: [PostgresRoleInfo] = []
-        let rows = try await simpleQuery(sql)
+        let rows = try await client.simpleQuery(sql)
         for try await v in rows.decode((String, String, String, String, String, String, String, String, String?, String, String).self) {
             results.append(PostgresRoleInfo(
                 oid: v.10, name: v.0, isSuperuser: v.1 == "t",
@@ -37,7 +37,7 @@ public extension PostgresDatabaseClient {
             WHERE setrole = \(roleOid)::oid AND setdatabase = 0
             """
         var params: [PostgresDatabaseParameter] = []
-        let rows = try await simpleQuery(sql)
+        let rows = try await client.simpleQuery(sql)
         for try await setting in rows.decode(String.self) {
             let parts = setting.split(separator: "=", maxSplits: 1)
             if parts.count == 2 {
@@ -59,7 +59,7 @@ public extension PostgresDatabaseClient {
             ORDER BY category, name
             """
         var results: [PostgresSettingDefinition] = []
-        let rows = try await simpleQuery(sql)
+        let rows = try await client.simpleQuery(sql)
         for try await v in rows.decode((String, String, String, String, String, String, String, String, String, String).self) {
             let enumVals: [String]
             if !v.4.isEmpty {
@@ -83,11 +83,11 @@ public extension PostgresDatabaseClient {
             SELECT provider, label
             FROM pg_catalog.pg_shseclabel sl
             JOIN pg_catalog.pg_roles r ON sl.objoid = r.oid
-            WHERE r.rolname = \(quoteLiteral(role))
+            WHERE r.rolname = \(client.quoteLiteral(role))
             ORDER BY provider
             """
         var results: [PostgresSecurityLabel] = []
-        let rows = try await simpleQuery(sql)
+        let rows = try await client.simpleQuery(sql)
         for try await v in rows.decode((String, String).self) {
             results.append(PostgresSecurityLabel(provider: v.0, label: v.1))
         }
@@ -103,11 +103,11 @@ public extension PostgresDatabaseClient {
             FROM pg_catalog.pg_auth_members am
             JOIN pg_catalog.pg_roles r ON am.roleid = r.oid
             JOIN pg_catalog.pg_roles m ON am.member = m.oid
-            WHERE m.rolname = \(quoteLiteral(role))
+            WHERE m.rolname = \(client.quoteLiteral(role))
             ORDER BY r.rolname
             """
         var results: [PostgresRoleMembership] = []
-        let rows = try await simpleQuery(sql)
+        let rows = try await client.simpleQuery(sql)
         for try await v in rows.decode((String, String, String, String, String).self) {
             results.append(PostgresRoleMembership(
                 roleName: v.0, memberName: v.1,
@@ -126,11 +126,11 @@ public extension PostgresDatabaseClient {
             FROM pg_catalog.pg_auth_members am
             JOIN pg_catalog.pg_roles r ON am.roleid = r.oid
             JOIN pg_catalog.pg_roles m ON am.member = m.oid
-            WHERE r.rolname = \(quoteLiteral(role))
+            WHERE r.rolname = \(client.quoteLiteral(role))
             ORDER BY m.rolname
             """
         var results: [PostgresRoleMembership] = []
-        let rows = try await simpleQuery(sql)
+        let rows = try await client.simpleQuery(sql)
         for try await v in rows.decode((String, String, String, String, String).self) {
             results.append(PostgresRoleMembership(
                 roleName: v.0, memberName: v.1,
@@ -147,9 +147,9 @@ public extension PostgresDatabaseClient {
             FROM pg_catalog.pg_shdescription d
             JOIN pg_catalog.pg_authid a ON a.oid = d.objoid
             WHERE d.classoid = 'pg_catalog.pg_authid'::regclass
-              AND a.rolname = \(quoteLiteral(role))
+              AND a.rolname = \(client.quoteLiteral(role))
             """
-        let rows = try await simpleQuery(sql)
+        let rows = try await client.simpleQuery(sql)
         for try await v in rows.decode(String.self) { return v }
         return nil
     }

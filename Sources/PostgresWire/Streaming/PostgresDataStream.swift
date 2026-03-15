@@ -3,6 +3,7 @@ import Logging
 import PostgresNIO
 
 /// Actor managing PostgreSQL data streaming with integrated formatting
+@available(*, deprecated, message: "Use PostgresRowExtractor and PostgresCellFormatter instead for lower overhead per-row processing.")
 public actor PostgresDataStream {
 
     // MARK: - Configuration

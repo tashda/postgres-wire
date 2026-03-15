@@ -8,7 +8,7 @@ public struct PostgresNotification: Sendable, Equatable {
 }
 
 public actor PostgresNotifier {
-    private let client: PostgresDatabaseClient
+    private let client: PostgresClient
     private let logger: Logger
     private var listeningTask: Task<Void, Never>?
     public typealias Handler = @Sendable (PostgresNotification) -> Void
@@ -22,7 +22,7 @@ public actor PostgresNotifier {
     private var streams: [String: [StreamEntry]] = [:]
     private var listenTokens: [String: [WireConnection.WireListenToken]] = [:]
 
-    public init(client: PostgresDatabaseClient, logger: Logger) {
+    public init(client: PostgresClient, logger: Logger) {
         self.client = client
         self.logger = logger
     }

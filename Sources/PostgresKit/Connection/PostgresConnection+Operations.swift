@@ -1,6 +1,6 @@
 import PostgresNIO
 
-public extension PostgresDatabaseConnection {
+public extension PostgresConnection {
     @discardableResult
     func beginTransaction() async throws -> Int {
         try await executeDDL("BEGIN")
@@ -43,7 +43,7 @@ public extension PostgresDatabaseConnection {
     }
 }
 
-internal extension PostgresDatabaseConnection {
+internal extension PostgresConnection {
     func quoteIdentifier(_ identifier: String) -> String {
         identifier.split(separator: ".", maxSplits: 1)
             .map { "\"\($0.replacingOccurrences(of: "\"", with: "\"\""))\"" }

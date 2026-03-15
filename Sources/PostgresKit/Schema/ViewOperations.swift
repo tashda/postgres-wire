@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// High-level View Data Definition Language (DDL) operations.
-public extension PostgresDatabaseClient {
+public extension PostgresAdminClient {
     /// Create a standard view.
     @discardableResult
     func createView(
@@ -14,9 +14,9 @@ public extension PostgresDatabaseClient {
         if orReplace { parts.append("OR REPLACE") }
         if temporary { parts.append("TEMPORARY") }
         parts.append("VIEW")
-        parts.append(quoteIdentifier(name))
+        parts.append(client.quoteIdentifier(name))
         parts.append("AS \(query)")
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Drop an existing view.
@@ -24,9 +24,9 @@ public extension PostgresDatabaseClient {
     func dropView(name: String, ifExists: Bool = false, cascade: Bool = false) async throws -> Int {
         var parts: [String] = ["DROP VIEW"]
         if ifExists { parts.append("IF EXISTS") }
-        parts.append(quoteIdentifier(name))
+        parts.append(client.quoteIdentifier(name))
         if cascade { parts.append("CASCADE") }
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Create a materialized view.
@@ -38,9 +38,9 @@ public extension PostgresDatabaseClient {
     ) async throws -> Int {
         var parts: [String] = ["CREATE MATERIALIZED VIEW"]
         if ifNotExists { parts.append("IF NOT EXISTS") }
-        parts.append(quoteIdentifier(name))
+        parts.append(client.quoteIdentifier(name))
         parts.append("AS \(query)")
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Refresh a materialized view's contents.
@@ -48,8 +48,8 @@ public extension PostgresDatabaseClient {
     func refreshMaterializedView(name: String, concurrently: Bool = false) async throws -> Int {
         var parts: [String] = ["REFRESH MATERIALIZED VIEW"]
         if concurrently { parts.append("CONCURRENTLY") }
-        parts.append(quoteIdentifier(name))
-        return try await executeDDL(parts.joined(separator: " "))
+        parts.append(client.quoteIdentifier(name))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 
     /// Drop an existing materialized view.
@@ -57,8 +57,8 @@ public extension PostgresDatabaseClient {
     func dropMaterializedView(name: String, ifExists: Bool = false, cascade: Bool = false) async throws -> Int {
         var parts: [String] = ["DROP MATERIALIZED VIEW"]
         if ifExists { parts.append("IF EXISTS") }
-        parts.append(quoteIdentifier(name))
+        parts.append(client.quoteIdentifier(name))
         if cascade { parts.append("CASCADE") }
-        return try await executeDDL(parts.joined(separator: " "))
+        return try await client.executeDDL(parts.joined(separator: " "))
     }
 }

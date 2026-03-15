@@ -60,7 +60,7 @@ let config = PostgresConfiguration(
 )
 
 // 2. Connect
-let client = try await PostgresDatabaseClient.connect(configuration: config)
+let client = try await PostgresClient.connect(configuration: config)
 defer { client.close() }
 
 // 3. Query

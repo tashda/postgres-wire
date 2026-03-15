@@ -2,7 +2,7 @@ import Foundation
 
 /// A legacy compatibility wrapper for database metadata introspection.
 /// 
-/// New code should prefer calling introspection methods directly on `PostgresDatabaseClient`.
+/// New code should prefer calling introspection methods directly on `PostgresClient`.
 public struct PostgresMetadata: Sendable {
     public typealias Column = PostgresColumnInfo
     public typealias ColumnDetail = PostgresColumnDetail
@@ -17,91 +17,99 @@ public struct PostgresMetadata: Sendable {
 
     public init() {}
 
-    public func listDatabases(using client: PostgresDatabaseClient) async throws -> [String] {
-        try await client.listDatabases()
+    public func listDatabases(using client: PostgresClient) async throws -> [String] {
+        try await client.introspection.listDatabases()
     }
 
-    public func listSchemas(using client: PostgresDatabaseClient) async throws -> [String] {
-        try await client.listSchemas().map { $0.name }
+    public func isSuperuser(using client: PostgresClient) async throws -> Bool {
+        try await client.introspection.checkSuperuser()
     }
 
-    public func listTablesAndViews(using client: PostgresDatabaseClient, schema: String) async throws -> [SchemaObject] {
-        try await client.listTablesAndViews(schema: schema)
+    public func listSchemas(using client: PostgresClient) async throws -> [String] {
+        try await client.introspection.listSchemas().map { $0.name }
     }
 
-    public func listColumns(using client: PostgresDatabaseClient, schema: String, table: String) async throws -> [PostgresColumnInfo] {
-        try await client.listColumns(schema: schema, table: table)
+    public func listTablesAndViews(using client: PostgresClient, schema: String) async throws -> [SchemaObject] {
+        try await client.introspection.listTablesAndViews(schema: schema)
     }
 
-    public func columnsByTable(using client: PostgresDatabaseClient, schema: String) async throws -> [String: [PostgresColumnDetail]] {
-        try await client.columnsByTable(schema: schema)
+    public func listColumns(using client: PostgresClient, schema: String, table: String) async throws -> [PostgresColumnInfo] {
+        try await client.introspection.listColumns(schema: schema, table: table)
     }
 
-    public func primaryKey(using client: PostgresDatabaseClient, schema: String, table: String) async throws -> PostgresPrimaryKeyInfo? {
-        try await client.primaryKey(schema: schema, table: table)
+    public func columnsByTable(using client: PostgresClient, schema: String) async throws -> [String: [PostgresColumnDetail]] {
+        try await client.introspection.columnsByTable(schema: schema)
     }
 
-    public func foreignKeys(using client: PostgresDatabaseClient, schema: String, table: String) async throws -> [PostgresForeignKeyInfo] {
-        try await client.foreignKeys(schema: schema, table: table)
+    public func primaryKey(using client: PostgresClient, schema: String, table: String) async throws -> PostgresPrimaryKeyInfo? {
+        try await client.introspection.primaryKey(schema: schema, table: table)
     }
 
-    public func listIndexes(using client: PostgresDatabaseClient, schema: String, table: String) async throws -> [PostgresIndexInfo] {
-        try await client.listIndexes(schema: schema, table: table)
+    public func foreignKeys(using client: PostgresClient, schema: String, table: String) async throws -> [PostgresForeignKeyInfo] {
+        try await client.introspection.foreignKeys(schema: schema, table: table)
     }
 
-    public func viewDefinition(using client: PostgresDatabaseClient, schema: String, view: String) async throws -> String? {
-        try await client.viewDefinition(schema: schema, view: view)
+    public func listIndexes(using client: PostgresClient, schema: String, table: String) async throws -> [PostgresIndexInfo] {
+        try await client.introspection.listIndexes(schema: schema, table: table)
     }
 
-    public func functionDefinition(using client: PostgresDatabaseClient, schema: String, name: String) async throws -> String? {
-        try await client.functionDefinition(schema: schema, name: name)
+    public func viewDefinition(using client: PostgresClient, schema: String, view: String) async throws -> String? {
+        try await client.introspection.viewDefinition(schema: schema, view: view)
     }
 
-    public func triggerDefinition(using client: PostgresDatabaseClient, schema: String, name: String) async throws -> String? {
-        try await client.triggerDefinition(schema: schema, name: name)
+    public func functionDefinition(using client: PostgresClient, schema: String, name: String) async throws -> String? {
+        try await client.introspection.functionDefinition(schema: schema, name: name)
     }
 
-    public func uniqueConstraints(using client: PostgresDatabaseClient, schema: String, table: String) async throws -> [PostgresUniqueConstraintInfo] {
-        try await client.uniqueConstraints(schema: schema, table: table)
+    public func triggerDefinition(using client: PostgresClient, schema: String, name: String) async throws -> String? {
+        try await client.introspection.triggerDefinition(schema: schema, name: name)
     }
 
-    public func dependencies(using client: PostgresDatabaseClient, schema: String, table: String) async throws -> [PostgresDependencyInfo] {
-        try await client.dependencies(schema: schema, table: table)
+    public func uniqueConstraints(using client: PostgresClient, schema: String, table: String) async throws -> [PostgresUniqueConstraintInfo] {
+        try await client.introspection.uniqueConstraints(schema: schema, table: table)
+    }
+
+    public func dependencies(using client: PostgresClient, schema: String, table: String) async throws -> [PostgresDependencyInfo] {
+        try await client.introspection.dependencies(schema: schema, table: table)
     }
 
     public func schemaSummary(
-        using client: PostgresDatabaseClient,
+        using client: PostgresClient,
         schema: String,
-        progress: (@Sendable (PostgresDatabaseClient.SummaryObjectType, Int, Int) async -> Void)? = nil
-    ) async throws -> PostgresDatabaseClient.SchemaSummary {
-        try await client.schemaSummary(schema: schema, progress: progress)
+        progress: (@Sendable (SummaryObjectType, Int, Int) async -> Void)? = nil
+    ) async throws -> SchemaSummary {
+        try await client.introspection.schemaSummary(schema: schema, progress: progress)
     }
 
-    public func listRoles(using client: PostgresDatabaseClient) async throws -> [PostgresRoleInfo] {
-        try await client.listRoles()
+    public func listRoles(using client: PostgresClient) async throws -> [PostgresRoleInfo] {
+        try await client.security.listRoles()
     }
 
-    public func listExtensions(using client: PostgresDatabaseClient) async throws -> [PostgresExtensionInfo] {
-        try await client.listExtensions()
+    public func listExtensions(using client: PostgresClient) async throws -> [PostgresExtensionInfo] {
+        try await client.introspection.listExtensions()
     }
 
-    public func tableComment(using client: PostgresDatabaseClient, schema: String, table: String) async throws -> String? {
-        try await client.tableComment(schema: schema, table: table)
+    public func listExtensionObjects(using client: PostgresClient, name: String) async throws -> [PostgresExtensionObject] {
+        try await client.introspection.listExtensionObjects(name)
     }
 
-    public func columnComments(using client: PostgresDatabaseClient, schema: String, table: String) async throws -> [PostgresColumnComment] {
-        try await client.columnComments(schema: schema, table: table)
+    public func fetchTableComment(using client: PostgresClient, schema: String, table: String) async throws -> String? {
+        try await client.introspection.fetchTableComment(schema: schema, table: table)
     }
 
-    public func functionComment(using client: PostgresDatabaseClient, schema: String, name: String) async throws -> String? {
-        try await client.functionComment(schema: schema, name: name)
+    public func fetchColumnComments(using client: PostgresClient, schema: String, table: String) async throws -> [PostgresColumnComment] {
+        try await client.introspection.fetchColumnComments(schema: schema, table: table)
     }
 
-    public func triggerComment(using client: PostgresDatabaseClient, schema: String, name: String) async throws -> String? {
-        try await client.triggerComment(schema: schema, name: name)
+    public func fetchFunctionComment(using client: PostgresClient, schema: String, name: String) async throws -> String? {
+        try await client.introspection.fetchFunctionComment(schema: schema, name: name)
     }
 
-    public func databaseComment(using client: PostgresDatabaseClient) async throws -> String? {
-        try await client.databaseComment()
+    public func fetchTriggerComment(using client: PostgresClient, schema: String, name: String) async throws -> String? {
+        try await client.introspection.fetchTriggerComment(schema: schema, name: name)
+    }
+
+    public func fetchDatabaseComment(using client: PostgresClient) async throws -> String? {
+        try await client.introspection.fetchDatabaseComment()
     }
 }

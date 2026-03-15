@@ -1,43 +1,43 @@
 import PostgresWire
 
+/// Type of an object in the schema summary.
+public enum SummaryObjectType: String, Sendable {
+    case table = "BASE TABLE"
+    case view = "VIEW"
+    case materializedView = "MATERIALIZED VIEW"
+    case function = "FUNCTION"
+    case trigger = "TRIGGER"
+}
+
+/// A summary of a schema's contents.
+public struct SchemaSummary: Sendable {
+
+    public struct Object: Sendable {
+        public let name: String
+        public let type: SummaryObjectType
+        public let columns: [PostgresColumnDetail]
+        public let triggerAction: String?
+        public let triggerTable: String?
+
+        public init(name: String, type: SummaryObjectType, columns: [PostgresColumnDetail], triggerAction: String?, triggerTable: String?) {
+            self.name = name
+            self.type = type
+            self.columns = columns
+            self.triggerAction = triggerAction
+            self.triggerTable = triggerTable
+        }
+    }
+    public let schema: String
+    public let objects: [Object]
+
+    public init(schema: String, objects: [Object]) {
+        self.schema = schema
+        self.objects = objects
+    }
+}
+
 /// High-level schema summary discovery.
-public extension PostgresDatabaseClient {
-    /// Type of an object in the schema summary.
-    enum SummaryObjectType: String, Sendable {
-        case table = "BASE TABLE"
-        case view = "VIEW"
-        case materializedView = "MATERIALIZED VIEW"
-        case function = "FUNCTION"
-        case trigger = "TRIGGER"
-    }
-
-    /// A summary of a schema's contents.
-    struct SchemaSummary: Sendable {
-
-        public struct Object: Sendable {
-            public let name: String
-            public let type: SummaryObjectType
-            public let columns: [PostgresColumnDetail]
-            public let triggerAction: String?
-            public let triggerTable: String?
-
-            public init(name: String, type: SummaryObjectType, columns: [PostgresColumnDetail], triggerAction: String?, triggerTable: String?) {
-                self.name = name
-                self.type = type
-                self.columns = columns
-                self.triggerAction = triggerAction
-                self.triggerTable = triggerTable
-            }
-        }
-        public let schema: String
-        public let objects: [Object]
-
-        public init(schema: String, objects: [Object]) {
-            self.schema = schema
-            self.objects = objects
-        }
-    }
-
+public extension PostgresIntrospectionClient {
     /// Generate a summary of all objects within a schema.
     func schemaSummary(
         schema: String,
@@ -51,8 +51,8 @@ public extension PostgresDatabaseClient {
             WHERE table_schema = $1 AND table_type IN ('BASE TABLE', 'VIEW')
             ORDER BY table_type, table_name
             """
-        let tableRows = try await withConnection { conn in
-            try await conn.queryPreparedRows(tableSQL, binds: [toPGData(value: schema)])
+        let tableRows = try await client.withConnection { conn in
+            try await conn.queryPreparedRows(tableSQL, binds: [client.toPGData(value: schema)])
         }
         var entries: [(String, SummaryObjectType)] = []
         for row in tableRows {
@@ -61,14 +61,14 @@ public extension PostgresDatabaseClient {
         }
 
         // Materialized views
-        let matRows = try await withConnection { conn in
-            try await conn.queryPreparedRows("SELECT matviewname FROM pg_matviews WHERE schemaname = $1 ORDER BY matviewname", binds: [toPGData(value: schema)])
+        let matRows = try await client.withConnection { conn in
+            try await conn.queryPreparedRows("SELECT matviewname FROM pg_matviews WHERE schemaname = $1 ORDER BY matviewname", binds: [client.toPGData(value: schema)])
         }
         let matNames: [String] = try matRows.map { try $0.decode(String.self) }
 
         // Functions
-        let fnRows = try await withConnection { conn in
-            try await conn.queryPreparedRows("SELECT routine_name FROM information_schema.routines WHERE specific_schema = $1 AND routine_type = 'FUNCTION' ORDER BY routine_name", binds: [toPGData(value: schema)])
+        let fnRows = try await client.withConnection { conn in
+            try await conn.queryPreparedRows("SELECT routine_name FROM information_schema.routines WHERE specific_schema = $1 AND routine_type = 'FUNCTION' ORDER BY routine_name", binds: [client.toPGData(value: schema)])
         }
         let functionNames: [String] = try fnRows.map { try $0.decode(String.self) }
 
@@ -77,8 +77,8 @@ public extension PostgresDatabaseClient {
             SELECT trigger_name, action_timing, event_manipulation, event_object_table
             FROM information_schema.triggers WHERE trigger_schema = $1 ORDER BY trigger_name
             """
-        let trigRows = try await withConnection { conn in
-            try await conn.queryPreparedRows(trigSQL, binds: [toPGData(value: schema)])
+        let trigRows = try await client.withConnection { conn in
+            try await conn.queryPreparedRows(trigSQL, binds: [client.toPGData(value: schema)])
         }
         var triggerEntries: [(String, String, String, String)] = []
         for row in trigRows { triggerEntries.append(try row.decode((String, String, String, String).self)) }
@@ -115,3 +115,4 @@ public extension PostgresDatabaseClient {
         return SchemaSummary(schema: schema, objects: objects)
     }
 }
+

@@ -2,7 +2,7 @@ import Foundation
 import Logging
 import PostgresWire
 
-public final class PostgresDatabaseConnection: @unchecked Sendable {
+public final class PostgresConnection: @unchecked Sendable {
     private let wire: WireConnection
     private let logger: Logger
     private let cache: StatementCache

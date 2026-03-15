@@ -50,10 +50,11 @@ public extension PostgresSecurityClient {
     /// Fetch all server settings configurable at the role level.
     func fetchRoleConfigurableSettings() async throws -> [PostgresSettingDefinition] {
         let sql = """
-            SELECT name, vartype, min_val, max_val,
+            SELECT name, vartype,
+                   coalesce(min_val, ''), coalesce(max_val, ''),
                    coalesce(enumvals::text, ''),
-                   boot_val, coalesce(unit, ''),
-                   short_desc, context, category
+                   coalesce(boot_val, ''), coalesce(unit, ''),
+                   coalesce(short_desc, ''), context, category
             FROM pg_catalog.pg_settings
             WHERE context IN ('user', 'superuser')
             ORDER BY category, name

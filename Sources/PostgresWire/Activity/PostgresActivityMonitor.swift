@@ -96,8 +96,13 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
             catch { logger.error("Activity Monitor: Failed to fetch replication: \(error)"); return [] }
         }()
 
-        let (procs, dbStats, waits, expensiveQueries, locks, tblStats, replication) =
-            try await (processes, databaseStats, waitStats, expensive, lockInfo, tableStatsResult, replicationResult)
+        async let operationProgressResult: [PostgresOperationProgress] = {
+            do { return try await fetchOperationProgress() }
+            catch { logger.error("Activity Monitor: Failed to fetch operation progress: \(error)"); return [] }
+        }()
+
+        let (procs, dbStats, waits, expensiveQueries, locks, tblStats, replication, opProgress) =
+            try await (processes, databaseStats, waitStats, expensive, lockInfo, tableStatsResult, replicationResult, operationProgressResult)
 
         let waitsDelta = computeWaitDeltas(current: waits)
         let dbStatsDelta = computeDatabaseStatsDeltas(current: dbStats, now: now)
@@ -147,7 +152,8 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
             pgStatStatementsAvailable: pgStatStatementsExists,
             locks: locks,
             tableStats: tblStats,
-            replicationInfo: replication
+            replicationInfo: replication,
+            operationProgress: opProgress
         )
     }
 
@@ -407,6 +413,76 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
                 writeLag: row.column("write_lag")?.string,
                 flushLag: row.column("flush_lag")?.string,
                 replayLag: row.column("replay_lag")?.string
+            ))
+        }
+        return results
+    }
+
+    private func fetchOperationProgress() async throws -> [PostgresOperationProgress] {
+        // UNION ALL across all pg_stat_progress_* views
+        let sql = """
+        SELECT v.pid, a.datname, v.operation, v.phase,
+               COALESCE(c.relname, '') AS relation,
+               v.progress_pct,
+               a.backend_start
+        FROM (
+            SELECT pid, 'VACUUM' AS operation, phase,
+                   relid,
+                   CASE WHEN heap_blks_total > 0
+                        THEN ROUND(100.0 * heap_blks_scanned / heap_blks_total)
+                        ELSE NULL END AS progress_pct
+            FROM pg_stat_progress_vacuum
+            UNION ALL
+            SELECT pid, 'ANALYZE' AS operation, phase,
+                   relid,
+                   CASE WHEN sample_blks_total > 0
+                        THEN ROUND(100.0 * sample_blks_scanned / sample_blks_total)
+                        ELSE NULL END AS progress_pct
+            FROM pg_stat_progress_analyze
+            UNION ALL
+            SELECT pid, 'CREATE INDEX' AS operation, phase,
+                   relid,
+                   CASE WHEN blocks_total > 0
+                        THEN ROUND(100.0 * blocks_done / blocks_total)
+                        ELSE NULL END AS progress_pct
+            FROM pg_stat_progress_create_index
+            UNION ALL
+            SELECT pid, 'CLUSTER' AS operation, phase,
+                   relid,
+                   CASE WHEN heap_blks_total > 0
+                        THEN ROUND(100.0 * heap_blks_scanned / heap_blks_total)
+                        ELSE NULL END AS progress_pct
+            FROM pg_stat_progress_cluster
+            UNION ALL
+            SELECT pid, 'COPY' AS operation, phase,
+                   relid,
+                   CASE WHEN bytes_total > 0
+                        THEN ROUND(100.0 * bytes_processed / bytes_total)
+                        ELSE NULL END AS progress_pct
+            FROM pg_stat_progress_copy
+            UNION ALL
+            SELECT pid, 'BASEBACKUP' AS operation, phase,
+                   0 AS relid,
+                   CASE WHEN backup_total > 0
+                        THEN ROUND(100.0 * backup_streamed / backup_total)
+                        ELSE NULL END AS progress_pct
+            FROM pg_stat_progress_basebackup
+        ) v
+        JOIN pg_stat_activity a ON a.pid = v.pid
+        LEFT JOIN pg_class c ON c.oid = v.relid AND v.relid > 0
+        ORDER BY v.pid
+        """
+        let rows = try await client.query(WireQuery(sql: sql))
+        var results: [PostgresOperationProgress] = []
+        for try await row in rows {
+            results.append(PostgresOperationProgress(
+                pid: row.column("pid")?.int32 ?? 0,
+                operation: row.column("operation")?.string ?? "",
+                phase: row.column("phase")?.string ?? "",
+                databaseName: row.column("datname")?.string,
+                relation: row.column("relation")?.string,
+                progressPercent: row.column("progress_pct")?.double,
+                startedAt: row.column("backend_start")?.date
             ))
         }
         return results

@@ -203,6 +203,43 @@ public extension PostgresIntrospectionClient {
         }
     }
 
+    /// List available character encodings.
+    func listEncodings() async throws -> [String] {
+        let sql = """
+            SELECT pg_catalog.pg_encoding_to_char(i) AS encoding
+            FROM generate_series(0, 100) i
+            WHERE pg_catalog.pg_encoding_to_char(i) <> ''
+            ORDER BY encoding
+            """
+        var names: [String] = []
+        let rows = try await client.simpleQuery(sql)
+        for try await name in rows.decode(String.self) { names.append(name) }
+        return names
+    }
+
+    /// List available collations.
+    func listCollations() async throws -> [String] {
+        let sql = """
+            SELECT collname
+            FROM pg_catalog.pg_collation
+            WHERE collencoding = -1 OR collencoding = (SELECT encoding FROM pg_catalog.pg_database WHERE datname = current_database())
+            ORDER BY collname
+            """
+        var names: [String] = []
+        let rows = try await client.simpleQuery(sql)
+        for try await name in rows.decode(String.self) { names.append(name) }
+        return names
+    }
+
+    /// List template databases.
+    func listDatabaseTemplates() async throws -> [String] {
+        let sql = "SELECT datname FROM pg_catalog.pg_database WHERE datistemplate = true ORDER BY datname"
+        var names: [String] = []
+        let rows = try await client.simpleQuery(sql)
+        for try await name in rows.decode(String.self) { names.append(name) }
+        return names
+    }
+
     /// Generate a `CREATE DATABASE` SQL statement from properties.
     func generateCreateDatabaseSQL(
         props: PostgresDatabaseProperties,

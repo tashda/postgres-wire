@@ -11,21 +11,27 @@ public struct PostgresActivityOptions: Sendable, Equatable {
 }
 
 public struct PostgresActivityOverview: Sendable {
-    public let processorTimePercent: Double
-    public let waitingTasksCount: Int
-    public let databaseIOMBPerSec: Double
+    public let connectionsCount: Int
+    public let maxConnections: Int
+    public let cacheHitPercent: Double
     public let transactionsPerSec: Double
+    public let databaseIOMBPerSec: Double
+    public let totalDeadTuples: Int64
 
     public init(
-        processorTimePercent: Double,
-        waitingTasksCount: Int,
+        connectionsCount: Int,
+        maxConnections: Int,
+        cacheHitPercent: Double,
+        transactionsPerSec: Double,
         databaseIOMBPerSec: Double,
-        transactionsPerSec: Double
+        totalDeadTuples: Int64
     ) {
-        self.processorTimePercent = processorTimePercent
-        self.waitingTasksCount = waitingTasksCount
-        self.databaseIOMBPerSec = databaseIOMBPerSec
+        self.connectionsCount = connectionsCount
+        self.maxConnections = maxConnections
+        self.cacheHitPercent = cacheHitPercent
         self.transactionsPerSec = transactionsPerSec
+        self.databaseIOMBPerSec = databaseIOMBPerSec
+        self.totalDeadTuples = totalDeadTuples
     }
 }
 
@@ -39,6 +45,9 @@ public struct PostgresActivitySnapshot: Sendable {
     public let databaseStatsDelta: [PostgresDatabaseStatDelta]?
     public let expensiveQueries: [PostgresExpensiveQuery]
     public let pgStatStatementsAvailable: Bool
+    public let locks: [PostgresLockInfo]
+    public let tableStats: [PostgresTableStat]
+    public let replicationInfo: [PostgresReplicationInfo]
 
     public init(
         capturedAt: Date = Date(),
@@ -49,7 +58,10 @@ public struct PostgresActivitySnapshot: Sendable {
         databaseStats: [PostgresDatabaseStat],
         databaseStatsDelta: [PostgresDatabaseStatDelta]? = nil,
         expensiveQueries: [PostgresExpensiveQuery],
-        pgStatStatementsAvailable: Bool = true
+        pgStatStatementsAvailable: Bool = true,
+        locks: [PostgresLockInfo] = [],
+        tableStats: [PostgresTableStat] = [],
+        replicationInfo: [PostgresReplicationInfo] = []
     ) {
         self.capturedAt = capturedAt
         self.overview = overview
@@ -60,12 +72,17 @@ public struct PostgresActivitySnapshot: Sendable {
         self.databaseStatsDelta = databaseStatsDelta
         self.expensiveQueries = expensiveQueries
         self.pgStatStatementsAvailable = pgStatStatementsAvailable
+        self.locks = locks
+        self.tableStats = tableStats
+        self.replicationInfo = replicationInfo
     }
 }
 
+// MARK: - Process Info
+
 public struct PostgresProcessInfo: Sendable, Identifiable {
     public var id: Int32 { pid }
-    
+
     public let pid: Int32
     public let databaseName: String?
     public let userName: String?
@@ -79,8 +96,11 @@ public struct PostgresProcessInfo: Sendable, Identifiable {
     public let waitEvent: String?
     public let state: String?
     public let query: String?
+    public let backendType: String?
     public let isBlocked: Bool
 }
+
+// MARK: - Wait Stats
 
 public struct PostgresWaitStat: Sendable {
     public let waitEventType: String
@@ -90,11 +110,13 @@ public struct PostgresWaitStat: Sendable {
 
 public struct PostgresWaitStatDelta: Sendable, Identifiable {
     public var id: String { "\(waitEventType):\(waitEvent)" }
-    
+
     public let waitEventType: String
     public let waitEvent: String
     public let countDelta: Int
 }
+
+// MARK: - Database Stats
 
 public struct PostgresDatabaseStat: Sendable {
     public let datname: String
@@ -108,21 +130,36 @@ public struct PostgresDatabaseStat: Sendable {
     public let tup_inserted: Int64
     public let tup_updated: Int64
     public let tup_deleted: Int64
+    public let temp_files: Int64
+    public let deadlocks: Int64
 }
 
 public struct PostgresDatabaseStatDelta: Sendable, Identifiable {
     public var id: String { datname }
-    
+
     public let datname: String
     public let xact_commit_delta: Int64
     public let xact_rollback_delta: Int64
     public let blks_read_delta: Int64
     public let blks_hit_delta: Int64
+    public let tup_inserted_delta: Int64
+    public let tup_updated_delta: Int64
+    public let tup_deleted_delta: Int64
+    public let temp_files_delta: Int64
+    public let deadlocks_delta: Int64
+
+    public var cacheHitRatio: Double? {
+        let total = blks_hit_delta + blks_read_delta
+        guard total > 0 else { return nil }
+        return Double(blks_hit_delta) / Double(total) * 100.0
+    }
 }
+
+// MARK: - Expensive Queries
 
 public struct PostgresExpensiveQuery: Sendable, Identifiable {
     public var id: String { "\(queryid ?? 0):\(query)" }
-    
+
     public let queryid: Int64?
     public let query: String
     public let calls: Int64
@@ -131,4 +168,59 @@ public struct PostgresExpensiveQuery: Sendable, Identifiable {
     public let max_exec_time: Double
     public let mean_exec_time: Double
     public let rows: Int64
+}
+
+// MARK: - Lock Info
+
+public struct PostgresLockInfo: Sendable, Identifiable {
+    public var id: String { "\(pid):\(locktype):\(mode):\(relation ?? "")" }
+
+    public let pid: Int32
+    public let databaseName: String?
+    public let locktype: String
+    public let relation: String?
+    public let mode: String
+    public let granted: Bool
+    public let blockingPid: Int32?
+    public let query: String?
+    public let state: String?
+    public let waitDuration: TimeInterval?
+}
+
+// MARK: - Table Stats
+
+public struct PostgresTableStat: Sendable, Identifiable {
+    public var id: String { "\(schemaName).\(tableName)" }
+
+    public let schemaName: String
+    public let tableName: String
+    public let seqScan: Int64
+    public let seqTupRead: Int64
+    public let idxScan: Int64
+    public let idxTupFetch: Int64
+    public let nLiveTup: Int64
+    public let nDeadTup: Int64
+    public let lastVacuum: Date?
+    public let lastAutoVacuum: Date?
+    public let lastAnalyze: Date?
+    public let lastAutoAnalyze: Date?
+}
+
+// MARK: - Replication Info
+
+public struct PostgresReplicationInfo: Sendable, Identifiable {
+    public var id: Int32 { pid }
+
+    public let pid: Int32
+    public let usename: String
+    public let applicationName: String
+    public let clientAddr: String?
+    public let state: String
+    public let sentLsn: String?
+    public let writeLsn: String?
+    public let flushLsn: String?
+    public let replayLsn: String?
+    public let writeLag: String?
+    public let flushLag: String?
+    public let replayLag: String?
 }

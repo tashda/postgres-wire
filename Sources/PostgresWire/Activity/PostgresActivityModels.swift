@@ -207,6 +207,21 @@ public struct PostgresTableStat: Sendable, Identifiable {
     public let lastAutoVacuum: Date?
     public let lastAnalyze: Date?
     public let lastAutoAnalyze: Date?
+
+    public init(schemaName: String, tableName: String, seqScan: Int64, seqTupRead: Int64, idxScan: Int64, idxTupFetch: Int64, nLiveTup: Int64, nDeadTup: Int64, lastVacuum: Date?, lastAutoVacuum: Date?, lastAnalyze: Date?, lastAutoAnalyze: Date?) {
+        self.schemaName = schemaName
+        self.tableName = tableName
+        self.seqScan = seqScan
+        self.seqTupRead = seqTupRead
+        self.idxScan = idxScan
+        self.idxTupFetch = idxTupFetch
+        self.nLiveTup = nLiveTup
+        self.nDeadTup = nDeadTup
+        self.lastVacuum = lastVacuum
+        self.lastAutoVacuum = lastAutoVacuum
+        self.lastAnalyze = lastAnalyze
+        self.lastAutoAnalyze = lastAutoAnalyze
+    }
 }
 
 // MARK: - Replication Info

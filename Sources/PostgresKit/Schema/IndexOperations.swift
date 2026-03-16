@@ -26,10 +26,14 @@ public extension PostgresAdminClient {
 
     /// Drop an existing index.
     @discardableResult
-    func dropIndex(name: String, ifExists: Bool = false, cascade: Bool = false) async throws -> Int {
+    func dropIndex(schema: String? = nil, name: String, ifExists: Bool = false, cascade: Bool = false) async throws -> Int {
         var parts: [String] = ["DROP INDEX"]
         if ifExists { parts.append("IF EXISTS") }
-        parts.append(client.quoteIdentifier(name))
+        if let schema {
+            parts.append("\(client.quoteIdentifier(schema)).\(client.quoteIdentifier(name))")
+        } else {
+            parts.append(client.quoteIdentifier(name))
+        }
         if cascade { parts.append("CASCADE") }
         return try await client.executeDDL(parts.joined(separator: " "))
     }

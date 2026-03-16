@@ -8,15 +8,45 @@ public extension PostgresAdminClient {
         name: String,
         ifNotExists: Bool = false,
         owner: String? = nil,
-        template: String = "template1",
-        encoding: String? = nil
+        template: String? = nil,
+        encoding: String? = nil,
+        lcCollate: String? = nil,
+        lcCtype: String? = nil,
+        icuLocale: String? = nil,
+        icuRules: String? = nil,
+        localeProvider: String? = nil,
+        collationVersion: String? = nil,
+        tablespace: String? = nil,
+        allowConnections: Bool? = nil,
+        connectionLimit: Int? = nil,
+        isTemplate: Bool? = nil,
+        strategy: String? = nil
     ) async throws -> Int {
         var parts: [String] = ["CREATE DATABASE"]
         if ifNotExists { parts.append("IF NOT EXISTS") }
         parts.append(client.quoteIdentifier(name))
-        parts.append("WITH TEMPLATE \(client.quoteIdentifier(template))")
-        if let owner { parts.append("OWNER \(client.quoteIdentifier(owner))") }
-        if let encoding { parts.append("ENCODING '\(encoding)'") }
+
+        var withClauses: [String] = []
+        if let template { withClauses.append("TEMPLATE = \(client.quoteIdentifier(template))") }
+        if let owner { withClauses.append("OWNER = \(client.quoteIdentifier(owner))") }
+        if let encoding { withClauses.append("ENCODING = '\(encoding)'") }
+        if let lcCollate { withClauses.append("LC_COLLATE = '\(lcCollate)'") }
+        if let lcCtype { withClauses.append("LC_CTYPE = '\(lcCtype)'") }
+        if let icuLocale { withClauses.append("ICU_LOCALE = '\(icuLocale)'") }
+        if let icuRules { withClauses.append("ICU_RULES = '\(icuRules)'") }
+        if let localeProvider { withClauses.append("LOCALE_PROVIDER = \(localeProvider)") }
+        if let collationVersion { withClauses.append("COLLATION_VERSION = '\(collationVersion)'") }
+        if let tablespace { withClauses.append("TABLESPACE = \(client.quoteIdentifier(tablespace))") }
+        if let allowConnections { withClauses.append("ALLOW_CONNECTIONS = \(allowConnections)") }
+        if let connectionLimit { withClauses.append("CONNECTION LIMIT = \(connectionLimit)") }
+        if let isTemplate { withClauses.append("IS_TEMPLATE = \(isTemplate)") }
+        if let strategy { withClauses.append("STRATEGY = \(strategy)") }
+
+        if !withClauses.isEmpty {
+            parts.append("WITH")
+            parts.append(withClauses.joined(separator: " "))
+        }
+
         return try await client.executeDDL(parts.joined(separator: " "))
     }
 

@@ -18,7 +18,7 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
 
     public func snapshot(options: PostgresActivityOptions = .init()) async throws -> PostgresActivitySnapshot {
         let now = Date()
-        
+
         // Fetch max_connections once if not already fetched
         if maxConnections == nil {
             do {
@@ -48,70 +48,81 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
             // Ignore error
         }
 
-        // Use task groups or async let with catch blocks for resilience
+        // Fetch all data in parallel with resilient error handling
         async let processes: [PostgresProcessInfo] = {
-            do { return try await fetchProcesses(options: options) }
+            do { return try await fetchProcesses(options: options, capturedAt: now) }
             catch { logger.error("Activity Monitor: Failed to fetch processes: \(error)"); return [] }
         }()
-        
+
         async let databaseStats: [PostgresDatabaseStat] = {
             do { return try await fetchDatabaseStats() }
             catch { logger.error("Activity Monitor: Failed to fetch DB stats: \(error)"); return [] }
         }()
-        
+
         async let waitStats: [PostgresWaitStat] = {
             do { return try await fetchWaits() }
             catch { logger.error("Activity Monitor: Failed to fetch waits: \(error)"); return [] }
         }()
-        
+
         async let expensive: [PostgresExpensiveQuery] = {
+            guard pgStatStatementsExists else { return [] }
             do { return try await fetchExpensiveQueries(options: options) }
             catch { logger.error("Activity Monitor: Failed to fetch expensive queries: \(error)"); return [] }
         }()
-        
-        let (procs, dbStats, waits, expensiveQueries) = try await (processes, databaseStats, waitStats, expensive)
-        
+
+        async let lockInfo: [PostgresLockInfo] = {
+            do { return try await fetchLocks() }
+            catch { logger.error("Activity Monitor: Failed to fetch locks: \(error)"); return [] }
+        }()
+
+        async let tableStatsResult: [PostgresTableStat] = {
+            do { return try await fetchTableStats() }
+            catch { logger.error("Activity Monitor: Failed to fetch table stats: \(error)"); return [] }
+        }()
+
+        async let replicationResult: [PostgresReplicationInfo] = {
+            do { return try await fetchReplicationStats() }
+            catch { logger.error("Activity Monitor: Failed to fetch replication: \(error)"); return [] }
+        }()
+
+        let (procs, dbStats, waits, expensiveQueries, locks, tblStats, replication) =
+            try await (processes, databaseStats, waitStats, expensive, lockInfo, tableStatsResult, replicationResult)
+
         let waitsDelta = computeWaitDeltas(current: waits)
         let dbStatsDelta = computeDatabaseStatsDeltas(current: dbStats, now: now)
-        
-        // Overview calculation
-        let waitingTasks = procs.filter { $0.waitEvent != nil }.count
-        
-        // Estimate CPU usage based on active (non-idle) backends
-        let activeBackends = procs.filter { 
-            guard let state = $0.state else { return false }
-            return !state.contains("idle") 
-        }.count
-        
-        var cpuEstimate: Double = 0
-        if activeBackends > 0 {
-            if let maxConn = maxConnections, maxConn > 0 {
-                let rawRatio = Double(activeBackends) / Double(maxConn)
-                // Use Swift.max to avoid confusion if we have local variables
-                cpuEstimate = Swift.min(100.0, Swift.max(Double(activeBackends) * 2.0, rawRatio * 100.0))
-            } else {
-                cpuEstimate = Double(Swift.min(activeBackends * 5, 100))
-            }
-        }
 
-        let totalXactDelta = dbStatsDelta.reduce(0) { $0 + $1.xact_commit_delta + $1.xact_rollback_delta }
-        let totalBlocksReadDelta = dbStatsDelta.reduce(0) { $0 + $1.blks_read_delta }
-        
+        // Overview calculation
+        let totalConnections = dbStats.reduce(0) { $0 + $1.numbackends }
+        let maxConn = maxConnections ?? 100
+
+        // Cache hit ratio across all databases
+        let totalHit = dbStatsDelta.reduce(Int64(0)) { $0 + $1.blks_hit_delta }
+        let totalRead = dbStatsDelta.reduce(Int64(0)) { $0 + $1.blks_read_delta }
+        let totalBlocks = totalHit + totalRead
+        let cacheHitPercent = totalBlocks > 0 ? Double(totalHit) / Double(totalBlocks) * 100.0 : 100.0
+
+        let totalXactDelta = dbStatsDelta.reduce(Int64(0)) { $0 + $1.xact_commit_delta + $1.xact_rollback_delta }
+        let totalBlocksReadDelta = dbStatsDelta.reduce(Int64(0)) { $0 + $1.blks_read_delta }
+
         let elapsed = now.timeIntervalSince(lastSnapshotTime ?? now)
         let xactRate = elapsed > 0 ? Double(totalXactDelta) / elapsed : 0
         let ioRate = elapsed > 0 ? (Double(totalBlocksReadDelta) * 8192) / (1024 * 1024 * elapsed) : 0
-        
+
+        let totalDeadTuples = tblStats.reduce(Int64(0)) { $0 + $1.nDeadTup }
+
         let overview = PostgresActivityOverview(
-            processorTimePercent: cpuEstimate, 
-            waitingTasksCount: waitingTasks,
+            connectionsCount: totalConnections,
+            maxConnections: maxConn,
+            cacheHitPercent: cacheHitPercent,
+            transactionsPerSec: xactRate,
             databaseIOMBPerSec: ioRate,
-            transactionsPerSec: xactRate
+            totalDeadTuples: totalDeadTuples
         )
-        
+
         self.baselineLock.withLock {
             self.lastSnapshotTime = now
         }
-        
+
         return PostgresActivitySnapshot(
             capturedAt: now,
             overview: overview,
@@ -121,7 +132,10 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
             databaseStats: dbStats,
             databaseStatsDelta: dbStatsDelta,
             expensiveQueries: expensiveQueries,
-            pgStatStatementsAvailable: pgStatStatementsExists
+            pgStatStatementsAvailable: pgStatStatementsExists,
+            locks: locks,
+            tableStats: tblStats,
+            replicationInfo: replication
         )
     }
 
@@ -154,9 +168,11 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
 
     // MARK: - Internal Queries
 
-    private func fetchProcesses(options: PostgresActivityOptions) async throws -> [PostgresProcessInfo] {
+    private func fetchProcesses(options: PostgresActivityOptions, capturedAt: Date) async throws -> [PostgresProcessInfo] {
         let sql = """
-        SELECT pid, datname, usename, application_name, client_addr, backend_start, xact_start, query_start, state_change, wait_event_type, wait_event, state, query
+        SELECT pid, datname, usename, application_name, client_addr,
+               backend_start, xact_start, query_start, state_change,
+               wait_event_type, wait_event, state, query, backend_type
         FROM pg_stat_activity
         WHERE pid <> pg_backend_pid()
         ORDER BY pid
@@ -178,6 +194,7 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
                 waitEvent: row.column("wait_event")?.string,
                 state: row.column("state")?.string,
                 query: options.includeSqlText ? row.column("query")?.string : nil,
+                backendType: row.column("backend_type")?.string,
                 isBlocked: false
             ))
         }
@@ -209,7 +226,10 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
 
     private func fetchDatabaseStats() async throws -> [PostgresDatabaseStat] {
         let sql = """
-        SELECT datname, numbackends, xact_commit, xact_rollback, blks_read, blks_hit, tup_returned, tup_fetched, tup_inserted, tup_updated, tup_deleted
+        SELECT datname, numbackends, xact_commit, xact_rollback,
+               blks_read, blks_hit, tup_returned, tup_fetched,
+               tup_inserted, tup_updated, tup_deleted,
+               temp_files, deadlocks
         FROM pg_stat_database
         WHERE datname IS NOT NULL
         ORDER BY datname
@@ -229,7 +249,9 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
                 tup_fetched: row.column("tup_fetched")?.int64 ?? 0,
                 tup_inserted: row.column("tup_inserted")?.int64 ?? 0,
                 tup_updated: row.column("tup_updated")?.int64 ?? 0,
-                tup_deleted: row.column("tup_deleted")?.int64 ?? 0
+                tup_deleted: row.column("tup_deleted")?.int64 ?? 0,
+                temp_files: row.column("temp_files")?.int64 ?? 0,
+                deadlocks: row.column("deadlocks")?.int64 ?? 0
             ))
         }
         return results
@@ -237,7 +259,8 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
 
     private func fetchExpensiveQueries(options: PostgresActivityOptions) async throws -> [PostgresExpensiveQuery] {
         let sql = """
-        SELECT queryid, query, calls, total_exec_time, min_exec_time, max_exec_time, mean_exec_time, rows
+        SELECT queryid, query, calls, total_exec_time, min_exec_time,
+               max_exec_time, mean_exec_time, rows
         FROM pg_stat_statements
         ORDER BY total_exec_time DESC
         LIMIT 20
@@ -254,6 +277,117 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
                 max_exec_time: row.column("max_exec_time")?.double ?? 0,
                 mean_exec_time: row.column("mean_exec_time")?.double ?? 0,
                 rows: row.column("rows")?.int64 ?? 0
+            ))
+        }
+        return results
+    }
+
+    private func fetchLocks() async throws -> [PostgresLockInfo] {
+        let sql = """
+        SELECT l.pid, a.datname, l.locktype,
+               COALESCE(c.relname, l.locktype) AS relation,
+               l.mode, l.granted,
+               bl.pid AS blocking_pid,
+               a.query, a.state,
+               CASE WHEN NOT l.granted AND a.state_change IS NOT NULL
+                    THEN EXTRACT(EPOCH FROM (now() - a.state_change))
+                    ELSE NULL
+               END AS wait_seconds
+        FROM pg_locks l
+        JOIN pg_stat_activity a ON l.pid = a.pid
+        LEFT JOIN pg_class c ON l.relation = c.oid
+        LEFT JOIN pg_locks bl ON bl.locktype = l.locktype
+            AND bl.relation = l.relation
+            AND bl.page = l.page
+            AND bl.tuple = l.tuple
+            AND bl.granted = true
+            AND bl.pid <> l.pid
+            AND NOT l.granted
+        WHERE a.pid <> pg_backend_pid()
+        ORDER BY l.granted ASC, l.pid
+        """
+        let rows = try await client.query(WireQuery(sql: sql))
+        var results: [PostgresLockInfo] = []
+        for try await row in rows {
+            results.append(PostgresLockInfo(
+                pid: row.column("pid")?.int32 ?? 0,
+                databaseName: row.column("datname")?.string,
+                locktype: row.column("locktype")?.string ?? "",
+                relation: row.column("relation")?.string,
+                mode: row.column("mode")?.string ?? "",
+                granted: row.column("granted")?.bool ?? true,
+                blockingPid: row.column("blocking_pid")?.int32,
+                query: row.column("query")?.string,
+                state: row.column("state")?.string,
+                waitDuration: row.column("wait_seconds")?.double
+            ))
+        }
+        return results
+    }
+
+    private func fetchTableStats() async throws -> [PostgresTableStat] {
+        let sql = """
+        SELECT schemaname, relname,
+               COALESCE(seq_scan, 0) AS seq_scan,
+               COALESCE(seq_tup_read, 0) AS seq_tup_read,
+               COALESCE(idx_scan, 0) AS idx_scan,
+               COALESCE(idx_tup_fetch, 0) AS idx_tup_fetch,
+               COALESCE(n_live_tup, 0) AS n_live_tup,
+               COALESCE(n_dead_tup, 0) AS n_dead_tup,
+               last_vacuum, last_autovacuum,
+               last_analyze, last_autoanalyze
+        FROM pg_stat_user_tables
+        ORDER BY n_dead_tup DESC
+        LIMIT 50
+        """
+        let rows = try await client.query(WireQuery(sql: sql))
+        var results: [PostgresTableStat] = []
+        for try await row in rows {
+            guard let schema = row.column("schemaname")?.string,
+                  let name = row.column("relname")?.string else { continue }
+            results.append(PostgresTableStat(
+                schemaName: schema,
+                tableName: name,
+                seqScan: row.column("seq_scan")?.int64 ?? 0,
+                seqTupRead: row.column("seq_tup_read")?.int64 ?? 0,
+                idxScan: row.column("idx_scan")?.int64 ?? 0,
+                idxTupFetch: row.column("idx_tup_fetch")?.int64 ?? 0,
+                nLiveTup: row.column("n_live_tup")?.int64 ?? 0,
+                nDeadTup: row.column("n_dead_tup")?.int64 ?? 0,
+                lastVacuum: row.column("last_vacuum")?.date,
+                lastAutoVacuum: row.column("last_autovacuum")?.date,
+                lastAnalyze: row.column("last_analyze")?.date,
+                lastAutoAnalyze: row.column("last_autoanalyze")?.date
+            ))
+        }
+        return results
+    }
+
+    private func fetchReplicationStats() async throws -> [PostgresReplicationInfo] {
+        let sql = """
+        SELECT pid, usename, application_name, client_addr,
+               state, sent_lsn::text, write_lsn::text,
+               flush_lsn::text, replay_lsn::text,
+               write_lag::text, flush_lag::text, replay_lag::text
+        FROM pg_stat_replication
+        ORDER BY pid
+        """
+        let rows = try await client.query(WireQuery(sql: sql))
+        var results: [PostgresReplicationInfo] = []
+        for try await row in rows {
+            results.append(PostgresReplicationInfo(
+                pid: row.column("pid")?.int32 ?? 0,
+                usename: row.column("usename")?.string ?? "",
+                applicationName: row.column("application_name")?.string ?? "",
+                clientAddr: row.column("client_addr")?.string,
+                state: row.column("state")?.string ?? "",
+                sentLsn: row.column("sent_lsn")?.string,
+                writeLsn: row.column("write_lsn")?.string,
+                flushLsn: row.column("flush_lsn")?.string,
+                replayLsn: row.column("replay_lsn")?.string,
+                writeLag: row.column("write_lag")?.string,
+                flushLag: row.column("flush_lag")?.string,
+                replayLag: row.column("replay_lag")?.string
             ))
         }
         return results
@@ -294,7 +428,12 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
                     xact_commit_delta: max(0, s.xact_commit - prev.xact_commit),
                     xact_rollback_delta: max(0, s.xact_rollback - prev.xact_rollback),
                     blks_read_delta: max(0, s.blks_read - prev.blks_read),
-                    blks_hit_delta: max(0, s.blks_hit - prev.blks_hit)
+                    blks_hit_delta: max(0, s.blks_hit - prev.blks_hit),
+                    tup_inserted_delta: max(0, s.tup_inserted - prev.tup_inserted),
+                    tup_updated_delta: max(0, s.tup_updated - prev.tup_updated),
+                    tup_deleted_delta: max(0, s.tup_deleted - prev.tup_deleted),
+                    temp_files_delta: max(0, s.temp_files - prev.temp_files),
+                    deadlocks_delta: max(0, s.deadlocks - prev.deadlocks)
                 )
                 deltas.append(d)
             }

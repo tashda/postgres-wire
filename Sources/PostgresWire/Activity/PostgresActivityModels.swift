@@ -49,6 +49,7 @@ public struct PostgresActivitySnapshot: Sendable {
     public let locks: [PostgresLockInfo]
     public let tableStats: [PostgresTableStat]
     public let replicationInfo: [PostgresReplicationInfo]
+    public let operationProgress: [PostgresOperationProgress]
 
     public init(
         capturedAt: Date = Date(),
@@ -63,7 +64,8 @@ public struct PostgresActivitySnapshot: Sendable {
         pgStatStatementsAvailable: Bool = true,
         locks: [PostgresLockInfo] = [],
         tableStats: [PostgresTableStat] = [],
-        replicationInfo: [PostgresReplicationInfo] = []
+        replicationInfo: [PostgresReplicationInfo] = [],
+        operationProgress: [PostgresOperationProgress] = []
     ) {
         self.capturedAt = capturedAt
         self.connectedDatabase = connectedDatabase
@@ -78,6 +80,7 @@ public struct PostgresActivitySnapshot: Sendable {
         self.locks = locks
         self.tableStats = tableStats
         self.replicationInfo = replicationInfo
+        self.operationProgress = operationProgress
     }
 }
 
@@ -221,6 +224,38 @@ public struct PostgresTableStat: Sendable, Identifiable {
         self.lastAutoVacuum = lastAutoVacuum
         self.lastAnalyze = lastAnalyze
         self.lastAutoAnalyze = lastAutoAnalyze
+    }
+}
+
+// MARK: - Operation Progress
+
+public struct PostgresOperationProgress: Sendable, Identifiable {
+    public var id: String { "\(pid):\(operation)" }
+
+    public let pid: Int32
+    public let operation: String
+    public let phase: String
+    public let databaseName: String?
+    public let relation: String?
+    public let progressPercent: Double?
+    public let startedAt: Date?
+
+    public init(
+        pid: Int32,
+        operation: String,
+        phase: String,
+        databaseName: String? = nil,
+        relation: String? = nil,
+        progressPercent: Double? = nil,
+        startedAt: Date? = nil
+    ) {
+        self.pid = pid
+        self.operation = operation
+        self.phase = phase
+        self.databaseName = databaseName
+        self.relation = relation
+        self.progressPercent = progressPercent
+        self.startedAt = startedAt
     }
 }
 

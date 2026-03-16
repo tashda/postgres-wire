@@ -104,14 +104,4 @@ public extension PostgresAdminClient {
         }
         return try await client.executeDDL(parts.joined(separator: " "))
     }
-
-    /// Perform a DROP INDEX operation.
-    @discardableResult
-    func dropIndex(schema: String? = nil, name: String, cascade: Bool = false) async throws -> Int {
-        var sql = "DROP INDEX "
-        if let schema { sql += "\(client.quoteIdentifier(schema)).\(client.quoteIdentifier(name))" }
-        else { sql += client.quoteIdentifier(name) }
-        if cascade { sql += " CASCADE" }
-        return try await client.executeDDL(sql)
-    }
 }

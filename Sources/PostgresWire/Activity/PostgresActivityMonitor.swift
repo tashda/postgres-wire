@@ -11,6 +11,7 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
     private var lastDatabaseStats: [String: PostgresDatabaseStat] = [:]
     private var lastSnapshotTime: Date?
     private var maxConnections: Int?
+    private var currentDatabase: String?
 
     public init(client: PostgresWireClient) {
         self.client = client
@@ -19,19 +20,29 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
     public func snapshot(options: PostgresActivityOptions = .init()) async throws -> PostgresActivitySnapshot {
         let now = Date()
 
-        // Fetch max_connections once if not already fetched
+        // Fetch one-time server info
         if maxConnections == nil {
             do {
                 let rows = try await client.query(WireQuery(sql: "SHOW max_connections"))
                 for try await row in rows {
                     if let val = row.column("max_connections")?.int {
                         maxConnections = val
-                        logger.debug("Activity Monitor: max_connections is \(val)")
                     }
                     break
                 }
             } catch {
                 logger.error("Activity Monitor: Failed to fetch max_connections: \(error)")
+            }
+        }
+        if currentDatabase == nil {
+            do {
+                let rows = try await client.query(WireQuery(sql: "SELECT current_database()"))
+                for try await row in rows {
+                    currentDatabase = row.column("current_database")?.string
+                    break
+                }
+            } catch {
+                logger.error("Activity Monitor: Failed to fetch current_database: \(error)")
             }
         }
 
@@ -125,6 +136,7 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
 
         return PostgresActivitySnapshot(
             capturedAt: now,
+            connectedDatabase: currentDatabase ?? "postgres",
             overview: overview,
             processes: procs,
             waits: waits,
@@ -283,6 +295,11 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
     }
 
     private func fetchLocks() async throws -> [PostgresLockInfo] {
+        // Filter out:
+        // - Our own backend PID (the monitor's queries)
+        // - AccessShareLock on system catalog objects (pg_*) — these are routine read locks
+        //   taken by every SELECT and are not meaningful contention
+        // Focus on: waiting locks, exclusive locks, locks on user relations
         let sql = """
         SELECT l.pid, a.datname, l.locktype,
                COALESCE(c.relname, l.locktype) AS relation,
@@ -304,6 +321,8 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
             AND bl.pid <> l.pid
             AND NOT l.granted
         WHERE a.pid <> pg_backend_pid()
+          AND NOT (l.mode = 'AccessShareLock' AND l.granted
+                   AND c.relname IS NOT NULL AND c.relname LIKE 'pg_%')
         ORDER BY l.granted ASC, l.pid
         """
         let rows = try await client.query(WireQuery(sql: sql))

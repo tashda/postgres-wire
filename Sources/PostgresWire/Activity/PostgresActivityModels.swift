@@ -37,6 +37,7 @@ public struct PostgresActivityOverview: Sendable {
 
 public struct PostgresActivitySnapshot: Sendable {
     public let capturedAt: Date
+    public let connectedDatabase: String
     public let overview: PostgresActivityOverview?
     public let processes: [PostgresProcessInfo]
     public let waits: [PostgresWaitStat]
@@ -51,6 +52,7 @@ public struct PostgresActivitySnapshot: Sendable {
 
     public init(
         capturedAt: Date = Date(),
+        connectedDatabase: String = "postgres",
         overview: PostgresActivityOverview? = nil,
         processes: [PostgresProcessInfo],
         waits: [PostgresWaitStat],
@@ -64,6 +66,7 @@ public struct PostgresActivitySnapshot: Sendable {
         replicationInfo: [PostgresReplicationInfo] = []
     ) {
         self.capturedAt = capturedAt
+        self.connectedDatabase = connectedDatabase
         self.overview = overview
         self.processes = processes
         self.waits = waits

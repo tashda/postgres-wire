@@ -16,6 +16,12 @@ A high-performance, SwiftNIO-based PostgreSQL client library for Swift, providin
 - **Metadata Utilities**: Helpers to list databases, schemas, tables, and object definitions natively in Swift.
 - **Independent**: Clean API surface completely independent of any specific web framework.
 
+## Prerequisites
+
+- **Swift 6.0+**
+- **PostgreSQL 14, 15, 16, 17, 18** (Required for integration testing)
+- **Docker** (Optional, for automated testing)
+
 ## Installation
 
 Add `postgres-wire` to your `Package.swift` dependencies:

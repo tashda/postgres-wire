@@ -11,6 +11,7 @@ DerivedData/
 .env
 .claude/
 .swift-docc-build/
+AGENT.md
+AGENTS.md
 GEMINI.md
-AGENT.MD
 CLAUDE.md

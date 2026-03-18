@@ -1,11 +1,14 @@
-name: Auto Release
+name: "CD: Auto-Tag & GitHub Release"
+
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   release:
+    name: "🏷️ Create New Version & Release"
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -14,7 +17,7 @@ jobs:
         with:
           fetch-depth: 0
           
-      - name: Determine Next Version
+      - name: "🔢 Calculating Next Semantic Version"
         id: version
         run: |
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
@@ -27,14 +30,14 @@ jobs:
           echo "Next tag: $NEXT_TAG"
           echo "tag=$NEXT_TAG" >> $GITHUB_OUTPUT
 
-      - name: Create Git Tag
+      - name: "🖊️ Tagging Repository"
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag ${{ steps.version.outputs.tag }}
           git push origin ${{ steps.version.outputs.tag }}
 
-      - name: Create GitHub Release
+      - name: "🚀 Creating GitHub Release"
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}

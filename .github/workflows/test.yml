@@ -81,10 +81,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: "Legacy Support (PostgreSQL 12)"
-            version: "12"
-          - name: "Legacy Support (PostgreSQL 13)"
-            version: "13"
           - name: "Active Release (PostgreSQL 14)"
             version: "14"
           - name: "Active Release (PostgreSQL 15)"

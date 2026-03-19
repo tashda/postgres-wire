@@ -204,6 +204,23 @@ public struct PostgresExtensionInfo: Sendable {
     }
 }
 
+/// Table-level storage and configuration properties.
+public struct PostgresTableProperties: Sendable {
+    public let fillfactor: Int?
+    public let toastTupleTarget: Int?
+    public let autovacuumEnabled: Bool?
+    public let parallelWorkers: Int?
+    public let tablespace: String?
+
+    public init(fillfactor: Int? = nil, toastTupleTarget: Int? = nil, autovacuumEnabled: Bool? = nil, parallelWorkers: Int? = nil, tablespace: String? = nil) {
+        self.fillfactor = fillfactor
+        self.toastTupleTarget = toastTupleTarget
+        self.autovacuumEnabled = autovacuumEnabled
+        self.parallelWorkers = parallelWorkers
+        self.tablespace = tablespace
+    }
+}
+
 /// Information about an object owned by an extension.
 public struct PostgresExtensionObject: Sendable {
     public let schema: String

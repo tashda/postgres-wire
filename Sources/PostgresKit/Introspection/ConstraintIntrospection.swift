@@ -205,6 +205,49 @@ public extension PostgresIntrospectionClient {
         }
     }
 
+    /// Fetch table-level storage properties from reloptions.
+    func tableProperties(schema: String, table: String) async throws -> PostgresTableProperties {
+        let sql = """
+            SELECT
+                c.reloptions::text AS reloptions,
+                ts.spcname::text AS tablespace
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            LEFT JOIN pg_tablespace ts ON ts.oid = c.reltablespace
+            WHERE n.nspname = $1 AND c.relname = $2
+            """
+        return try await client.withConnection { conn in
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
+            var fillfactor: Int?
+            var toastTupleTarget: Int?
+            var autovacuumEnabled: Bool?
+            var parallelWorkers: Int?
+            var tablespace: String?
+            for row in rows {
+                let (reloptionsStr, ts) = try row.decode((String?, String?).self)
+                tablespace = ts
+                // reloptions is a text[] like {fillfactor=90,toast_tuple_target=128}
+                if let opts = reloptionsStr {
+                    let cleaned = opts.trimmingCharacters(in: CharacterSet(charactersIn: "{}"))
+                    for pair in cleaned.split(separator: ",") {
+                        let parts = pair.split(separator: "=", maxSplits: 1)
+                        guard parts.count == 2 else { continue }
+                        let key = parts[0].trimmingCharacters(in: .whitespaces)
+                        let value = parts[1].trimmingCharacters(in: .whitespaces)
+                        switch key {
+                        case "fillfactor": fillfactor = Int(value)
+                        case "toast_tuple_target": toastTupleTarget = Int(value)
+                        case "autovacuum_enabled": autovacuumEnabled = value == "true" || value == "on"
+                        case "parallel_workers": parallelWorkers = Int(value)
+                        default: break
+                        }
+                    }
+                }
+            }
+            return PostgresTableProperties(fillfactor: fillfactor, toastTupleTarget: toastTupleTarget, autovacuumEnabled: autovacuumEnabled, parallelWorkers: parallelWorkers, tablespace: tablespace)
+        }
+    }
+
     /// List all check constraints for a table.
     func checkConstraints(schema: String, table: String) async throws -> [PostgresCheckConstraintInfo] {
         let sql = """

@@ -77,6 +77,10 @@ public struct PostgresMetadata: Sendable {
         try await client.introspection.checkConstraints(schema: schema, table: table)
     }
 
+    public func tableProperties(using client: PostgresClient, schema: String, table: String) async throws -> PostgresTableProperties {
+        try await client.introspection.tableProperties(schema: schema, table: table)
+    }
+
     public func schemaSummary(
         using client: PostgresClient,
         schema: String,

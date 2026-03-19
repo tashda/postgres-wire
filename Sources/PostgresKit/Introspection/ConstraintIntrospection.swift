@@ -5,30 +5,42 @@ public extension PostgresIntrospectionClient {
     /// Fetch primary key information for a table.
     func primaryKey(schema: String, table: String) async throws -> PostgresPrimaryKeyInfo? {
         let sql = """
-            SELECT tc.constraint_name, kcu.column_name
-            FROM information_schema.table_constraints AS tc
-            JOIN information_schema.key_column_usage AS kcu
-              ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
-            WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_schema = $1 AND tc.table_name = $2
-            ORDER BY kcu.ordinal_position
+            SELECT
+                c.conname::text AS constraint_name,
+                a.attname::text AS column_name,
+                c.condeferrable::text AS is_deferrable,
+                c.condeferred::text AS is_deferred
+            FROM pg_constraint c
+            JOIN pg_class cl ON cl.oid = c.conrelid
+            JOIN pg_namespace ns ON ns.oid = cl.relnamespace
+            CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS u(attnum, ord)
+            JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = u.attnum
+            WHERE c.contype = 'p'
+              AND ns.nspname = $1
+              AND cl.relname = $2
+            ORDER BY u.ord
             """
         return try await client.withConnection { conn in
             let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var name: String?
             var cols: [String] = []
+            var isDeferrable = false
+            var isDeferred = false
             for row in rows {
-                let (n, c) = try row.decode((String, String).self)
+                let (n, c, defStr, dfdStr) = try row.decode((String, String, String?, String?).self)
                 name = n
                 cols.append(c)
+                isDeferrable = defStr == "true" || defStr == "t"
+                isDeferred = dfdStr == "true" || dfdStr == "t"
             }
-            if let name { return PostgresPrimaryKeyInfo(name: name, columns: cols) }
+            if let name { return PostgresPrimaryKeyInfo(name: name, columns: cols, isDeferrable: isDeferrable, isInitiallyDeferred: isDeferred) }
             return nil
         }
     }
 
     /// List all foreign keys for a table.
     func foreignKeys(schema: String, table: String) async throws -> [PostgresForeignKeyInfo] {
-        struct Row { let name: String; let column: String; let refSchema: String; let refTable: String; let refColumn: String; let onUpdate: String?; let onDelete: String?; let position: Int }
+        struct Row { let name: String; let column: String; let refSchema: String; let refTable: String; let refColumn: String; let onUpdate: String?; let onDelete: String?; let position: Int; let isDeferrable: Bool; let isDeferred: Bool }
         let sql = """
             SELECT
                 c.conname::text AS constraint_name,
@@ -46,7 +58,9 @@ public extension PostgresIntrospectionClient {
                     WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL'
                     WHEN 'd' THEN 'SET DEFAULT' ELSE NULL
                 END::text AS delete_rule,
-                u.ord::text AS ordinal_position
+                u.ord::text AS ordinal_position,
+                c.condeferrable::text AS is_deferrable,
+                c.condeferred::text AS is_deferred
             FROM pg_constraint c
             JOIN pg_class cl ON cl.oid = c.conrelid
             JOIN pg_namespace ns ON ns.oid = cl.relnamespace
@@ -64,13 +78,15 @@ public extension PostgresIntrospectionClient {
             let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var fks: [String: [Row]] = [:]
             for row in rows {
-                let (name, column, refSchema, refTable, refColumn, onUpdate, onDelete, posStr) = try row.decode((String, String, String, String, String, String?, String?, String).self)
+                let (name, column, refSchema, refTable, refColumn, onUpdate, onDelete, posStr, deferrableStr, deferredStr) = try row.decode((String, String, String, String, String, String?, String?, String, String?, String?).self)
                 let position = Int(posStr) ?? 0
-                fks[name, default: []].append(Row(name: name, column: column, refSchema: refSchema, refTable: refTable, refColumn: refColumn, onUpdate: onUpdate, onDelete: onDelete, position: position))
+                let isDeferrable = deferrableStr == "true" || deferrableStr == "t"
+                let isDeferred = deferredStr == "true" || deferredStr == "t"
+                fks[name, default: []].append(Row(name: name, column: column, refSchema: refSchema, refTable: refTable, refColumn: refColumn, onUpdate: onUpdate, onDelete: onDelete, position: position, isDeferrable: isDeferrable, isDeferred: isDeferred))
             }
             return fks.sorted { $0.key < $1.key }.map { name, rows in
                 let sorted = rows.sorted { $0.position < $1.position }
-                return PostgresForeignKeyInfo(name: name, columns: sorted.map { $0.column }, referencedSchema: sorted.first!.refSchema, referencedTable: sorted.first!.refTable, referencedColumns: sorted.map { $0.refColumn }, onUpdate: sorted.first!.onUpdate, onDelete: sorted.first!.onDelete)
+                return PostgresForeignKeyInfo(name: name, columns: sorted.map { $0.column }, referencedSchema: sorted.first!.refSchema, referencedTable: sorted.first!.refTable, referencedColumns: sorted.map { $0.refColumn }, onUpdate: sorted.first!.onUpdate, onDelete: sorted.first!.onDelete, isDeferrable: sorted.first!.isDeferrable, isInitiallyDeferred: sorted.first!.isDeferred)
             }
         }
     }
@@ -78,21 +94,34 @@ public extension PostgresIntrospectionClient {
     /// List all unique constraints for a table.
     func uniqueConstraints(schema: String, table: String) async throws -> [PostgresUniqueConstraintInfo] {
         let sql = """
-            SELECT tc.constraint_name::text, kcu.column_name::text
-            FROM information_schema.table_constraints AS tc
-            JOIN information_schema.key_column_usage AS kcu
-              ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
-            WHERE tc.constraint_type = 'UNIQUE' AND tc.table_schema = $1 AND tc.table_name = $2
-            ORDER BY tc.constraint_name, kcu.ordinal_position
+            SELECT
+                c.conname::text AS constraint_name,
+                a.attname::text AS column_name,
+                c.condeferrable::text AS is_deferrable,
+                c.condeferred::text AS is_deferred
+            FROM pg_constraint c
+            JOIN pg_class cl ON cl.oid = c.conrelid
+            JOIN pg_namespace ns ON ns.oid = cl.relnamespace
+            CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS u(attnum, ord)
+            JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = u.attnum
+            WHERE c.contype = 'u'
+              AND ns.nspname = $1
+              AND cl.relname = $2
+            ORDER BY c.conname, u.ord
             """
         return try await client.withConnection { conn in
             let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
-            var map: [String: [String]] = [:]
+            struct Entry { var columns: [String] = []; var isDeferrable = false; var isDeferred = false }
+            var map: [String: Entry] = [:]
             for row in rows {
-                let (name, column) = try row.decode((String, String).self)
-                map[name, default: []].append(column)
+                let (name, column, defStr, dfdStr) = try row.decode((String, String, String?, String?).self)
+                var entry = map[name] ?? Entry()
+                entry.columns.append(column)
+                entry.isDeferrable = defStr == "true" || defStr == "t"
+                entry.isDeferred = dfdStr == "true" || dfdStr == "t"
+                map[name] = entry
             }
-            return map.sorted { $0.key < $1.key }.map { PostgresUniqueConstraintInfo(name: $0.key, columns: $0.value) }
+            return map.sorted { $0.key < $1.key }.map { PostgresUniqueConstraintInfo(name: $0.key, columns: $0.value.columns, isDeferrable: $0.value.isDeferrable, isInitiallyDeferred: $0.value.isDeferred) }
         }
     }
 
@@ -138,11 +167,14 @@ public extension PostgresIntrospectionClient {
             ord.position::text,
             att.attname::text,
             ((ix.indoption[ord.position] & 1) = 1)::text AS is_descending,
-            pg_get_expr(ix.indpred, tab.oid)::text AS predicate
+            pg_get_expr(ix.indpred, tab.oid)::text AS predicate,
+            am.amname::text AS index_type,
+            ix.indnkeyatts::text AS num_key_columns
         FROM pg_class tab
         JOIN pg_index ix ON tab.oid = ix.indrelid
         JOIN pg_class idx ON idx.oid = ix.indexrelid
         JOIN pg_namespace ns ON ns.oid = tab.relnamespace
+        JOIN pg_am am ON am.oid = idx.relam
         CROSS JOIN LATERAL generate_subscripts(ix.indkey, 1) AS ord(position)
         LEFT JOIN pg_attribute att ON att.attrelid = tab.oid AND att.attnum = ix.indkey[ord.position]
         WHERE ns.nspname = $1
@@ -152,20 +184,54 @@ public extension PostgresIntrospectionClient {
         """
         return try await client.withConnection { conn in
             let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
-            var acc: [String: (unique: Bool, cols: [PostgresIndexInfo.Column], predicate: String?)] = [:]
+            var acc: [String: (unique: Bool, cols: [PostgresIndexInfo.Column], predicate: String?, indexType: String?, numKeyColumns: Int)] = [:]
             for row in rows {
-                let (indexName, isUniqueStr, _, attname, isDescStr, predicate) = try row.decode((String, String, String, String?, String?, String?).self)
+                let (indexName, isUniqueStr, posStr, attname, isDescStr, predicate, indexType, numKeyStr) = try row.decode((String, String, String, String?, String?, String?, String?, String?).self)
                 let isUnique = isUniqueStr == "true" || isUniqueStr == "t"
-                var entry = acc[indexName] ?? (isUnique, [], nil)
+                let position = Int(posStr) ?? 0
+                let numKeyColumns = Int(numKeyStr ?? "0") ?? 0
+                var entry = acc[indexName] ?? (isUnique, [], nil, indexType, numKeyColumns)
                 if let attname {
                     let isDesc = isDescStr == "true" || isDescStr == "t"
-                    entry.cols.append(PostgresIndexInfo.Column(name: attname, isDescending: isDesc))
+                    let isIncluded = numKeyColumns > 0 && position >= numKeyColumns
+                    entry.cols.append(PostgresIndexInfo.Column(name: attname, isDescending: isDesc, isIncluded: isIncluded))
                 }
                 entry.unique = isUnique
                 entry.predicate = predicate
+                entry.indexType = indexType
                 acc[indexName] = entry
             }
-            return acc.sorted { $0.key < $1.key }.map { name, e in PostgresIndexInfo(name: name, isUnique: e.unique, columns: e.cols, predicate: e.predicate) }
+            return acc.sorted { $0.key < $1.key }.map { name, e in PostgresIndexInfo(name: name, isUnique: e.unique, columns: e.cols, predicate: e.predicate, indexType: e.indexType) }
+        }
+    }
+
+    /// List all check constraints for a table.
+    func checkConstraints(schema: String, table: String) async throws -> [PostgresCheckConstraintInfo] {
+        let sql = """
+            SELECT
+                c.conname::text AS constraint_name,
+                pg_get_constraintdef(c.oid)::text AS constraint_def
+            FROM pg_constraint c
+            JOIN pg_class cl ON cl.oid = c.conrelid
+            JOIN pg_namespace ns ON ns.oid = cl.relnamespace
+            WHERE c.contype = 'c'
+              AND ns.nspname = $1
+              AND cl.relname = $2
+            ORDER BY c.conname
+            """
+        return try await client.withConnection { conn in
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
+            var out: [PostgresCheckConstraintInfo] = []
+            for row in rows {
+                let (name, def) = try row.decode((String, String).self)
+                // pg_get_constraintdef returns "CHECK ((expression))" — strip the outer CHECK wrapper
+                var expression = def
+                if expression.hasPrefix("CHECK (") && expression.hasSuffix(")") {
+                    expression = String(expression.dropFirst(7).dropLast(1))
+                }
+                out.append(PostgresCheckConstraintInfo(name: name, expression: expression))
+            }
+            return out
         }
     }
 }

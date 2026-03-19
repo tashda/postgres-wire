@@ -17,12 +17,12 @@ public extension PostgresSecurityClient {
             """
         var results: [PostgresRoleInfo] = []
         let rows = try await client.simpleQuery(sql)
-        for try await v in rows.decode((String, String, String, String, String, String, String, String, String?, String, String).self) {
+        for try await v in rows.decode((String, Bool, Bool, Bool, Bool, Bool, Bool, String, String?, Bool, String).self) {
             results.append(PostgresRoleInfo(
-                oid: v.10, name: v.0, isSuperuser: v.1 == "t",
-                canCreateRole: v.2 == "t", canCreateDB: v.3 == "t",
-                canLogin: v.4 == "t", isReplication: v.5 == "t",
-                inherit: v.6 == "t", bypassRLS: v.9 == "t",
+                oid: v.10, name: v.0, isSuperuser: v.1,
+                canCreateRole: v.2, canCreateDB: v.3,
+                canLogin: v.4, isReplication: v.5,
+                inherit: v.6, bypassRLS: v.9,
                 connectionLimit: Int(v.7) ?? -1, validUntil: v.8
             ))
         }
@@ -98,9 +98,9 @@ public extension PostgresSecurityClient {
     /// List roles that the specified role belongs to.
     func listMemberOf(role: String) async throws -> [PostgresRoleMembership] {
         let sql = """
-            SELECT r.rolname, m.rolname, am.admin_option::text,
-                   COALESCE(am.inherit_option, true)::text,
-                   COALESCE(am.set_option, true)::text
+            SELECT r.rolname, m.rolname, am.admin_option,
+                   COALESCE(am.inherit_option, true),
+                   COALESCE(am.set_option, true)
             FROM pg_catalog.pg_auth_members am
             JOIN pg_catalog.pg_roles r ON am.roleid = r.oid
             JOIN pg_catalog.pg_roles m ON am.member = m.oid
@@ -109,10 +109,10 @@ public extension PostgresSecurityClient {
             """
         var results: [PostgresRoleMembership] = []
         let rows = try await client.simpleQuery(sql)
-        for try await v in rows.decode((String, String, String, String, String).self) {
+        for try await v in rows.decode((String, String, Bool, Bool, Bool).self) {
             results.append(PostgresRoleMembership(
                 roleName: v.0, memberName: v.1,
-                adminOption: v.2 == "t", inheritOption: v.3 == "t", setOption: v.4 == "t"
+                adminOption: v.2, inheritOption: v.3, setOption: v.4
             ))
         }
         return results
@@ -121,9 +121,9 @@ public extension PostgresSecurityClient {
     /// List members of the specified role.
     func listMembers(of role: String) async throws -> [PostgresRoleMembership] {
         let sql = """
-            SELECT r.rolname, m.rolname, am.admin_option::text,
-                   COALESCE(am.inherit_option, true)::text,
-                   COALESCE(am.set_option, true)::text
+            SELECT r.rolname, m.rolname, am.admin_option,
+                   COALESCE(am.inherit_option, true),
+                   COALESCE(am.set_option, true)
             FROM pg_catalog.pg_auth_members am
             JOIN pg_catalog.pg_roles r ON am.roleid = r.oid
             JOIN pg_catalog.pg_roles m ON am.member = m.oid
@@ -132,10 +132,10 @@ public extension PostgresSecurityClient {
             """
         var results: [PostgresRoleMembership] = []
         let rows = try await client.simpleQuery(sql)
-        for try await v in rows.decode((String, String, String, String, String).self) {
+        for try await v in rows.decode((String, String, Bool, Bool, Bool).self) {
             results.append(PostgresRoleMembership(
                 roleName: v.0, memberName: v.1,
-                adminOption: v.2 == "t", inheritOption: v.3 == "t", setOption: v.4 == "t"
+                adminOption: v.2, inheritOption: v.3, setOption: v.4
             ))
         }
         return results

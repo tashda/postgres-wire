@@ -66,17 +66,40 @@ public extension PostgresIntrospectionClient {
     /// List columns for a specific table or view.
     func listColumns(schema: String, table: String) async throws -> [PostgresColumnInfo] {
         let sql = """
-            SELECT column_name, data_type, is_nullable, column_default
-            FROM information_schema.columns
-            WHERE table_schema = $1 AND table_name = $2
-            ORDER BY ordinal_position
+            SELECT
+                a.attname::text AS column_name,
+                pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
+                (NOT a.attnotnull)::text AS is_nullable,
+                pg_get_expr(d.adbin, d.adrelid)::text AS column_default,
+                CASE a.attidentity
+                    WHEN 'a' THEN 'ALWAYS'
+                    WHEN 'd' THEN 'BY DEFAULT'
+                    ELSE NULL
+                END::text AS identity_generation,
+                CASE WHEN a.attcollation <> 0 AND a.attcollation <> t.typcollation
+                    THEN col.collname::text
+                    ELSE NULL
+                END AS collation_name
+            FROM pg_attribute a
+            JOIN pg_class c ON c.oid = a.attrelid
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            JOIN pg_type t ON t.oid = a.atttypid
+            LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+            LEFT JOIN pg_collation col ON col.oid = a.attcollation
+            WHERE n.nspname = $1
+              AND c.relname = $2
+              AND a.attnum > 0
+              AND NOT a.attisdropped
+            ORDER BY a.attnum
             """
         return try await client.withConnection { conn in
             let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var out: [PostgresColumnInfo] = []
             for row in rows {
-                let (name, dataType, nullable, defaultValue) = try row.decode((String, String, String, String?).self)
-                out.append(PostgresColumnInfo(name: name, dataType: dataType, isNullable: nullable.uppercased() == "YES", defaultValue: defaultValue))
+                let (name, dataType, nullable, defaultValue, identityGen, collation) = try row.decode((String, String, String, String?, String?, String?).self)
+                let isNullable = nullable.uppercased().hasPrefix("T") || nullable == "1"
+                let isIdentity = identityGen != nil
+                out.append(PostgresColumnInfo(name: name, dataType: dataType, isNullable: isNullable, defaultValue: defaultValue, isIdentity: isIdentity, identityGeneration: identityGen, collation: collation))
             }
             return out
         }

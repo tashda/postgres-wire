@@ -6,7 +6,9 @@ let package = Package(
     platforms: [ .macOS(.v13) ],
     products: [
         .library(name: "PostgresWire", targets: ["PostgresWire"]),
-        .library(name: "PostgresKit", targets: ["PostgresKit"])
+        .library(name: "PostgresKit", targets: ["PostgresKit"]),
+        .library(name: "PostgresKitTesting", targets: ["PostgresKitTesting"]),
+        .executable(name: "postgres-test-fixture", targets: ["PostgresFixtureTool"])
     ],
     dependencies: [
         .package(url: "https://github.com/vapor/postgres-nio.git", from: "1.29.0"),
@@ -30,6 +32,15 @@ let package = Package(
                 .product(name: "Metrics", package: "swift-metrics")
             ]
         ),
+        .target(
+            name: "PostgresKitTesting",
+            dependencies: ["PostgresKit"]
+        ),
+        .executableTarget(
+            name: "PostgresFixtureTool",
+            dependencies: ["PostgresKitTesting"],
+            path: "Sources/PostgresFixtureTool"
+        ),
         .testTarget(
             name: "PostgresWireTests",
             dependencies: [
@@ -42,11 +53,11 @@ let package = Package(
             name: "PostgresKitTests",
             dependencies: [
                 "PostgresKit",
+                "PostgresKitTesting",
                 .product(name: "PostgresNIO", package: "postgres-nio")
             ],
             path: "Tests/PostgresKitTests",
-            exclude: ["README.md", "Support/SampleData.sql"]
+            exclude: ["README.md", "Support/SampleData.sql", "Support/PostgresDockerManager.swift"]
         )
     ]
 )
-

@@ -63,6 +63,22 @@ jobs:
         with:
           swift-version: '6.2.4'
 
+      - name: Bootstrap validated Postgres fixture
+        env:
+          USE_DOCKER: "1"
+          POSTGRES_VERSION: "17"
+          POSTGRES_PORT: "54321"
+        run: |
+          output=$(swift run --package-path . postgres-test-fixture)
+          echo "$output"
+          {
+            echo "### Postgres fixture"
+            echo ""
+            echo '```'
+            echo "$output"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Run Integration Tests
         env:
           USE_DOCKER: "1"
@@ -101,6 +117,22 @@ jobs:
         uses: swift-actions/setup-swift@v3
         with:
           swift-version: '6.2.4'
+
+      - name: Bootstrap validated Postgres fixture
+        env:
+          USE_DOCKER: "1"
+          POSTGRES_VERSION: ${{ matrix.version }}
+          POSTGRES_PORT: "54321"
+        run: |
+          output=$(swift run --package-path . postgres-test-fixture)
+          echo "$output"
+          {
+            echo "### Postgres fixture"
+            echo ""
+            echo '```'
+            echo "$output"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run Integration Tests
         env:

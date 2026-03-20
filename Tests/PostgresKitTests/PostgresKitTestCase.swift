@@ -1,4 +1,5 @@
 import XCTest
+import PostgresKitTesting
 
 class PostgresKitTestCase: XCTestCase {
     
@@ -14,7 +15,7 @@ class PostgresKitTestCase: XCTestCase {
         let useDocker = ProcessInfo.processInfo.environment["USE_DOCKER"]
         if useDocker == "1" {
             do {
-                try PostgresDockerManager.shared.startIfNeeded()
+                _ = try ensurePostgresTestFixture()
             } catch {
                 XCTFail("Failed to start Postgres Docker container: \(error)")
                 throw error

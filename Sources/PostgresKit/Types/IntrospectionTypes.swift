@@ -249,6 +249,31 @@ public struct PostgresAvailableExtensionInfo: Sendable {
     }
 }
 
+/// Sequence information.
+public struct PostgresSequenceInfo: Sendable {
+    public let name: String
+    public let schema: String
+
+    public init(name: String, schema: String) {
+        self.name = name
+        self.schema = schema
+    }
+}
+
+/// User-defined type information.
+public struct PostgresTypeInfo: Sendable {
+    public let name: String
+    public let schema: String
+    /// The kind of user-defined type: `"enum"`, `"composite"`, `"range"`, or `"domain"`.
+    public let kind: String
+
+    public init(name: String, schema: String, kind: String) {
+        self.name = name
+        self.schema = schema
+        self.kind = kind
+    }
+}
+
 /// Column comment information.
 public struct PostgresColumnComment: Sendable {
     public let column: String

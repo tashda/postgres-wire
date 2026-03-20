@@ -6,6 +6,7 @@ public enum SummaryObjectType: String, Sendable {
     case view = "VIEW"
     case materializedView = "MATERIALIZED VIEW"
     case function = "FUNCTION"
+    case procedure = "PROCEDURE"
     case trigger = "TRIGGER"
 }
 
@@ -72,6 +73,12 @@ public extension PostgresIntrospectionClient {
         }
         let functionNames: [String] = try fnRows.map { try $0.decode(String.self) }
 
+        // Procedures (PG 11+)
+        let procRows = try await client.withConnection { conn in
+            try await conn.queryPreparedRows("SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = $1 AND p.prokind = 'p' ORDER BY p.proname", binds: [client.toPGData(value: schema)])
+        }
+        let procedureNames: [String] = try procRows.map { try $0.decode(String.self) }
+
         // Triggers
         let trigSQL = """
             SELECT trigger_name, action_timing, event_manipulation, event_object_table
@@ -83,7 +90,7 @@ public extension PostgresIntrospectionClient {
         var triggerEntries: [(String, String, String, String)] = []
         for row in trigRows { triggerEntries.append(try row.decode((String, String, String, String).self)) }
 
-        let total = max(entries.count + matNames.count + functionNames.count + triggerEntries.count, 1)
+        let total = max(entries.count + matNames.count + functionNames.count + procedureNames.count + triggerEntries.count, 1)
         var processed = 0
         var objects: [SchemaSummary.Object] = []
 
@@ -103,6 +110,12 @@ public extension PostgresIntrospectionClient {
             processed += 1
             if let progress { await progress(.function, processed, total) }
             objects.append(.init(name: name, type: .function, columns: [], triggerAction: nil, triggerTable: nil))
+        }
+
+        for name in procedureNames {
+            processed += 1
+            if let progress { await progress(.procedure, processed, total) }
+            objects.append(.init(name: name, type: .procedure, columns: [], triggerAction: nil, triggerTable: nil))
         }
 
         for (name, timing, action, table) in triggerEntries {

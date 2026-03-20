@@ -485,7 +485,8 @@ extension PostgresWireClient {
     ) throws {
         guard let certPath, let keyPath else { return }
         config.certificateChain = try NIOSSLCertificate.fromPEMFile(certPath).map { .certificate($0) }
-        config.privateKey = .file(keyPath)
+        let keyFormat: NIOSSLSerializationFormats = keyPath.lowercased().hasSuffix(".der") ? .der : .pem
+        config.privateKey = .privateKey(try NIOSSLPrivateKey(file: keyPath, format: keyFormat))
     }
 
     /// Build `PostgresConnection.Configuration.TLS` from the sslMode spectrum.

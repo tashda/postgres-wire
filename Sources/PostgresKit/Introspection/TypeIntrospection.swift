@@ -17,7 +17,7 @@ public extension PostgresIntrospectionClient {
             JOIN pg_namespace n ON t.typnamespace = n.oid
             WHERE n.nspname = $1
               AND t.typtype IN ('e', 'c', 'r', 'd')
-              AND t.typname NOT LIKE E'\\_%'
+              AND t.typname NOT LIKE E'\\\\_%'
             ORDER BY t.typname
             """
         return try await client.withConnection { conn in

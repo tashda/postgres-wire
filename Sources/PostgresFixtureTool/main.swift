@@ -11,6 +11,7 @@ do {
     print("recreated_container=\(report.recreatedContainer)")
     print("validations=\(report.validations.joined(separator: ","))")
 } catch {
-    fputs("postgres-test-fixture failed: \(error)\n", stderr)
+    let message = "postgres-test-fixture failed: \(error)\n"
+    FileHandle.standardError.write(Data(message.utf8))
     exit(1)
 }

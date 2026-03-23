@@ -1,7 +1,9 @@
 import XCTest
+import Logging
 import PostgresKitTesting
 
 class PostgresKitTestCase: XCTestCase {
+    let logger = Logger(label: "postgres.wire.tests")
     
     override class func setUp() {
         super.setUp()

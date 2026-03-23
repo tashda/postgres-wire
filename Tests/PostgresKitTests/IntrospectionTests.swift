@@ -16,7 +16,7 @@ final class IntrospectionTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "IntrospectionTests"
         )
-        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "introspection-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "postgres.wire.tests"))
     }
 
     override func tearDown() {

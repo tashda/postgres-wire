@@ -13,7 +13,7 @@ final class UserManagementTests: PostgresKitTestCase {
             throw XCTSkip("POSTGRES_HOST not set. Copy .env.example to .env and configure connection.")
         }
         try await super.setUp()
-        testLogger = Logger(label: "user-management-tests")
+        testLogger = Logger(label: "postgres.wire.tests")
 
         let config = PostgresConfiguration(
             host: TestEnv.host,

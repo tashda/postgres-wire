@@ -15,7 +15,7 @@ final class JSONBOperationsTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "JSONBOperationsTests"
         )
-        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "jsonb-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "postgres.wire.tests"))
     }
 
     override func tearDown() { client?.close(); super.tearDown() }

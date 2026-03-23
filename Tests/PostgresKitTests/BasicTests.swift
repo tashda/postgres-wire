@@ -9,7 +9,7 @@ final class BasicTests: PostgresKitTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        testLogger = Logger(label: "basic-tests")
+        testLogger = Logger(label: "postgres.wire.tests")
 
                 guard TestEnv.isConfigured else { throw XCTSkip("Postgres environment not set") }
 
@@ -139,6 +139,7 @@ final class BasicTests: PostgresKitTestCase {
             temporary: true
         )
 
+        let log = self.logger
         let result = try await client.connection.withConnection { conn in
             _ = try await conn.beginTransaction()
             _ = try await conn.insert(into: "test_tx", columns: ["value"], values: [["test1"], ["test2"]])
@@ -155,7 +156,7 @@ final class BasicTests: PostgresKitTestCase {
                 }
                 break
             }
-            print("DEBUG testSimpleTransaction: Final COUNT = \(insertCount)")
+            log.debug("testSimpleTransaction: Final COUNT = \(insertCount)")
 
             return Int32(insertCount)
         }
@@ -173,6 +174,7 @@ final class BasicTests: PostgresKitTestCase {
             temporary: true
         )
 
+        let log2 = self.logger
         let result = try await client.connection.withConnection { conn in
             _ = try await conn.beginTransaction()
             _ = try await conn.insert(into: "test_rollback", columns: ["value"], values: [["rollback_test"]])
@@ -189,7 +191,7 @@ final class BasicTests: PostgresKitTestCase {
                 }
                 break
             }
-            print("DEBUG testTransactionRollback: Final COUNT = \(rollbackCount)")
+            log2.debug("testTransactionRollback: Final COUNT = \(rollbackCount)")
 
             return Int32(rollbackCount)
         }

@@ -28,7 +28,7 @@ final class NotificationsTests: PostgresKitTestCase {
             useTLS: TestEnv.useTLS,
             applicationName: "NotificationsTests"
         )
-        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "notif-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "postgres.wire.tests"))
     }
 
     override func tearDown() async throws {
@@ -65,20 +65,20 @@ final class NotificationsTests: PostgresKitTestCase {
     // MARK: - Basic Notify (no LISTEN required)
 
     func testNotifyWithoutPayload_DoesNotThrow() async throws {
-        let notifier = PostgresNotifier(client: client, logger: Logger(label: "notifier"))
+        let notifier = PostgresNotifier(client: client, logger: Logger(label: "postgres.wire.tests"))
         // NOTIFY to a channel with no listeners is legal in PostgreSQL
         try await notifier.notify(channel: randomChannel())
     }
 
     func testNotifyWithPayload_DoesNotThrow() async throws {
-        let notifier = PostgresNotifier(client: client, logger: Logger(label: "notifier"))
+        let notifier = PostgresNotifier(client: client, logger: Logger(label: "postgres.wire.tests"))
         try await notifier.notify(channel: randomChannel(), payload: "test payload")
     }
 
     // MARK: - LISTEN / NOTIFY via AsyncStream
 
     func testNotifyAndReceiveViaStream() async throws {
-        let notifier = PostgresNotifier(client: client, logger: Logger(label: "notifier"))
+        let notifier = PostgresNotifier(client: client, logger: Logger(label: "postgres.wire.tests"))
         let channel = randomChannel()
 
         try await notifier.listen(channels: [channel])
@@ -102,7 +102,7 @@ final class NotificationsTests: PostgresKitTestCase {
     }
 
     func testNotifyPayloadWithSpecialChars() async throws {
-        let notifier = PostgresNotifier(client: client, logger: Logger(label: "notifier"))
+        let notifier = PostgresNotifier(client: client, logger: Logger(label: "postgres.wire.tests"))
         let channel = randomChannel()
         let payload = "it's a test"
 
@@ -125,7 +125,7 @@ final class NotificationsTests: PostgresKitTestCase {
     // MARK: - Handler-based delivery
 
     func testRegisterHandlerReceivesNotification() async throws {
-        let notifier = PostgresNotifier(client: client, logger: Logger(label: "notifier"))
+        let notifier = PostgresNotifier(client: client, logger: Logger(label: "postgres.wire.tests"))
         let channel = randomChannel()
         let collector = NotificationCollector()
 
@@ -150,7 +150,7 @@ final class NotificationsTests: PostgresKitTestCase {
     }
 
     func testMultipleNotificationsDelivered() async throws {
-        let notifier = PostgresNotifier(client: client, logger: Logger(label: "notifier"))
+        let notifier = PostgresNotifier(client: client, logger: Logger(label: "postgres.wire.tests"))
         let channel = randomChannel()
         let collector = NotificationCollector()
 
@@ -179,7 +179,7 @@ final class NotificationsTests: PostgresKitTestCase {
     // MARK: - UNLISTEN
 
     func testUnlistenFinishesStream() async throws {
-        let notifier = PostgresNotifier(client: client, logger: Logger(label: "notifier"))
+        let notifier = PostgresNotifier(client: client, logger: Logger(label: "postgres.wire.tests"))
         let channel = randomChannel()
 
         try await notifier.listen(channels: [channel])
@@ -201,7 +201,7 @@ final class NotificationsTests: PostgresKitTestCase {
     // MARK: - Stop
 
     func testStop_DoesNotCrash() async throws {
-        let notifier = PostgresNotifier(client: client, logger: Logger(label: "notifier"))
+        let notifier = PostgresNotifier(client: client, logger: Logger(label: "postgres.wire.tests"))
         try await notifier.listen(channels: [randomChannel()])
         try await Task.sleep(nanoseconds: 100_000_000)
         await notifier.stop()

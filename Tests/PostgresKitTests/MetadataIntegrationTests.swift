@@ -15,7 +15,7 @@ final class MetadataIntegrationTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "MetadataIntegrationTests"
         )
-        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "metadata-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "postgres.wire.tests"))
     }
 
     override func tearDown() {

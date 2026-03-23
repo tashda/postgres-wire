@@ -8,7 +8,7 @@ final class QuickAPITests: PostgresKitTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        testLogger = Logger(label: "quick-api-tests")
+        testLogger = Logger(label: "postgres.wire.tests")
 
                 guard TestEnv.isConfigured else { throw XCTSkip("Postgres environment not set") }
 
@@ -35,7 +35,7 @@ final class QuickAPITests: PostgresKitTestCase {
     }
 
     func testBasicCreateTableAPI() async throws {
-        print("🧪 Testing createTable API...")
+        logger.info("Testing createTable API")
 
         do {
             // Clean up first
@@ -50,7 +50,7 @@ final class QuickAPITests: PostgresKitTestCase {
                     .integer(name: "value", defaultValue: 0)
                 ]
             )
-            print("✅ createTable API successful!")
+            logger.info("createTable API successful")
 
             // Test insert API
             _ = try await client.connection.insert(
@@ -58,29 +58,28 @@ final class QuickAPITests: PostgresKitTestCase {
                 columns: ["name"],
                 values: [["Test Record"]]
             )
-            print("✅ insert API successful!")
+            logger.info("insert API successful")
 
             // Verify data exists
             let result = try await client.connection.simpleQuery("SELECT COUNT(*)::text FROM quick_test")
             for try await count in result.decode(String.self) {
-                print("Record count: \(count)")
+                logger.info("Record count: \(count)")
                 XCTAssertEqual(count, "1")
                 break
             }
 
             // Clean up
             _ = try await client.admin.dropTable(name: "quick_test", ifExists: false)
-            print("✅ dropTable API successful!")
+            logger.info("dropTable API successful")
 
         } catch {
-            print("❌ Quick API test failed!")
-            print("Error details: \(String(reflecting: error))")
+            logger.error("Quick API test failed: \(String(reflecting: error))")
             throw error
         }
     }
 
     func testBasicSequenceAPI() async throws {
-        print("🧪 Testing sequence API...")
+        logger.info("Testing sequence API")
 
         do {
             // Clean up first
@@ -88,25 +87,24 @@ final class QuickAPITests: PostgresKitTestCase {
 
             // Test createSequence API
             _ = try await client.admin.createSequence(name: "quick_test_seq")
-            print("✅ createSequence API successful!")
+            logger.info("createSequence API successful")
 
             // Test nextval API
             let next1 = try await client.admin.nextval("quick_test_seq")
-            print("✅ nextval API successful! First value: \(next1)")
+            logger.info("nextval API successful, first value: \(next1)")
 
             let next2 = try await client.admin.nextval("quick_test_seq")
-            print("✅ nextval API successful! Second value: \(next2)")
+            logger.info("nextval API successful, second value: \(next2)")
 
             // Verify sequence increments
             XCTAssertEqual(next2, next1 + 1)
 
             // Clean up
             _ = try await client.admin.dropSequence(name: "quick_test_seq", ifExists: false)
-            print("✅ dropSequence API successful!")
+            logger.info("dropSequence API successful")
 
         } catch {
-            print("❌ Sequence API test failed!")
-            print("Error details: \(String(reflecting: error))")
+            logger.error("Sequence API test failed: \(String(reflecting: error))")
             throw error
         }
     }

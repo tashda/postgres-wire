@@ -71,12 +71,12 @@ final class IntegrationTests: PostgresKitTestCase {
             XCTAssertTrue(countFound, "Should have returned a count")
         } catch {
             let pgError = PostgresError.from(error)
-            print("❌ testSampleDataExists failed with detailed error: \(pgError.message)")
+            logger.error("testSampleDataExists failed: \(pgError.message)")
             let debug = pgError.withDebugging()
             if !debug.serverInfo.isEmpty {
-                 print("   Server Info: \(debug.serverInfo)")
+                 logger.error("Server Info: \(debug.serverInfo)")
             }
-            print("   Full Reflection: \(String(reflecting: error))")
+            logger.error("Full Reflection: \(String(reflecting: error))")
             throw error
         }
     }

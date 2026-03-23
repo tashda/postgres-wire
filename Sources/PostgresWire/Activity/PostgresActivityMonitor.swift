@@ -5,7 +5,7 @@ import Logging
 public final class PostgresActivityMonitor: @unchecked Sendable {
     private let client: PostgresWireClient
     private let baselineLock = NIOLock()
-    private let logger = Logger(label: "dk.tippr.postgres-wire.activity-monitor")
+    private let logger = Logger(label: "postgres.wire.activity")
 
     private var lastWaits: [String: PostgresWaitStat] = [:]
     private var lastDatabaseStats: [String: PostgresDatabaseStat] = [:]
@@ -18,7 +18,8 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
     }
 
     public func snapshot(options: PostgresActivityOptions = .init()) async throws -> PostgresActivitySnapshot {
-        let now = Date()
+        let snapshotStart = Date()
+        let now = snapshotStart
 
         // Fetch one-time server info
         if maxConnections == nil {
@@ -58,7 +59,7 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
                 break
             }
         } catch {
-            // Ignore error
+            logger.debug("pg_stat_statements not available: \(error)")
         }
 
         // Fetch all data in parallel with resilient error handling
@@ -140,6 +141,9 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         self.baselineLock.withLock {
             self.lastSnapshotTime = now
         }
+
+        let snapshotElapsed = Date().timeIntervalSince(snapshotStart)
+        logger.debug("Snapshot collected in \(String(format: "%.3f", snapshotElapsed))s: \(procs.count) processes, \(dbStats.count) databases, \(locks.count) locks")
 
         return PostgresActivitySnapshot(
             capturedAt: now,

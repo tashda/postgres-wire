@@ -17,7 +17,7 @@ final class MultiResultSetTests: PostgresKitTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        testLogger = Logger(label: "multi-result-set-tests")
+        testLogger = Logger(label: "postgres.wire.tests")
 
         guard TestEnv.isConfigured else { throw XCTSkip("Postgres environment not set") }
 

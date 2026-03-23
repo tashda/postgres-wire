@@ -13,7 +13,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        testLogger = Logger(label: "comprehensive-index-tests")
+        testLogger = Logger(label: "postgres.wire.tests")
 
                 guard TestEnv.isConfigured else { throw XCTSkip("Postgres environment not set") }
 
@@ -42,7 +42,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
     // MARK: - Index Tests with Numeric Data Types
 
     func testIntegerIndexOperations() async throws {
-        print("=== Testing Integer Index Operations ===")
+        logger.info("Testing Integer Index Operations")
 
         _ = try await client.admin.dropTable(name: "test_integer_index_table", ifExists: true)
         _ = try await client.admin.dropIndex(name: "idx_integer_value", ifExists: true)
@@ -113,7 +113,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
             XCTFail("Expected unique constraint violation")
         } catch {
             // Expected behavior
-            print("✓ Unique constraint working: \(error.localizedDescription)")
+            logger.info("Unique constraint working: \(error.localizedDescription)")
         }
 
         // Cleanup
@@ -123,13 +123,13 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         _ = try await client.admin.dropIndex(name: "idx_unique_smallint", ifExists: false)
         _ = try await client.admin.dropTable(name: "test_integer_index_table", ifExists: false)
 
-        print("✓ Integer index operations test passed")
+        logger.info("Integer index operations test passed")
     }
 
     // MARK: - Index Tests with Text Data Types
 
     func testTextIndexOperations() async throws {
-        print("=== Testing Text Index Operations ===")
+        logger.info("Testing Text Index Operations")
 
         _ = try await client.admin.dropTable(name: "test_text_index_table", ifExists: true)
         _ = try await client.admin.dropIndex(name: "idx_text_value", ifExists: true)
@@ -197,13 +197,13 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         _ = try await client.admin.dropIndex(name: "idx_text_partial", ifExists: false)
         _ = try await client.admin.dropTable(name: "test_text_index_table", ifExists: false)
 
-        print("✓ Text index operations test passed")
+        logger.info("Text index operations test passed")
     }
 
     // MARK: - Index Tests with Date/Time Data Types
 
     func testDateTimeIndexOperations() async throws {
-        print("=== Testing Date/Time Index Operations ===")
+        logger.info("Testing Date/Time Index Operations")
 
         _ = try await client.admin.dropTable(name: "test_datetime_index_table", ifExists: true)
         _ = try await client.admin.dropIndex(name: "idx_timestamp_value", ifExists: true)
@@ -293,13 +293,13 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         _ = try await client.admin.dropIndex(name: "idx_date_value", ifExists: false)
         _ = try await client.admin.dropTable(name: "test_datetime_index_table", ifExists: false)
 
-        print("✓ Date/Time index operations test passed")
+        logger.info("Date/Time index operations test passed")
     }
 
     // MARK: - Index Tests with Boolean and Binary Data Types
 
     func testBooleanBinaryIndexOperations() async throws {
-        print("=== Testing Boolean/Binary Index Operations ===")
+        logger.info("Testing Boolean/Binary Index Operations")
 
         _ = try await client.admin.dropTable(name: "test_bool_binary_index_table", ifExists: true)
         _ = try await client.admin.dropIndex(name: "idx_boolean_value", ifExists: true)
@@ -355,13 +355,13 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         _ = try await client.admin.dropIndex(name: "idx_boolean_compound", ifExists: false)
         _ = try await client.admin.dropTable(name: "test_bool_binary_index_table", ifExists: false)
 
-        print("✓ Boolean/Binary index operations test passed")
+        logger.info("Boolean/Binary index operations test passed")
     }
 
     // MARK: - Index Tests with JSON Data Types
 
     func testJSONIndexOperations() async throws {
-        print("=== Testing JSON Index Operations ===")
+        logger.info("Testing JSON Index Operations")
 
         _ = try await client.admin.dropTable(name: "test_json_index_table", ifExists: true)
         _ = try await client.admin.dropIndex(name: "idx_json_value", ifExists: true)
@@ -410,13 +410,13 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         _ = try await client.admin.dropIndex(name: "idx_jsonb_value", ifExists: false)
         _ = try await client.admin.dropTable(name: "test_json_index_table", ifExists: false)
 
-        print("✓ JSON index operations test passed")
+        logger.info("JSON index operations test passed")
     }
 
     // MARK: - Index Tests with UUID and Array Data Types
 
     func testUUIDArrayIndexOperations() async throws {
-        print("=== Testing UUID/Array Index Operations ===")
+        logger.info("Testing UUID/Array Index Operations")
 
         _ = try await client.admin.dropTable(name: "test_uuid_array_index_table", ifExists: true)
         _ = try await client.admin.dropIndex(name: "idx_uuid_value", ifExists: true)
@@ -480,13 +480,13 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         _ = try await client.admin.dropIndex(name: "idx_numbers_gin", ifExists: false)
         _ = try await client.admin.dropTable(name: "test_uuid_array_index_table", ifExists: false)
 
-        print("✓ UUID/Array index operations test passed")
+        logger.info("UUID/Array index operations test passed")
     }
 
     // MARK: - Index Tests with Network Data Types
 
     func testNetworkIndexOperations() async throws {
-        print("=== Testing Network Index Operations ===")
+        logger.info("Testing Network Index Operations")
 
         _ = try await client.admin.dropTable(name: "test_network_index_table", ifExists: true)
         _ = try await client.admin.dropIndex(name: "idx_inet_value", ifExists: true)
@@ -557,7 +557,7 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
             XCTFail("Expected unique constraint violation for MAC address")
         } catch {
             // Expected behavior
-            print("✓ MAC address uniqueness working: \(error.localizedDescription)")
+            logger.info("MAC address uniqueness working: \(error.localizedDescription)")
         }
 
         // Cleanup
@@ -566,13 +566,13 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         _ = try await client.admin.dropIndex(name: "idx_mac_value", ifExists: false)
         _ = try await client.admin.dropTable(name: "test_network_index_table", ifExists: false)
 
-        print("✓ Network index operations test passed")
+        logger.info("Network index operations test passed")
     }
 
     // MARK: - Index Tests with Complex Index Types
 
     func testComplexIndexTypes() async throws {
-        print("=== Testing Complex Index Types ===")
+        logger.info("Testing Complex Index Types")
 
         _ = try await client.admin.dropTable(name: "test_complex_index_table", ifExists: true)
         _ = try await client.admin.dropIndex(name: "idx_hash_value", ifExists: true)
@@ -636,13 +636,13 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         _ = try await client.admin.dropIndex(name: "idx_price", ifExists: false)
         _ = try await client.admin.dropTable(name: "test_complex_index_table", ifExists: false)
 
-        print("✓ Complex index types test passed")
+        logger.info("Complex index types test passed")
     }
 
     // MARK: - Performance and Stress Tests
 
     func testIndexPerformanceWithLargeDataset() async throws {
-        print("=== Testing Index Performance with Large Dataset ===")
+        logger.info("Testing Index Performance with Large Dataset")
 
         _ = try await client.admin.dropTable(name: "test_performance_table", ifExists: true)
         _ = try await client.admin.dropIndex(name: "idx_performance_column", ifExists: true)
@@ -711,12 +711,12 @@ final class ComprehensiveIndexTests: PostgresKitTestCase {
         XCTAssertEqual(count, 801, "Should find 801 records in the range")
         XCTAssertLessThan(timeElapsed, 1.0, "Query should complete quickly with index")
 
-        print("✓ Index performance test: \(count) records found in \(timeElapsed) seconds")
+        logger.info("Index performance test: \(count) records found in \(timeElapsed) seconds")
 
         // Cleanup
         _ = try await client.admin.dropIndex(name: "idx_performance_column", ifExists: false)
         _ = try await client.admin.dropTable(name: "test_performance_table", ifExists: false)
 
-        print("✓ Index performance test passed")
+        logger.info("Index performance test passed")
     }
 }

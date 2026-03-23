@@ -15,7 +15,7 @@ final class BulkCopyTests: PostgresKitTestCase {
             password: TestEnv.password, useTLS: TestEnv.useTLS,
             applicationName: "BulkCopyTests"
         )
-        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "bulk-copy-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "postgres.wire.tests"))
     }
 
     override func tearDown() {
@@ -28,7 +28,7 @@ final class BulkCopyTests: PostgresKitTestCase {
     }
 
     private var bulkCopy: PostgresBulkCopy {
-        PostgresBulkCopy(client: client, logger: Logger(label: "bulk-copy"))
+        PostgresBulkCopy(client: client, logger: Logger(label: "postgres.wire.tests"))
     }
 
     // MARK: - copyOut
@@ -271,7 +271,7 @@ final class BulkCopyTests: PostgresKitTestCase {
 
         let customBulk = PostgresBulkCopy(
             client: client,
-            logger: Logger(label: "bulk-custom"),
+            logger: Logger(label: "postgres.wire.tests"),
             options: .init(chunkSizeBytes: 1024, insertBatchSize: 10)
         )
 

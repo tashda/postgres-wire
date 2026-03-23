@@ -74,7 +74,7 @@ public final class WireConnection: WireConnectionProtocol {
     }
 
     public func query(_ query: WireQuery, logger: Logger?) async throws -> WireRowSequence {
-        let log = logger ?? Logger(label: "postgres-wire")
+        let log = logger ?? Logger(label: "postgres.wire.connection")
         return try await connection.query(query.asPostgresQuery(), logger: log)
     }
 

@@ -1,6 +1,8 @@
 import Foundation
+import Logging
 
 enum TestEnv {
+    private static let logger = Logger(label: "postgres.wire.tests")
     static func loadDotEnv() {
         let fm = FileManager.default
         let cwd = fm.currentDirectoryPath
@@ -33,7 +35,7 @@ enum TestEnv {
         let useDocker = getEnv("USE_DOCKER")
         let configured = host != nil || useDocker == "1"
         if !configured {
-            print("⚠️ TestEnv NOT configured. POSTGRES_HOST: \(host ?? "nil"), USE_DOCKER: \(useDocker ?? "nil")")
+            logger.warning("TestEnv NOT configured. POSTGRES_HOST: \(host ?? "nil"), USE_DOCKER: \(useDocker ?? "nil")")
         }
         return configured
     }

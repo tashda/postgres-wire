@@ -10,7 +10,7 @@ final class DDLTests: PostgresKitTestCase {
     override func setUp() async throws {
         TestEnv.loadDotEnv()
         try await super.setUp()
-        testLogger = Logger(label: "ddl-tests")
+        testLogger = Logger(label: "postgres.wire.tests")
 
         // Check if required environment variables are set
                 guard TestEnv.isConfigured else { throw XCTSkip("Postgres environment not set") }
@@ -37,7 +37,7 @@ final class DDLTests: PostgresKitTestCase {
     // MARK: - Table Creation Tests
 
     func testCreateTableWithAllDataTypes() async throws {
-        print("=== Testing CREATE TABLE with all data types ===")
+        logger.info("Testing CREATE TABLE with all data types")
 
         // Drop table if it exists
         _ = try await client.admin.dropTable(name: "all_types_test", ifExists: true)
@@ -92,13 +92,13 @@ final class DDLTests: PostgresKitTestCase {
 
         var columnCount = 0
         for try await (name, dataType, maxLength) in result.decode((String, String, Int?).self) {
-            print("Column: \(name), Type: \(dataType), Max Length: \(maxLength ?? -1)")
+            logger.info("Column: \(name), Type: \(dataType), Max Length: \(maxLength ?? -1)")
             columnCount += 1
         }
 
         // Should have at least 25+ columns
         XCTAssertGreaterThan(columnCount, 25)
-        print("Successfully created table with \(columnCount) columns")
+        logger.info("Successfully created table with \(columnCount) columns")
 
         // Test data insertion using API with raw SQL for complex types
         let testUUID = UUID(uuidString: "550e8400-e29b-41d4-a716-446655440000")!
@@ -118,11 +118,11 @@ final class DDLTests: PostgresKitTestCase {
             ]]
         )
 
-        print("✓ Successfully inserted test data into all types table")
+        logger.info("Successfully inserted test data into all types table")
     }
 
     func testCreateTableWithConstraints() async throws {
-        print("=== Testing CREATE TABLE with constraints ===")
+        logger.info("Testing CREATE TABLE with constraints")
 
         // Clean up existing tables
         _ = try await client.admin.dropTable(name: "employees", ifExists: true)
@@ -205,7 +205,7 @@ final class DDLTests: PostgresKitTestCase {
             )
             XCTFail("Should have failed with email constraint violation")
         } catch {
-            print("✓ Email constraint violation caught: \(error.localizedDescription)")
+            logger.info("Email constraint violation caught: \(error.localizedDescription)")
         }
 
         do {
@@ -216,7 +216,7 @@ final class DDLTests: PostgresKitTestCase {
             )
             XCTFail("Should have failed with age check constraint violation")
         } catch {
-            print("✓ Age constraint violation caught: \(error.localizedDescription)")
+            logger.info("Age constraint violation caught: \(error.localizedDescription)")
         }
 
         // Test valid insert
@@ -235,7 +235,7 @@ final class DDLTests: PostgresKitTestCase {
             )
             XCTFail("Should have failed with unique constraint violation")
         } catch {
-            print("✓ Unique constraint violation caught: \(error.localizedDescription)")
+            logger.info("Unique constraint violation caught: \(error.localizedDescription)")
         }
 
         // Count employees using PostgresClient API
@@ -249,13 +249,13 @@ final class DDLTests: PostgresKitTestCase {
         }
 
         XCTAssertEqual(count, 1)
-        print("✓ All constraint tests passed")
+        logger.info("All constraint tests passed")
     }
 
     // MARK: - Table Alteration Tests
 
     func testAlterTable() async throws {
-        print("=== Testing ALTER TABLE operations ===")
+        logger.info("Testing ALTER TABLE operations")
 
         // Clean up existing table
         _ = try await client.admin.dropTable(name: "alter_test", ifExists: true)
@@ -307,13 +307,13 @@ final class DDLTests: PostgresKitTestCase {
 
         let result = results.first?.2 ?? 0
         XCTAssertEqual(result, 25) // Should use the default age
-        print("✓ ALTER TABLE operations completed successfully")
+        logger.info("ALTER TABLE operations completed successfully")
     }
 
     // MARK: - Index Tests
 
     func testCreateAndDropIndexes() async throws {
-        print("=== Testing Index operations ===")
+        logger.info("Testing Index operations")
 
         // Clean up existing table
         _ = try await client.admin.dropTable(name: "index_test", ifExists: true)
@@ -394,14 +394,14 @@ final class DDLTests: PostgresKitTestCase {
 
         var indexCount = 0
         for try await (indexName, indexDef) in indexRows.decode((String, String).self) {
-            print("Index: \(indexName) - \(indexDef)")
+            logger.info("Index: \(indexName) - \(indexDef)")
             indexCount += 1
         }
 
         // Test index usage with EXPLAIN using PostgresClient API
         let explainPlan = try await client.connection.explain("SELECT * FROM index_test WHERE name = 'User 42'", format: .json)
         for plan in explainPlan {
-            print("Query plan: \(plan)")
+            logger.info("Query plan: \(plan)")
         }
 
         // Test DROP INDEX using PostgresClient API
@@ -412,13 +412,13 @@ final class DDLTests: PostgresKitTestCase {
         _ = try await client.admin.dropIndex(name: "idx_index_test_composite", ifExists: false)
 
         XCTAssertGreaterThan(indexCount, 4) // Should have created at least 4 indexes
-        print("✓ Index operations completed successfully")
+        logger.info("Index operations completed successfully")
     }
 
     // MARK: - Foreign Key Tests
 
     func testForeignKeys() async throws {
-        print("=== Testing Foreign Key operations ===")
+        logger.info("Testing Foreign Key operations")
 
         // Clean up existing tables (order matters for foreign keys)
         _ = try await client.admin.dropTable(name: "books", ifExists: true, cascade: true)
@@ -522,7 +522,7 @@ final class DDLTests: PostgresKitTestCase {
             )
             XCTFail("Should have failed with foreign key violation")
         } catch {
-            print("✓ Foreign key constraint violation caught: \(error)")
+            logger.info("Foreign key constraint violation caught: \(error)")
         }
 
         // Verify initial state
@@ -534,7 +534,7 @@ final class DDLTests: PostgresKitTestCase {
             }
             break
         }
-        print("Initial books count: \(initialCount)")
+        logger.info("Initial books count: \(initialCount)")
 
         // Count books before delete operations
         let beforeCountRows = try await client.connection.simpleQuery("SELECT COUNT(*)::text FROM books")
@@ -563,17 +563,17 @@ final class DDLTests: PostgresKitTestCase {
         }
 
         let affectedCount = beforeCount - afterCount
-        print("Books before: \(beforeCount), after: \(afterCount), affected: \(affectedCount)")
+        logger.info("Books before: \(beforeCount), after: \(afterCount), affected: \(affectedCount)")
 
         XCTAssertEqual(affectedCount, 1) // 1 book deleted via CASCADE
-        print("✓ Foreign key operations completed successfully - affected \(affectedCount) records")
-        print("✓ Foreign key operations completed successfully")
+        logger.info("Foreign key operations completed successfully - affected \(affectedCount) records")
+        logger.info("Foreign key operations completed successfully")
     }
 
     // MARK: - Drop Table Tests
 
     func testDropTable() async throws {
-        print("=== Testing DROP TABLE operations ===")
+        logger.info("Testing DROP TABLE operations")
 
         // Clean up existing table
         _ = try await client.admin.dropTable(name: "drop_test", ifExists: true)
@@ -612,13 +612,13 @@ final class DDLTests: PostgresKitTestCase {
             _ = try await client.connection.simpleQuery("SELECT COUNT(*)::text FROM drop_test")
             XCTFail("Should have failed - table should not exist")
         } catch {
-            print("✓ Table successfully dropped - query failed as expected: \(error)")
+            logger.info("Table successfully dropped - query failed as expected: \(error)")
         }
 
         // Test IF EXISTS
         _ = try await client.admin.dropTable(name: "drop_test", ifExists: true) // Should not error
 
         XCTAssertEqual(before, 1)
-        print("✓ DROP TABLE operations completed successfully")
+        logger.info("DROP TABLE operations completed successfully")
     }
 }

@@ -407,6 +407,56 @@ public struct PostgresTypeInfo: Sendable {
     }
 }
 
+/// Partition strategy for a partitioned table.
+public enum PartitionStrategy: String, Sendable, CaseIterable {
+    case range = "RANGE"
+    case list = "LIST"
+    case hash = "HASH"
+}
+
+/// Partition information for a partitioned table.
+public struct PostgresPartitionInfo: Sendable {
+    public let strategy: PartitionStrategy
+    /// The partition key expression (e.g. "RANGE (created_at)").
+    public let partitionKey: String
+    public let partitionCount: Int
+
+    public init(strategy: PartitionStrategy, partitionKey: String, partitionCount: Int) {
+        self.strategy = strategy
+        self.partitionKey = partitionKey
+        self.partitionCount = partitionCount
+    }
+}
+
+/// Detail about a single partition of a partitioned table.
+public struct PostgresPartitionDetail: Sendable {
+    public let schemaName: String
+    public let partitionName: String
+    /// The partition bound specification (e.g. "FOR VALUES FROM ('2024-01-01') TO ('2024-02-01')").
+    public let boundSpec: String
+    public let sizeBytes: Int64
+    public let estimatedRows: Int
+
+    public init(schemaName: String, partitionName: String, boundSpec: String, sizeBytes: Int64, estimatedRows: Int) {
+        self.schemaName = schemaName
+        self.partitionName = partitionName
+        self.boundSpec = boundSpec
+        self.sizeBytes = sizeBytes
+        self.estimatedRows = estimatedRows
+    }
+}
+
+/// Inheritance relationship information (parent or child).
+public struct PostgresInheritanceInfo: Sendable {
+    public let schemaName: String
+    public let tableName: String
+
+    public init(schemaName: String, tableName: String) {
+        self.schemaName = schemaName
+        self.tableName = tableName
+    }
+}
+
 /// Column comment information.
 public struct PostgresColumnComment: Sendable {
     public let column: String

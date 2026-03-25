@@ -69,6 +69,36 @@ public struct PostgresSchemaInfo: Sendable {
     }
 }
 
+/// RLS policy information.
+public struct PostgresPolicyInfo: Sendable {
+    public let name: String
+    public let tableName: String
+    public let schemaName: String
+    /// The command the policy applies to: ALL, SELECT, INSERT, UPDATE, or DELETE.
+    public let command: String
+    /// PERMISSIVE or RESTRICTIVE.
+    public let type: String
+    /// Role names the policy applies to, or empty for PUBLIC.
+    public let roles: [String]
+    public let usingExpression: String?
+    public let withCheckExpression: String?
+
+    public init(
+        name: String, tableName: String, schemaName: String,
+        command: String, type: String, roles: [String],
+        usingExpression: String?, withCheckExpression: String?
+    ) {
+        self.name = name
+        self.tableName = tableName
+        self.schemaName = schemaName
+        self.command = command
+        self.type = type
+        self.roles = roles
+        self.usingExpression = usingExpression
+        self.withCheckExpression = withCheckExpression
+    }
+}
+
 /// Describes role membership relationships.
 public struct PostgresRoleMembership: Sendable {
     public let roleName: String

@@ -70,7 +70,7 @@ public actor PostgresNotifier {
                         await conn.waitForClose()
                     }
                 } catch {
-                    logger.warning("Listen loop error: \(String(describing: error))")
+                    logger.warning("Listen loop error on channels \(normalized): \(String(describing: error))")
                 }
                 // Small backoff before retrying
                 try? await Task.sleep(nanoseconds: 500_000_000)

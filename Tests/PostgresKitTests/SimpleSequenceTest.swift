@@ -8,7 +8,7 @@ final class SimpleSequenceTest: PostgresKitTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        testLogger = Logger(label: "sequence-tests")
+        testLogger = Logger(label: "postgres.wire.tests")
 
                 guard TestEnv.isConfigured else { throw XCTSkip("Postgres environment not set") }
 
@@ -35,7 +35,7 @@ final class SimpleSequenceTest: PostgresKitTestCase {
     }
 
     func testBasicSequenceOperations() async throws {
-        print("=== Testing Basic Sequence Operations ===")
+        logger.info("Testing Basic Sequence Operations")
 
         // Clean up if sequence exists
         _ = try await client.admin.dropSequence(name: "test_simple_seq", ifExists: true)
@@ -92,11 +92,11 @@ final class SimpleSequenceTest: PostgresKitTestCase {
         _ = try await client.admin.dropTable(name: "test_seq_table", ifExists: false)
         _ = try await client.admin.dropSequence(name: "test_simple_seq", ifExists: false)
 
-        print("✓ Basic sequence operations test passed")
+        logger.info("Basic sequence operations test passed")
     }
 
     func testSequenceWithOptions() async throws {
-        print("=== Testing Sequence Options ===")
+        logger.info("Testing Sequence Options")
 
         // Clean up if sequence exists
         _ = try await client.admin.dropSequence(name: "test_options_seq", ifExists: true)
@@ -124,11 +124,11 @@ final class SimpleSequenceTest: PostgresKitTestCase {
         // Clean up
         _ = try await client.admin.dropSequence(name: "test_options_seq", ifExists: false)
 
-        print("✓ Sequence options test passed")
+        logger.info("Sequence options test passed")
     }
 
     func testTemporarySequence() async throws {
-        print("=== Testing Temporary Sequence ===")
+        logger.info("Testing Temporary Sequence")
 
         // Create temporary sequence - using the new API
         _ = try await client.admin.createSequence(
@@ -142,6 +142,6 @@ final class SimpleSequenceTest: PostgresKitTestCase {
         XCTAssertEqual(nextVal, 1000)
 
         // Temporary sequences don't need explicit cleanup - dropped at session end
-        print("✓ Temporary sequence test passed")
+        logger.info("Temporary sequence test passed")
     }
 }

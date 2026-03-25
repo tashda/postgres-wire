@@ -5,7 +5,7 @@ import Logging
 public final class PostgresActivityMonitor: @unchecked Sendable {
     private let client: PostgresWireClient
     private let baselineLock = NIOLock()
-    private let logger = Logger(label: "dk.tippr.postgres-wire.activity-monitor")
+    private let logger = Logger(label: "postgres.wire.activity")
 
     private var lastWaits: [String: PostgresWaitStat] = [:]
     private var lastDatabaseStats: [String: PostgresDatabaseStat] = [:]
@@ -18,14 +18,16 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
     }
 
     public func snapshot(options: PostgresActivityOptions = .init()) async throws -> PostgresActivitySnapshot {
-        let now = Date()
+        let snapshotStart = Date()
+        let now = snapshotStart
 
         // Fetch one-time server info
         if maxConnections == nil {
             do {
                 let rows = try await client.query(WireQuery(sql: "SHOW max_connections"))
                 for try await row in rows {
-                    if let val = row.column("max_connections")?.int {
+                    let row = row.makeRandomAccess()
+                    if let val = row[data: "max_connections"].int {
                         maxConnections = val
                     }
                     break
@@ -38,7 +40,8 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
             do {
                 let rows = try await client.query(WireQuery(sql: "SELECT current_database()"))
                 for try await row in rows {
-                    currentDatabase = row.column("current_database")?.string
+                    let row = row.makeRandomAccess()
+                    currentDatabase = row[data: "current_database"].string
                     break
                 }
             } catch {
@@ -56,7 +59,7 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
                 break
             }
         } catch {
-            // Ignore error
+            logger.debug("pg_stat_statements not available: \(error)")
         }
 
         // Fetch all data in parallel with resilient error handling
@@ -102,7 +105,7 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         }()
 
         let (procs, dbStats, waits, expensiveQueries, locks, tblStats, replication, opProgress) =
-            try await (processes, databaseStats, waitStats, expensive, lockInfo, tableStatsResult, replicationResult, operationProgressResult)
+            await (processes, databaseStats, waitStats, expensive, lockInfo, tableStatsResult, replicationResult, operationProgressResult)
 
         let waitsDelta = computeWaitDeltas(current: waits)
         let dbStatsDelta = computeDatabaseStatsDeltas(current: dbStats, now: now)
@@ -138,6 +141,9 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         self.baselineLock.withLock {
             self.lastSnapshotTime = now
         }
+
+        let snapshotElapsed = Date().timeIntervalSince(snapshotStart)
+        logger.debug("Snapshot collected in \(String(format: "%.3f", snapshotElapsed))s: \(procs.count) processes, \(dbStats.count) databases, \(locks.count) locks")
 
         return PostgresActivitySnapshot(
             capturedAt: now,
@@ -198,21 +204,22 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         let rows = try await client.query(WireQuery(sql: sql))
         var results: [PostgresProcessInfo] = []
         for try await row in rows {
+            let row = row.makeRandomAccess()
             results.append(PostgresProcessInfo(
-                pid: row.column("pid")?.int32 ?? 0,
-                databaseName: row.column("datname")?.string,
-                userName: row.column("usename")?.string,
-                applicationName: row.column("application_name")?.string,
-                clientAddress: row.column("client_addr")?.string,
-                backendStart: row.column("backend_start")?.date,
-                xactStart: row.column("xact_start")?.date,
-                queryStart: row.column("query_start")?.date,
-                stateChange: row.column("state_change")?.date,
-                waitEventType: row.column("wait_event_type")?.string,
-                waitEvent: row.column("wait_event")?.string,
-                state: row.column("state")?.string,
-                query: options.includeSqlText ? row.column("query")?.string : nil,
-                backendType: row.column("backend_type")?.string,
+                pid: row[data: "pid"].int32 ?? 0,
+                databaseName: row[data: "datname"].string,
+                userName: row[data: "usename"].string,
+                applicationName: row[data: "application_name"].string,
+                clientAddress: row[data: "client_addr"].string,
+                backendStart: row[data: "backend_start"].date,
+                xactStart: row[data: "xact_start"].date,
+                queryStart: row[data: "query_start"].date,
+                stateChange: row[data: "state_change"].date,
+                waitEventType: row[data: "wait_event_type"].string,
+                waitEvent: row[data: "wait_event"].string,
+                state: row[data: "state"].string,
+                query: options.includeSqlText ? row[data: "query"].string : nil,
+                backendType: row[data: "backend_type"].string,
                 isBlocked: false
             ))
         }
@@ -230,13 +237,14 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         let rows = try await client.query(WireQuery(sql: sql))
         var results: [PostgresWaitStat] = []
         for try await row in rows {
-            guard let type = row.column("wait_event_type")?.string,
-                  let event = row.column("wait_event")?.string
+            let row = row.makeRandomAccess()
+            guard let type = row[data: "wait_event_type"].string,
+                  let event = row[data: "wait_event"].string
             else { continue }
             results.append(PostgresWaitStat(
                 waitEventType: type,
                 waitEvent: event,
-                count: row.column("count")?.int ?? 0
+                count: row[data: "count"].int ?? 0
             ))
         }
         return results
@@ -255,21 +263,22 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         let rows = try await client.query(WireQuery(sql: sql))
         var results: [PostgresDatabaseStat] = []
         for try await row in rows {
-            guard let name = row.column("datname")?.string else { continue }
+            let row = row.makeRandomAccess()
+            guard let name = row[data: "datname"].string else { continue }
             results.append(PostgresDatabaseStat(
                 datname: name,
-                numbackends: row.column("numbackends")?.int ?? 0,
-                xact_commit: row.column("xact_commit")?.int64 ?? 0,
-                xact_rollback: row.column("xact_rollback")?.int64 ?? 0,
-                blks_read: row.column("blks_read")?.int64 ?? 0,
-                blks_hit: row.column("blks_hit")?.int64 ?? 0,
-                tup_returned: row.column("tup_returned")?.int64 ?? 0,
-                tup_fetched: row.column("tup_fetched")?.int64 ?? 0,
-                tup_inserted: row.column("tup_inserted")?.int64 ?? 0,
-                tup_updated: row.column("tup_updated")?.int64 ?? 0,
-                tup_deleted: row.column("tup_deleted")?.int64 ?? 0,
-                temp_files: row.column("temp_files")?.int64 ?? 0,
-                deadlocks: row.column("deadlocks")?.int64 ?? 0
+                numbackends: row[data: "numbackends"].int ?? 0,
+                xact_commit: row[data: "xact_commit"].int64 ?? 0,
+                xact_rollback: row[data: "xact_rollback"].int64 ?? 0,
+                blks_read: row[data: "blks_read"].int64 ?? 0,
+                blks_hit: row[data: "blks_hit"].int64 ?? 0,
+                tup_returned: row[data: "tup_returned"].int64 ?? 0,
+                tup_fetched: row[data: "tup_fetched"].int64 ?? 0,
+                tup_inserted: row[data: "tup_inserted"].int64 ?? 0,
+                tup_updated: row[data: "tup_updated"].int64 ?? 0,
+                tup_deleted: row[data: "tup_deleted"].int64 ?? 0,
+                temp_files: row[data: "temp_files"].int64 ?? 0,
+                deadlocks: row[data: "deadlocks"].int64 ?? 0
             ))
         }
         return results
@@ -286,15 +295,16 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         let rows = try await client.query(WireQuery(sql: sql))
         var results: [PostgresExpensiveQuery] = []
         for try await row in rows {
+            let row = row.makeRandomAccess()
             results.append(PostgresExpensiveQuery(
-                queryid: row.column("queryid")?.int64,
-                query: row.column("query")?.string ?? "",
-                calls: row.column("calls")?.int64 ?? 0,
-                total_exec_time: row.column("total_exec_time")?.double ?? 0,
-                min_exec_time: row.column("min_exec_time")?.double ?? 0,
-                max_exec_time: row.column("max_exec_time")?.double ?? 0,
-                mean_exec_time: row.column("mean_exec_time")?.double ?? 0,
-                rows: row.column("rows")?.int64 ?? 0
+                queryid: row[data: "queryid"].int64,
+                query: row[data: "query"].string ?? "",
+                calls: row[data: "calls"].int64 ?? 0,
+                total_exec_time: row[data: "total_exec_time"].double ?? 0,
+                min_exec_time: row[data: "min_exec_time"].double ?? 0,
+                max_exec_time: row[data: "max_exec_time"].double ?? 0,
+                mean_exec_time: row[data: "mean_exec_time"].double ?? 0,
+                rows: row[data: "rows"].int64 ?? 0
             ))
         }
         return results
@@ -334,17 +344,18 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         let rows = try await client.query(WireQuery(sql: sql))
         var results: [PostgresLockInfo] = []
         for try await row in rows {
+            let row = row.makeRandomAccess()
             results.append(PostgresLockInfo(
-                pid: row.column("pid")?.int32 ?? 0,
-                databaseName: row.column("datname")?.string,
-                locktype: row.column("locktype")?.string ?? "",
-                relation: row.column("relation")?.string,
-                mode: row.column("mode")?.string ?? "",
-                granted: row.column("granted")?.bool ?? true,
-                blockingPid: row.column("blocking_pid")?.int32,
-                query: row.column("query")?.string,
-                state: row.column("state")?.string,
-                waitDuration: row.column("wait_seconds")?.double
+                pid: row[data: "pid"].int32 ?? 0,
+                databaseName: row[data: "datname"].string,
+                locktype: row[data: "locktype"].string ?? "",
+                relation: row[data: "relation"].string,
+                mode: row[data: "mode"].string ?? "",
+                granted: row[data: "granted"].bool ?? true,
+                blockingPid: row[data: "blocking_pid"].int32,
+                query: row[data: "query"].string,
+                state: row[data: "state"].string,
+                waitDuration: row[data: "wait_seconds"].double
             ))
         }
         return results
@@ -368,21 +379,22 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         let rows = try await client.query(WireQuery(sql: sql))
         var results: [PostgresTableStat] = []
         for try await row in rows {
-            guard let schema = row.column("schemaname")?.string,
-                  let name = row.column("relname")?.string else { continue }
+            let row = row.makeRandomAccess()
+            guard let schema = row[data: "schemaname"].string,
+                  let name = row[data: "relname"].string else { continue }
             results.append(PostgresTableStat(
                 schemaName: schema,
                 tableName: name,
-                seqScan: row.column("seq_scan")?.int64 ?? 0,
-                seqTupRead: row.column("seq_tup_read")?.int64 ?? 0,
-                idxScan: row.column("idx_scan")?.int64 ?? 0,
-                idxTupFetch: row.column("idx_tup_fetch")?.int64 ?? 0,
-                nLiveTup: row.column("n_live_tup")?.int64 ?? 0,
-                nDeadTup: row.column("n_dead_tup")?.int64 ?? 0,
-                lastVacuum: row.column("last_vacuum")?.date,
-                lastAutoVacuum: row.column("last_autovacuum")?.date,
-                lastAnalyze: row.column("last_analyze")?.date,
-                lastAutoAnalyze: row.column("last_autoanalyze")?.date
+                seqScan: row[data: "seq_scan"].int64 ?? 0,
+                seqTupRead: row[data: "seq_tup_read"].int64 ?? 0,
+                idxScan: row[data: "idx_scan"].int64 ?? 0,
+                idxTupFetch: row[data: "idx_tup_fetch"].int64 ?? 0,
+                nLiveTup: row[data: "n_live_tup"].int64 ?? 0,
+                nDeadTup: row[data: "n_dead_tup"].int64 ?? 0,
+                lastVacuum: row[data: "last_vacuum"].date,
+                lastAutoVacuum: row[data: "last_autovacuum"].date,
+                lastAnalyze: row[data: "last_analyze"].date,
+                lastAutoAnalyze: row[data: "last_autoanalyze"].date
             ))
         }
         return results
@@ -400,19 +412,20 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         let rows = try await client.query(WireQuery(sql: sql))
         var results: [PostgresReplicationInfo] = []
         for try await row in rows {
+            let row = row.makeRandomAccess()
             results.append(PostgresReplicationInfo(
-                pid: row.column("pid")?.int32 ?? 0,
-                usename: row.column("usename")?.string ?? "",
-                applicationName: row.column("application_name")?.string ?? "",
-                clientAddr: row.column("client_addr")?.string,
-                state: row.column("state")?.string ?? "",
-                sentLsn: row.column("sent_lsn")?.string,
-                writeLsn: row.column("write_lsn")?.string,
-                flushLsn: row.column("flush_lsn")?.string,
-                replayLsn: row.column("replay_lsn")?.string,
-                writeLag: row.column("write_lag")?.string,
-                flushLag: row.column("flush_lag")?.string,
-                replayLag: row.column("replay_lag")?.string
+                pid: row[data: "pid"].int32 ?? 0,
+                usename: row[data: "usename"].string ?? "",
+                applicationName: row[data: "application_name"].string ?? "",
+                clientAddr: row[data: "client_addr"].string,
+                state: row[data: "state"].string ?? "",
+                sentLsn: row[data: "sent_lsn"].string,
+                writeLsn: row[data: "write_lsn"].string,
+                flushLsn: row[data: "flush_lsn"].string,
+                replayLsn: row[data: "replay_lsn"].string,
+                writeLag: row[data: "write_lag"].string,
+                flushLag: row[data: "flush_lag"].string,
+                replayLag: row[data: "replay_lag"].string
             ))
         }
         return results
@@ -475,14 +488,15 @@ public final class PostgresActivityMonitor: @unchecked Sendable {
         let rows = try await client.query(WireQuery(sql: sql))
         var results: [PostgresOperationProgress] = []
         for try await row in rows {
+            let row = row.makeRandomAccess()
             results.append(PostgresOperationProgress(
-                pid: row.column("pid")?.int32 ?? 0,
-                operation: row.column("operation")?.string ?? "",
-                phase: row.column("phase")?.string ?? "",
-                databaseName: row.column("datname")?.string,
-                relation: row.column("relation")?.string,
-                progressPercent: row.column("progress_pct")?.double,
-                startedAt: row.column("backend_start")?.date
+                pid: row[data: "pid"].int32 ?? 0,
+                operation: row[data: "operation"].string ?? "",
+                phase: row[data: "phase"].string ?? "",
+                databaseName: row[data: "datname"].string,
+                relation: row[data: "relation"].string,
+                progressPercent: row[data: "progress_pct"].double,
+                startedAt: row[data: "backend_start"].date
             ))
         }
         return results

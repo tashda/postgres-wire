@@ -8,7 +8,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        testLogger = Logger(label: "comprehensive-table-tests")
+        testLogger = Logger(label: "postgres.wire.tests")
 
                 guard TestEnv.isConfigured else { throw XCTSkip("Postgres environment not set") }
 
@@ -37,7 +37,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
     // MARK: - Table Creation with All Data Types
 
     func testCreateTableWithAllDataTypes() async throws {
-        print("=== Testing Table Creation with All Data Types ===")
+        logger.info("Testing Table Creation with All Data Types")
 
         _ = try await client.admin.dropTable(name: "test_all_types", ifExists: true)
 
@@ -94,9 +94,9 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
                     .varchar(name: "status_col", length: 20, nullable: false, defaultValue: "active")
                 ]
             )
-            print("✓ Table creation successful")
+            logger.info("Table creation successful")
         } catch {
-            print("❌ Table creation failed: \(error)")
+            logger.error("Table creation failed: \(error)")
             throw error
         }
 
@@ -115,25 +115,25 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
             }
             XCTAssertTrue(tableExists, "Table should exist and be queryable")
             if tableExists {
-                print("✓ Table verification successful")
+                logger.info("Table verification successful")
             } else {
-                print("❌ Table verification failed - table does not exist")
+                logger.error("Table verification failed - table does not exist")
             }
         } catch {
-            print("❌ Table verification failed: \(error)")
+            logger.error("Table verification failed: \(error)")
             XCTFail("Table verification failed with error: \(error)")
         }
 
         // Cleanup
         _ = try await client.admin.dropTable(name: "test_all_types", ifExists: false)
 
-        print("✓ Table creation with all data types test passed")
+        logger.info("Table creation with all data types test passed")
     }
 
     // MARK: - Table Operations with Complex Data Types
 
     func testTableOperationsWithComplexDataTypes() async throws {
-        print("=== Testing Table Operations with Complex Data Types ===")
+        logger.info("Testing Table Operations with Complex Data Types")
 
         _ = try await client.admin.dropTable(name: "test_complex_table", ifExists: true)
 
@@ -179,7 +179,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         var electronicsCount = 0
         for try await (name, category) in jsonResult.decode((String, String).self) {
             electronicsCount += 1
-            print("Found electronics product: \(name) - \(category)")
+            logger.info("Found electronics product: \(name) - \(category)")
         }
         XCTAssertEqual(electronicsCount, 1, "Should find one electronics product")
 
@@ -188,7 +188,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         var booksCount = 0
         for try await (name, tags) in arrayResult.decode((String, [String]).self) {
             booksCount += 1
-            print("Found book product: \(name) - tags: \(tags)")
+            logger.info("Found book product: \(name) - tags: \(tags)")
         }
         XCTAssertEqual(booksCount, 1, "Should find one book product")
 
@@ -207,13 +207,13 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         // Cleanup
         _ = try await client.admin.dropTable(name: "test_complex_table", ifExists: false)
 
-        print("✓ Table operations with complex data types test passed")
+        logger.info("Table operations with complex data types test passed")
     }
 
     // MARK: - Table Alter Operations
 
     func testAlterTableOperations() async throws {
-        print("=== Testing Alter Table Operations ===")
+        logger.info("Testing Alter Table Operations")
 
         _ = try await client.admin.dropTable(name: "test_alter_table", ifExists: true)
 
@@ -287,13 +287,13 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         // Cleanup
         _ = try await client.admin.dropTable(name: "test_alter_table", ifExists: false)
 
-        print("✓ Alter table operations test passed")
+        logger.info("Alter table operations test passed")
     }
 
     // MARK: - Table Truncate Operations
 
     func testTruncateTableOperations() async throws {
-        print("=== Testing Truncate Table Operations ===")
+        logger.info("Testing Truncate Table Operations")
 
         // Use fixed table names with proper cleanup at start
         _ = try await client.admin.dropTable(name: "test_truncate_table", ifExists: true, cascade: true)
@@ -377,13 +377,13 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         _ = try await client.admin.dropTable(name: "test_truncate_table2", ifExists: true, cascade: true)
         _ = try await client.admin.dropTable(name: "test_truncate_table", ifExists: true, cascade: true)
 
-        print("✓ Truncate table operations test passed")
+        logger.info("Truncate table operations test passed")
     }
 
     // MARK: - Table Operations with Large Datasets
 
     func testTableOperationsWithLargeDatasets() async throws {
-        print("=== Testing Table Operations with Large Datasets ===")
+        logger.info("Testing Table Operations with Large Datasets")
 
         _ = try await client.admin.dropTable(name: "test_large_dataset", ifExists: true)
 
@@ -483,8 +483,8 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
 
         let queryTime = Date().timeIntervalSinceReferenceDate - startTime
 
-        print("Query results: \(count) active records in categories 3-7, avg price: $\(String(format: "%.2f", avgPrice))")
-        print("Query completed in \(String(format: "%.3f", queryTime)) seconds")
+        logger.info("Query results: \(count) active records in categories 3-7, avg price: $\(String(format: "%.2f", avgPrice))")
+        logger.info("Query completed in \(String(format: "%.3f", queryTime)) seconds")
 
         XCTAssertGreaterThan(count, 1000, "Should find significant number of records")
         XCTAssertLessThan(queryTime, 2.0, "Query should complete quickly with proper indexing")
@@ -495,13 +495,13 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         // Cleanup
         _ = try await client.admin.dropTable(name: "test_large_dataset", ifExists: false)
 
-        print("✓ Large dataset operations test passed")
+        logger.info("Large dataset operations test passed")
     }
 
     // MARK: - Table Operations with Special Character Handling
 
     func testTableOperationsWithSpecialCharacters() async throws {
-        print("=== Testing Table Operations with Special Characters ===")
+        logger.info("Testing Table Operations with Special Characters")
 
         // Test table and column names with special characters
         _ = try await client.admin.dropTable(name: "test_special_chars_table", ifExists: true)
@@ -537,10 +537,7 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         var userCount = 0
         for try await (name, email, description) in result.decode((String, String, String).self) {
             userCount += 1
-            print("User: \(name)")
-            print("Email: \(email)")
-            print("Description: \(description)")
-            print("---")
+            logger.info("User: \(name), Email: \(email), Description: \(description)")
         }
         XCTAssertEqual(userCount, 3, "Should retrieve all 3 users with special characters")
 
@@ -565,6 +562,6 @@ final class ComprehensiveTableTests: PostgresKitTestCase {
         _ = try await client.admin.dropTable(name: "test_special_chars_table", ifExists: false)
         _ = try await client.admin.dropTable(name: "table_with_underscores", ifExists: false)
 
-        print("✓ Special character handling test passed")
+        logger.info("Special character handling test passed")
     }
 }

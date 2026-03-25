@@ -109,7 +109,7 @@ public final class PostgresWireClient: @unchecked Sendable {
 
     public static func connect(
         configuration: PostgresWireConfiguration,
-        logger: Logger = .init(label: "postgres-wire")
+        logger: Logger = .init(label: "postgres.wire.client")
     ) async throws -> PostgresWireClient {
         // Phase 0: Pre-resolve hostname. This gives immediate feedback for
         // typos and non-existent hosts instead of hanging until timeout.
@@ -186,6 +186,7 @@ public final class PostgresWireClient: @unchecked Sendable {
         clientConfig.options.connectTimeout = .seconds(Int64(configuration.connectTimeout))
 
         let client = PostgresClient(configuration: clientConfig, backgroundLogger: logger)
+        logger.info("Connected to \(configuration.host):\(configuration.port)/\(configuration.database ?? "postgres"), sslMode=\(configuration.sslMode.rawValue)")
         return PostgresWireClient(client: client, logger: logger)
     }
 
@@ -421,6 +422,7 @@ public final class PostgresWireClient: @unchecked Sendable {
 
             } catch {
                 // Clean up cursor and transaction on error
+                effectiveLogger.debug("Cursor cleanup after error: \(error)")
                 _ = try? await connection.query(WireQuery(sql: "CLOSE \(cursorName)"), logger: effectiveLogger)
                 _ = try? await connection.query(WireQuery(sql: "ROLLBACK"), logger: effectiveLogger)
 
@@ -485,7 +487,8 @@ extension PostgresWireClient {
     ) throws {
         guard let certPath, let keyPath else { return }
         config.certificateChain = try NIOSSLCertificate.fromPEMFile(certPath).map { .certificate($0) }
-        config.privateKey = .file(keyPath)
+        let keyFormat: NIOSSLSerializationFormats = keyPath.lowercased().hasSuffix(".der") ? .der : .pem
+        config.privateKey = .privateKey(try NIOSSLPrivateKey(file: keyPath, format: keyFormat))
     }
 
     /// Build `PostgresConnection.Configuration.TLS` from the sslMode spectrum.

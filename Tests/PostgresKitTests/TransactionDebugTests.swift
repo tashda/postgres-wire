@@ -13,7 +13,7 @@ final class TransactionDebugTests: PostgresKitTestCase {
         guard TestEnv.isConfigured else {
             throw XCTSkip("POSTGRES_HOST not set; skipping integration test")
         }
-        testLogger = Logger(label: "transaction-debug-tests")
+        testLogger = Logger(label: "postgres.wire.tests")
 
         let config = PostgresConfiguration(
             host: TestEnv.host,
@@ -35,8 +35,9 @@ final class TransactionDebugTests: PostgresKitTestCase {
 
     // Test to understand the behavior of temporary tables
     func testTemporaryTableBehavior() async throws {
-        print("=== Testing Temporary Table Behavior ===")
+        logger.info("Testing Temporary Table Behavior")
 
+        let log = self.logger
         let result = try await client.connection.withConnection { conn in
             // Create temporary table and test its behavior
             _ = try await conn.createTable(
@@ -46,9 +47,9 @@ final class TransactionDebugTests: PostgresKitTestCase {
             )
 
             // Insert a row and check immediate result
-            print("About to insert first row...")
+            log.info("About to insert first row")
             _ = try await conn.insert(into: "debug_tx", columns: ["value"], values: [["test1"]])
-            print("First insert completed")
+            log.info("First insert completed")
 
             // Count immediately
             let countRows1 = try await conn.simpleQuery("SELECT COUNT(*)::text FROM debug_tx")
@@ -59,21 +60,21 @@ final class TransactionDebugTests: PostgresKitTestCase {
                 }
                 break
             }
-            print("After 1 insert: COUNT = \(count1)")
+            log.info("After 1 insert: COUNT = \(count1)")
 
             // Verify the actual data exists
             let dataRows1 = try await conn.simpleQuery("SELECT id, value FROM debug_tx")
             var rowCount1 = 0
             for try await (id, value) in dataRows1.decode((Int32, String).self) {
                 rowCount1 += 1
-                print("Found row: id=\(id), value='\(value)'")
+                log.info("Found row: id=\(id), value='\(value)'")
             }
-            print("Actual rows found: \(rowCount1)")
+            log.info("Actual rows found: \(rowCount1)")
 
             // Insert another row
-            print("About to insert second row...")
+            log.info("About to insert second row")
             _ = try await conn.insert(into: "debug_tx", columns: ["value"], values: [["test2"]])
-            print("Second insert completed")
+            log.info("Second insert completed")
 
             // Count again
             let countRows2 = try await conn.simpleQuery("SELECT COUNT(*)::text FROM debug_tx")
@@ -84,27 +85,28 @@ final class TransactionDebugTests: PostgresKitTestCase {
                 }
                 break
             }
-            print("After 2 inserts: COUNT = \(count2)")
+            log.info("After 2 inserts: COUNT = \(count2)")
 
             // Verify the actual data exists again
             let dataRows2 = try await conn.simpleQuery("SELECT id, value FROM debug_tx")
             var rowCount2 = 0
             for try await (id, value) in dataRows2.decode((Int32, String).self) {
                 rowCount2 += 1
-                print("Found row: id=\(id), value='\(value)'")
+                log.info("Found row: id=\(id), value='\(value)'")
             }
-            print("Actual rows found after second insert: \(rowCount2)")
+            log.info("Actual rows found after second insert: \(rowCount2)")
 
             return Int32(count2)
         }
 
         XCTAssertEqual(result, 2)
-        print("Test completed successfully. Temporary table behavior seems normal.")
+        logger.info("Temporary table behavior test completed successfully")
     }
 
     func testTransactionIsolation() async throws {
-        print("=== Testing Transaction Isolation ===")
+        logger.info("Testing Transaction Isolation")
 
+        let log = self.logger
         let result = try await client.connection.withConnection { conn in
             // Start transaction
             _ = try await conn.beginTransaction()
@@ -128,7 +130,7 @@ final class TransactionDebugTests: PostgresKitTestCase {
                 }
                 break
             }
-            print("Before COMMIT: COUNT = \(beforeCount)")
+            log.info("Before COMMIT: COUNT = \(beforeCount)")
 
             // Commit transaction
             _ = try await conn.commit()
@@ -142,18 +144,19 @@ final class TransactionDebugTests: PostgresKitTestCase {
                 }
                 break
             }
-            print("After COMMIT: COUNT = \(afterCount)")
+            log.info("After COMMIT: COUNT = \(afterCount)")
 
             return Int32(afterCount)
         }
 
         XCTAssertEqual(result, 2)
-        print("Transaction isolation test completed successfully.")
+        logger.info("Transaction isolation test completed successfully")
     }
 
     func testRollbackBehavior() async throws {
-        print("=== Testing Rollback Behavior ===")
+        logger.info("Testing Rollback Behavior")
 
+        let log = self.logger
         let result = try await client.connection.withConnection { conn in
             // Create table outside transaction so it persists after rollback
             _ = try await conn.createTable(
@@ -177,7 +180,7 @@ final class TransactionDebugTests: PostgresKitTestCase {
                 }
                 break
             }
-            print("Before ROLLBACK: COUNT = \(beforeCount)")
+            log.info("Before ROLLBACK: COUNT = \(beforeCount)")
 
             // Rollback transaction
             _ = try await conn.rollback()
@@ -191,12 +194,12 @@ final class TransactionDebugTests: PostgresKitTestCase {
                 }
                 break
             }
-            print("After ROLLBACK: COUNT = \(afterCount)")
+            log.info("After ROLLBACK: COUNT = \(afterCount)")
 
             return Int32(afterCount)
         }
 
         XCTAssertEqual(result, 0)
-        print("Rollback test completed successfully.")
+        logger.info("Rollback test completed successfully")
     }
 }

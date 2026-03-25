@@ -154,4 +154,36 @@ public extension PostgresSecurityClient {
         for try await v in rows.decode(String.self) { return v }
         return nil
     }
+
+    /// Returns the current role's effective permissions in a single query.
+    ///
+    /// Uses `pg_roles` for role attributes and `has_database_privilege()` for
+    /// database-level checks. Works on PostgreSQL 12+.
+    func currentPermissions() async throws -> PostgresPermissions {
+        let sql = """
+            SELECT
+                r.rolsuper, r.rolcreaterole, r.rolcreatedb,
+                r.rolcanlogin, r.rolreplication, r.rolbypassrls,
+                has_database_privilege(current_user, current_database(), 'CREATE') AS can_create_in_db
+            FROM pg_catalog.pg_roles r
+            WHERE r.rolname = current_user
+            """
+        let rows = try await client.simpleQuery(sql)
+        for try await v in rows.decode((Bool, Bool, Bool, Bool, Bool, Bool, Bool).self) {
+            return PostgresPermissions(
+                isSuperuser: v.0,
+                canCreateRole: v.1,
+                canCreateDB: v.2,
+                canLogin: v.3,
+                isReplication: v.4,
+                bypassRLS: v.5,
+                canCreateInCurrentDB: v.6
+            )
+        }
+        return PostgresPermissions(
+            isSuperuser: false, canCreateRole: false, canCreateDB: false,
+            canLogin: true, isReplication: false, bypassRLS: false,
+            canCreateInCurrentDB: false
+        )
+    }
 }

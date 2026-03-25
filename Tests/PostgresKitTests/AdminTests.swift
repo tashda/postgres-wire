@@ -20,7 +20,7 @@ final class AdminTests: PostgresKitTestCase {
             useTLS: TestEnv.useTLS,
             applicationName: "AdminTests"
         )
-        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "admin-tests"))
+        client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: Logger(label: "postgres.wire.tests"))
     }
 
     override func tearDown() async throws {

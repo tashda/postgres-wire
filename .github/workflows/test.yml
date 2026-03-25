@@ -63,6 +63,14 @@ jobs:
         with:
           swift-version: '6.2.4'
 
+      - name: Docker Preflight
+        run: |
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          mkdir -p "$DOCKER_CONFIG"
+          printf '{}\n' > "$DOCKER_CONFIG/config.json"
+          docker info
+          docker pull postgres:17
+
       - name: Bootstrap validated Postgres fixture
         env:
           USE_DOCKER: "1"
@@ -117,6 +125,16 @@ jobs:
         uses: swift-actions/setup-swift@v3
         with:
           swift-version: '6.2.4'
+
+      - name: Docker Preflight
+        env:
+          POSTGRES_VERSION: ${{ matrix.version }}
+        run: |
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          mkdir -p "$DOCKER_CONFIG"
+          printf '{}\n' > "$DOCKER_CONFIG/config.json"
+          docker info
+          docker pull "postgres:${POSTGRES_VERSION}"
 
       - name: Bootstrap validated Postgres fixture
         env:

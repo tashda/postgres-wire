@@ -74,4 +74,20 @@ public extension PostgresAdminClient {
 
         return try await client.executeDDL(parts.joined(separator: " "))
     }
+
+    /// Rename an index.
+    @discardableResult
+    func renameIndex(name: String, newName: String, schema: String? = nil) async throws -> Int {
+        let qualifiedName = schema.map { "\(client.quoteIdentifier($0)).\(client.quoteIdentifier(name))" } ?? client.quoteIdentifier(name)
+        let sql = "ALTER INDEX \(qualifiedName) RENAME TO \(client.quoteIdentifier(newName))"
+        return try await client.executeDDL(sql)
+    }
+
+    /// Set index tablespace.
+    @discardableResult
+    func alterIndexSetTablespace(name: String, tablespace: String, schema: String? = nil) async throws -> Int {
+        let qualifiedName = schema.map { "\(client.quoteIdentifier($0)).\(client.quoteIdentifier(name))" } ?? client.quoteIdentifier(name)
+        let sql = "ALTER INDEX \(qualifiedName) SET TABLESPACE \(client.quoteIdentifier(tablespace))"
+        return try await client.executeDDL(sql)
+    }
 }

@@ -79,6 +79,8 @@ public struct PostgresError: Error, CustomStringConvertible, Sendable {
     internal static func protocolError(_ message: String) -> PostgresError { .init(message: message) }
     internal static func encodingError(message: String, type: Any.Type) -> PostgresError { .init(message: message) }
     internal static func encodingError(type: Any.Type) -> PostgresError { .init(message: "Could not encode value of type \(type) to PGData") }
+    /// Object not found in the catalog.
+    public static func objectNotFound(_ message: String) -> PostgresError { .init(message: message) }
 
     /// Get detailed debugging information.
     public func withDebugging() -> PostgresErrorDebugInfo {

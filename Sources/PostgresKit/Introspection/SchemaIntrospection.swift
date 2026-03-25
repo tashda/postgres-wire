@@ -24,7 +24,9 @@ public extension PostgresIntrospectionClient {
     /// List all user schemas.
     func listSchemas() async throws -> [PostgresSchemaInfo] {
         let sql = """
-            SELECT n.nspname, r.rolname
+            SELECT n.oid::int, n.nspname, r.rolname,
+                   obj_description(n.oid, 'pg_namespace'),
+                   n.nspacl::text
             FROM pg_catalog.pg_namespace n
             JOIN pg_catalog.pg_roles r ON n.nspowner = r.oid
             WHERE n.nspname !~ '^pg_' AND n.nspname != 'information_schema'
@@ -32,8 +34,8 @@ public extension PostgresIntrospectionClient {
             """
         var results: [PostgresSchemaInfo] = []
         let rows = try await client.simpleQuery(sql)
-        for try await v in rows.decode((String, String).self) {
-            results.append(PostgresSchemaInfo(name: v.0, owner: v.1))
+        for try await v in rows.decode((Int, String, String, String?, String?).self) {
+            results.append(PostgresSchemaInfo(oid: v.0, name: v.1, owner: v.2, description: v.3, acl: v.4))
         }
         return results
     }

@@ -52,14 +52,20 @@ public struct PostgresSecurityLabel: Sendable {
     }
 }
 
-/// Basic information about a schema.
+/// Detailed information about a schema.
 public struct PostgresSchemaInfo: Sendable {
+    public let oid: Int
     public let name: String
     public let owner: String
+    public let description: String?
+    public let acl: String?
 
-    public init(name: String, owner: String) {
+    public init(oid: Int = 0, name: String, owner: String, description: String? = nil, acl: String? = nil) {
+        self.oid = oid
         self.name = name
         self.owner = owner
+        self.description = description
+        self.acl = acl
     }
 }
 

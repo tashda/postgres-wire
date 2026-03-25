@@ -86,6 +86,18 @@ public extension PostgresAdminClient {
         return try await client.executeDDL(parts.joined(separator: " "))
     }
 
+    /// Rename a schema.
+    func alterSchemaRename(name: String, newName: String) async throws {
+        let sql = "ALTER SCHEMA \(client.quoteIdentifier(name)) RENAME TO \(client.quoteIdentifier(newName))"
+        _ = try await client.executeDDL(sql)
+    }
+
+    /// Change schema owner.
+    func alterSchemaOwner(name: String, newOwner: String) async throws {
+        let sql = "ALTER SCHEMA \(client.quoteIdentifier(name)) OWNER TO \(client.quoteIdentifier(newOwner))"
+        _ = try await client.executeDDL(sql)
+    }
+
     /// Change database owner.
     func alterDatabaseOwner(name: String, newOwner: String) async throws {
         let sql = "ALTER DATABASE \(client.quoteIdentifier(name)) OWNER TO \(client.quoteIdentifier(newOwner))"

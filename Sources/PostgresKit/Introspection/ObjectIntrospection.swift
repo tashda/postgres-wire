@@ -4,7 +4,7 @@ import PostgresWire
 public extension PostgresIntrospectionClient {
     /// Fetch the SQL definition of a view.
     func viewDefinition(schema: String, view: String) async throws -> String? {
-        let sql = "SELECT pg_get_viewdef(format('%I.%I', $1::text, $2::text)::regclass, true)"
+        let sql = "SELECT definition FROM pg_views WHERE schemaname = $1 AND viewname = $2"
         return try await client.withConnection { conn in
             let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: view)])
             for row in rows { return try row.decode(String?.self) }

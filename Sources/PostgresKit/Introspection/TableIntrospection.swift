@@ -7,7 +7,7 @@ public extension PostgresIntrospectionClient {
     func fetchTableDetails(schema: String, table: String) async throws -> PostgresTableDetails {
         let sql = """
             SELECT
-                c.oid::int AS oid,
+                c.oid::bigint AS oid,
                 c.relname::text AS name,
                 n.nspname::text AS schema,
                 r.rolname::text AS owner,
@@ -17,7 +17,7 @@ public extension PostgresIntrospectionClient {
                 c.relhastriggers::text AS has_triggers,
                 c.relrowsecurity::text AS row_security,
                 c.relforcerowsecurity::text AS force_row_security,
-                c.relispartition::text AS is_partitioned,
+                (c.relkind = 'p')::text AS is_partitioned,
                 d.description::text AS description,
                 c.relacl::text AS acl,
                 c.reloptions::text AS options,

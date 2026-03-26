@@ -44,6 +44,30 @@ public extension PostgresAdminClient {
         return try await client.executeDDL(parts.joined(separator: " "))
     }
 
+    /// Rename an aggregate function.
+    @discardableResult
+    func alterAggregateRename(name: String, inputType: String, newName: String, schema: String? = nil) async throws -> Int {
+        let qualifiedName = schema.map { "\(client.quoteIdentifier($0)).\(client.quoteIdentifier(name))" } ?? client.quoteIdentifier(name)
+        let sql = "ALTER AGGREGATE \(qualifiedName)(\(inputType)) RENAME TO \(client.quoteIdentifier(newName))"
+        return try await client.executeDDL(sql)
+    }
+
+    /// Change an aggregate function's owner.
+    @discardableResult
+    func alterAggregateOwner(name: String, inputType: String, newOwner: String, schema: String? = nil) async throws -> Int {
+        let qualifiedName = schema.map { "\(client.quoteIdentifier($0)).\(client.quoteIdentifier(name))" } ?? client.quoteIdentifier(name)
+        let sql = "ALTER AGGREGATE \(qualifiedName)(\(inputType)) OWNER TO \(client.quoteIdentifier(newOwner))"
+        return try await client.executeDDL(sql)
+    }
+
+    /// Move an aggregate function to a different schema.
+    @discardableResult
+    func alterAggregateSetSchema(name: String, inputType: String, newSchema: String, schema: String? = nil) async throws -> Int {
+        let qualifiedName = schema.map { "\(client.quoteIdentifier($0)).\(client.quoteIdentifier(name))" } ?? client.quoteIdentifier(name)
+        let sql = "ALTER AGGREGATE \(qualifiedName)(\(inputType)) SET SCHEMA \(client.quoteIdentifier(newSchema))"
+        return try await client.executeDDL(sql)
+    }
+
     // MARK: - Operators
 
     /// Create an operator.
@@ -87,6 +111,26 @@ public extension PostgresAdminClient {
         return try await client.executeDDL(parts.joined(separator: " "))
     }
 
+    /// Change an operator's owner.
+    @discardableResult
+    func alterOperatorOwner(name: String, leftType: String?, rightType: String?, newOwner: String, schema: String? = nil) async throws -> Int {
+        let qualifiedName = schema.map { "\(client.quoteIdentifier($0)).\(name)" } ?? name
+        let left = leftType ?? "NONE"
+        let right = rightType ?? "NONE"
+        let sql = "ALTER OPERATOR \(qualifiedName)(\(left), \(right)) OWNER TO \(client.quoteIdentifier(newOwner))"
+        return try await client.executeDDL(sql)
+    }
+
+    /// Move an operator to a different schema.
+    @discardableResult
+    func alterOperatorSetSchema(name: String, leftType: String?, rightType: String?, newSchema: String, schema: String? = nil) async throws -> Int {
+        let qualifiedName = schema.map { "\(client.quoteIdentifier($0)).\(name)" } ?? name
+        let left = leftType ?? "NONE"
+        let right = rightType ?? "NONE"
+        let sql = "ALTER OPERATOR \(qualifiedName)(\(left), \(right)) SET SCHEMA \(client.quoteIdentifier(newSchema))"
+        return try await client.executeDDL(sql)
+    }
+
     // MARK: - Languages
 
     /// Create a procedural language.
@@ -122,6 +166,20 @@ public extension PostgresAdminClient {
         parts.append(client.quoteIdentifier(name))
         if cascade { parts.append("CASCADE") }
         return try await client.executeDDL(parts.joined(separator: " "))
+    }
+
+    /// Rename a procedural language.
+    @discardableResult
+    func alterLanguageRename(name: String, newName: String) async throws -> Int {
+        let sql = "ALTER LANGUAGE \(client.quoteIdentifier(name)) RENAME TO \(client.quoteIdentifier(newName))"
+        return try await client.executeDDL(sql)
+    }
+
+    /// Change a procedural language's owner.
+    @discardableResult
+    func alterLanguageOwner(name: String, newOwner: String) async throws -> Int {
+        let sql = "ALTER LANGUAGE \(client.quoteIdentifier(name)) OWNER TO \(client.quoteIdentifier(newOwner))"
+        return try await client.executeDDL(sql)
     }
 
     // MARK: - Casts

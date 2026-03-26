@@ -40,6 +40,14 @@ public extension PostgresAdminClient {
         return try await client.executeDDL(parts.joined(separator: " "))
     }
 
+    /// Rename a rule on a table.
+    @discardableResult
+    func alterRuleRename(ruleName: String, tableName: String, newName: String, schema: String? = nil) async throws -> Int {
+        let qualifiedTable = schema.map { "\(client.quoteIdentifier($0)).\(client.quoteIdentifier(tableName))" } ?? client.quoteIdentifier(tableName)
+        let sql = "ALTER RULE \(client.quoteIdentifier(ruleName)) ON \(qualifiedTable) RENAME TO \(client.quoteIdentifier(newName))"
+        return try await client.executeDDL(sql)
+    }
+
     /// Drop a rule from a table.
     @discardableResult
     func dropRule(name: String, table: String, ifExists: Bool = false, cascade: Bool = false, schema: String? = nil) async throws -> Int {

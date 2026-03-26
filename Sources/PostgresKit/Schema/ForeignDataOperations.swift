@@ -23,6 +23,20 @@ public extension PostgresAdminClient {
         return try await client.executeDDL(parts.joined(separator: " "))
     }
 
+    /// Rename a foreign data wrapper.
+    @discardableResult
+    func alterForeignDataWrapperRename(name: String, newName: String) async throws -> Int {
+        let sql = "ALTER FOREIGN DATA WRAPPER \(client.quoteIdentifier(name)) RENAME TO \(client.quoteIdentifier(newName))"
+        return try await client.executeDDL(sql)
+    }
+
+    /// Change a foreign data wrapper's owner.
+    @discardableResult
+    func alterForeignDataWrapperOwner(name: String, newOwner: String) async throws -> Int {
+        let sql = "ALTER FOREIGN DATA WRAPPER \(client.quoteIdentifier(name)) OWNER TO \(client.quoteIdentifier(newOwner))"
+        return try await client.executeDDL(sql)
+    }
+
     /// Drop a foreign data wrapper.
     @discardableResult
     func dropForeignDataWrapper(name: String, ifExists: Bool = false, cascade: Bool = false) async throws -> Int {
@@ -60,6 +74,20 @@ public extension PostgresAdminClient {
     func alterForeignServerOptions(name: String, options: [String: String]) async throws -> Int {
         let optionList = options.map { "SET \(client.quoteIdentifier($0.key)) \(client.quoteLiteral($0.value))" }.joined(separator: ", ")
         let sql = "ALTER SERVER \(client.quoteIdentifier(name)) OPTIONS (\(optionList))"
+        return try await client.executeDDL(sql)
+    }
+
+    /// Rename a foreign server.
+    @discardableResult
+    func alterForeignServerRename(name: String, newName: String) async throws -> Int {
+        let sql = "ALTER SERVER \(client.quoteIdentifier(name)) RENAME TO \(client.quoteIdentifier(newName))"
+        return try await client.executeDDL(sql)
+    }
+
+    /// Change a foreign server's owner.
+    @discardableResult
+    func alterForeignServerOwner(name: String, newOwner: String) async throws -> Int {
+        let sql = "ALTER SERVER \(client.quoteIdentifier(name)) OWNER TO \(client.quoteIdentifier(newOwner))"
         return try await client.executeDDL(sql)
     }
 

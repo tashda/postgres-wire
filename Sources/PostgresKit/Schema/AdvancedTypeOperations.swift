@@ -78,6 +78,30 @@ public extension PostgresAdminClient {
         return try await client.executeDDL(sql)
     }
 
+    /// Rename a domain.
+    @discardableResult
+    func alterDomainRename(name: String, newName: String, schema: String? = nil) async throws -> Int {
+        let qualifiedName = schema.map { "\(client.quoteIdentifier($0)).\(client.quoteIdentifier(name))" } ?? client.quoteIdentifier(name)
+        let sql = "ALTER DOMAIN \(qualifiedName) RENAME TO \(client.quoteIdentifier(newName))"
+        return try await client.executeDDL(sql)
+    }
+
+    /// Change a domain's owner.
+    @discardableResult
+    func alterDomainOwner(name: String, newOwner: String, schema: String? = nil) async throws -> Int {
+        let qualifiedName = schema.map { "\(client.quoteIdentifier($0)).\(client.quoteIdentifier(name))" } ?? client.quoteIdentifier(name)
+        let sql = "ALTER DOMAIN \(qualifiedName) OWNER TO \(client.quoteIdentifier(newOwner))"
+        return try await client.executeDDL(sql)
+    }
+
+    /// Move a domain to a different schema.
+    @discardableResult
+    func alterDomainSetSchema(name: String, newSchema: String, schema: String? = nil) async throws -> Int {
+        let qualifiedName = schema.map { "\(client.quoteIdentifier($0)).\(client.quoteIdentifier(name))" } ?? client.quoteIdentifier(name)
+        let sql = "ALTER DOMAIN \(qualifiedName) SET SCHEMA \(client.quoteIdentifier(newSchema))"
+        return try await client.executeDDL(sql)
+    }
+
     /// Drop a domain type.
     @discardableResult
     func dropDomain(name: String, ifExists: Bool = false, cascade: Bool = false, schema: String? = nil) async throws -> Int {
@@ -117,6 +141,30 @@ public extension PostgresAdminClient {
     func alterCompositeTypeDropAttribute(name: String, attributeName: String, schema: String? = nil) async throws -> Int {
         let qualifiedName = schema.map { "\(client.quoteIdentifier($0)).\(client.quoteIdentifier(name))" } ?? client.quoteIdentifier(name)
         let sql = "ALTER TYPE \(qualifiedName) DROP ATTRIBUTE \(client.quoteIdentifier(attributeName))"
+        return try await client.executeDDL(sql)
+    }
+
+    /// Rename a type (composite or range).
+    @discardableResult
+    func alterTypeRename(name: String, newName: String, schema: String? = nil) async throws -> Int {
+        let qualifiedName = schema.map { "\(client.quoteIdentifier($0)).\(client.quoteIdentifier(name))" } ?? client.quoteIdentifier(name)
+        let sql = "ALTER TYPE \(qualifiedName) RENAME TO \(client.quoteIdentifier(newName))"
+        return try await client.executeDDL(sql)
+    }
+
+    /// Change a type's owner (composite or range).
+    @discardableResult
+    func alterTypeOwner(name: String, newOwner: String, schema: String? = nil) async throws -> Int {
+        let qualifiedName = schema.map { "\(client.quoteIdentifier($0)).\(client.quoteIdentifier(name))" } ?? client.quoteIdentifier(name)
+        let sql = "ALTER TYPE \(qualifiedName) OWNER TO \(client.quoteIdentifier(newOwner))"
+        return try await client.executeDDL(sql)
+    }
+
+    /// Move a type to a different schema (composite or range).
+    @discardableResult
+    func alterTypeSetSchema(name: String, newSchema: String, schema: String? = nil) async throws -> Int {
+        let qualifiedName = schema.map { "\(client.quoteIdentifier($0)).\(client.quoteIdentifier(name))" } ?? client.quoteIdentifier(name)
+        let sql = "ALTER TYPE \(qualifiedName) SET SCHEMA \(client.quoteIdentifier(newSchema))"
         return try await client.executeDDL(sql)
     }
 

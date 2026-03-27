@@ -40,7 +40,7 @@ jobs:
 
       - name: "📝 Generating Release Notes"
         run: |
-          python3 scripts/generate_release_notes.py \
+          python3 .github/scripts/generate_release_notes.py \
             --repo-key postgres-wire \
             --repo-name postgres-wire \
             --new-tag "${{ steps.version.outputs.tag }}" \

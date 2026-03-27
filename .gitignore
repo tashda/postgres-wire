@@ -31,3 +31,9 @@ claude.md
 *_FIXTURES.md
 .planning/
 TASKS/
+
+# Circular self-symlink
+postgres-wire
+
+# Root scripts moved to .github/scripts/
+/scripts/

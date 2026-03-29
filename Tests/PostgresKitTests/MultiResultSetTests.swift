@@ -42,7 +42,7 @@ final class MultiResultSetTests: PostgresKitTestCase {
     // MARK: - Single Statement Baseline
 
     func testSingleStatementBaseline() async throws {
-        let rows = try await client.connection.simpleQuery("SELECT 1 AS value")
+        let rows = try await client.simpleQuery("SELECT 1 AS value")
         var values: [Int] = []
         for try await value in rows.decode(Int.self) {
             values.append(value)
@@ -53,7 +53,7 @@ final class MultiResultSetTests: PostgresKitTestCase {
     // MARK: - Single Statement with Multiple Rows
 
     func testSingleStatementMultipleRows() async throws {
-        let rows = try await client.connection.simpleQuery(
+        let rows = try await client.simpleQuery(
             "SELECT generate_series(1, 5) AS val"
         )
         var values: [Int] = []
@@ -68,7 +68,7 @@ final class MultiResultSetTests: PostgresKitTestCase {
     func testStreamingSingleStatement() async throws {
         let counter = StreamUpdateCounter()
 
-        let result = try await client.connection.streamQuery(
+        let result = try await client.streamQuery(
             "SELECT generate_series(1, 100) AS val"
         ) { update in
             await counter.record(update)
@@ -86,17 +86,17 @@ final class MultiResultSetTests: PostgresKitTestCase {
 
     func testDMLThenSelectSeparateQueries() async throws {
         // Create temp table
-        _ = try await client.connection.simpleQuery(
+        _ = try await client.simpleQuery(
             "CREATE TEMPORARY TABLE dml_test (id SERIAL PRIMARY KEY, label TEXT)"
         )
 
         // INSERT
-        _ = try await client.connection.simpleQuery(
+        _ = try await client.simpleQuery(
             "INSERT INTO dml_test (label) VALUES ('one'), ('two'), ('three')"
         )
 
         // SELECT
-        let rows = try await client.connection.simpleQuery(
+        let rows = try await client.simpleQuery(
             "SELECT label FROM dml_test ORDER BY id"
         )
         var labels: [String] = []
@@ -111,16 +111,16 @@ final class MultiResultSetTests: PostgresKitTestCase {
 
     func testStreamingWithTempTable() async throws {
         // Create and populate temp table
-        _ = try await client.connection.simpleQuery(
+        _ = try await client.simpleQuery(
             "CREATE TEMPORARY TABLE stream_test (id INT, name TEXT)"
         )
-        _ = try await client.connection.simpleQuery(
+        _ = try await client.simpleQuery(
             "INSERT INTO stream_test SELECT g, 'row' || g FROM generate_series(1, 50) g"
         )
 
         let counter = StreamUpdateCounter()
 
-        let result = try await client.connection.streamQuery(
+        let result = try await client.streamQuery(
             "SELECT * FROM stream_test ORDER BY id"
         ) { update in
             await counter.record(update)

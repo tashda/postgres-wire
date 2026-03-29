@@ -2,15 +2,15 @@ import Logging
 import PostgresWire
 
 /// High-level query execution entry points.
-public extension PostgresConnectionClient {
+public extension PostgresClient {
     /// Execute a simple query and return the resulting row sequence.
     func simpleQuery(_ sql: String) async throws -> WireRowSequence {
-        try await client.wire.query(WireQuery(sql: sql))
+        try await wire.query(WireQuery(sql: sql))
     }
 
     /// Execute a query with binds and return the row sequence.
     func simpleQuery(_ sql: String, options: PostgresExecutionOptions?) async throws -> WireRowSequence {
-        try await client.wire.query(WireQuery(sql: sql), options: options)
+        try await wire.query(WireQuery(sql: sql), options: options)
     }
 
     /// Execute a query with streaming and formatting.
@@ -20,9 +20,9 @@ public extension PostgresConnectionClient {
         onUpdate: @escaping @Sendable (PostgresStreamUpdate) async -> Void,
         logger: Logger? = nil
     ) async throws -> PostgresStreamResult {
-        let effectiveLogger = logger ?? client.logger
+        let effectiveLogger = logger ?? self.logger
         let result: Result<PostgresStreamResult, PostgresError> = await PostgresClient.executeWithEnhancedError {
-            try await client.wire.streamQuery(sql, configuration: configuration, onUpdate: onUpdate, logger: effectiveLogger)
+            try await self.wire.streamQuery(sql, configuration: configuration, onUpdate: onUpdate, logger: effectiveLogger)
         }
         switch result {
         case .success(let streamResult):
@@ -39,9 +39,9 @@ public extension PostgresConnectionClient {
         onUpdate: @escaping @Sendable (PostgresStreamUpdate) async -> Void,
         logger: Logger? = nil
     ) async throws -> PostgresStreamResult {
-        let effectiveLogger = logger ?? client.logger
+        let effectiveLogger = logger ?? self.logger
         let result: Result<PostgresStreamResult, PostgresError> = await PostgresClient.executeWithEnhancedError {
-            try await client.wire.streamQueryWithCursor(sql, configuration: configuration, onUpdate: onUpdate, logger: effectiveLogger)
+            try await self.wire.streamQueryWithCursor(sql, configuration: configuration, onUpdate: onUpdate, logger: effectiveLogger)
         }
         switch result {
         case .success(let streamResult):
@@ -49,15 +49,5 @@ public extension PostgresConnectionClient {
         case .failure(let error):
             throw error
         }
-    }
-}
-
-public extension PostgresClient {
-    func simpleQuery(_ sql: String) async throws -> WireRowSequence {
-        try await connection.simpleQuery(sql)
-    }
-    
-    func simpleQuery(_ sql: String, options: PostgresExecutionOptions?) async throws -> WireRowSequence {
-        try await connection.simpleQuery(sql, options: options)
     }
 }

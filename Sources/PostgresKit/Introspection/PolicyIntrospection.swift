@@ -2,7 +2,7 @@ import Foundation
 import PostgresWire
 
 /// RLS policy introspection.
-public extension PostgresIntrospectionClient {
+public extension PostgresMetadataClient {
     /// List all RLS policies on a specific table, or all policies in a schema.
     func listPolicies(schema: String, table: String? = nil) async throws -> [PostgresPolicyInfo] {
         if let table {

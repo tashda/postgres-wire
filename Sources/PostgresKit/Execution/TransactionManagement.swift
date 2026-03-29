@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// Transaction lifecycle management.
-public extension PostgresConnectionClient {
+public extension PostgresTransactionClient {
     /// Begin a standard transaction.
     @discardableResult
     func beginTransaction() async throws -> Int {

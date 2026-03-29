@@ -70,7 +70,7 @@ internal struct CopyStatement {
     func selectSQL(usingClient client: PostgresClient) async throws -> String {
         if let selectClause { return selectClause }
         let (schema, table) = try resolveTable()
-        let columns = try await client.introspection.listColumns(schema: schema ?? "public", table: table)
+        let columns = try await client.metadata.listColumns(schema: schema ?? "public", table: table)
         let colList = columns.map { column in
             let quoted = Self.quoteIdent(column.name)
             return "\(quoted)::text AS \(quoted)"

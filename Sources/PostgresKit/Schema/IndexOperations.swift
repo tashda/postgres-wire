@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// High-level Index Data Definition Language (DDL) operations.
-public extension PostgresAdminClient {
+public extension PostgresIndexClient {
     /// Create a standard index.
     @discardableResult
     func createIndex(

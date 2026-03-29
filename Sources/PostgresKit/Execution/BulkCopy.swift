@@ -70,7 +70,7 @@ public struct PostgresBulkCopy: @unchecked Sendable {
         guard parsed.format == .csv else { throw PostgresKitError.notSupported("Only CSV format supported") }
 
         let (schema, table) = try parsed.resolveTable()
-        let columns = try await client.introspection.listColumns(schema: schema ?? "public", table: table)
+        let columns = try await client.metadata.listColumns(schema: schema ?? "public", table: table)
         let columnList = columns.map { CopyStatement.quoteIdent($0.name) }.joined(separator: ", ")
         let insertPrefix = "INSERT INTO \(CopyStatement.qualify(schema: schema, table: table)) (\(columnList)) VALUES "
 

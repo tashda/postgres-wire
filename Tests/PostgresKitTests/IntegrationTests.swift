@@ -20,7 +20,7 @@ final class IntegrationTests: PostgresKitTestCase {
         
         let client = try await PostgresKit.PostgresClient.connect(configuration: config, logger: .init(label: "tests"))
         defer { client.close() }
-        let rows = try await client.connection.simpleQuery("SELECT 1")
+        let rows = try await client.simpleQuery("SELECT 1")
         var values: [Int] = []
         for try await value in rows.decode(Int.self) { values.append(value) }
         XCTAssertEqual(values, [1])

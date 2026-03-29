@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// High-level Constraint Data Definition Language (DDL) operations.
-public extension PostgresAdminClient {
+public extension PostgresConstraintClient {
     /// Add a primary key constraint to a table.
     @discardableResult
     func addPrimaryKey(table: String, column: String, constraintName: String? = nil) async throws -> Int {

@@ -2,7 +2,7 @@ import Foundation
 import PostgresWire
 
 /// Logical replication introspection.
-public extension PostgresIntrospectionClient {
+public extension PostgresMetadataClient {
     /// List all publications in the current database.
     func listPublications() async throws -> [PostgresPublicationInfo] {
         let sql = """

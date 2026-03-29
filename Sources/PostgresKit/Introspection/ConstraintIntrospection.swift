@@ -2,7 +2,7 @@ import Foundation
 import PostgresWire
 
 /// High-level constraint and dependency introspection.
-public extension PostgresIntrospectionClient {
+public extension PostgresMetadataClient {
     /// Fetch primary key information for a table.
     func primaryKey(schema: String, table: String) async throws -> PostgresPrimaryKeyInfo? {
         let sql = """

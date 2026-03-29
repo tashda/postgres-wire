@@ -4,7 +4,7 @@ import Logging
 
 final class MetadataIntegrationTests: PostgresKitTestCase {
     private var client: PostgresKit.PostgresClient!
-    private let meta = PostgresMetadata()
+    private let meta = REMOVED_LEGACY
 
     override func setUp() async throws {
         try await super.setUp()
@@ -78,7 +78,7 @@ final class MetadataIntegrationTests: PostgresKitTestCase {
             .text(name: "name"),
             .integer(name: "ref_id")
         ])
-        try await client.admin.addForeignKey(table: table, column: "ref_id", referencesTable: refTable, referencesColumn: "id", constraintName: "fk_\(table)")
+        try await client.constraints.addForeignKey(table: table, column: "ref_id", referencesTable: refTable, referencesColumn: "id", constraintName: "fk_\(table)")
 
         let byTable = try await meta.columnsByTable(using: client, schema: "public")
         guard let details = byTable[table] else {
@@ -130,8 +130,8 @@ final class MetadataIntegrationTests: PostgresKitTestCase {
             .text(name: "name"),
             .text(name: "email")
         ])
-        try await client.admin.createIndex(name: "idx_\(table)_name", table: table, columns: ["name"])
-        try await client.admin.createIndex(name: "idx_\(table)_email", table: table, columns: ["email"], unique: true)
+        try await client.indexes.createIndex(name: "idx_\(table)_name", table: table, columns: ["name"])
+        try await client.indexes.createIndex(name: "idx_\(table)_email", table: table, columns: ["email"], unique: true)
 
         let indexes = try await meta.listIndexes(using: client, schema: "public", table: table)
         XCTAssertGreaterThanOrEqual(indexes.count, 2, "Should have at least PK index + name index + email index")
@@ -154,7 +154,7 @@ final class MetadataIntegrationTests: PostgresKitTestCase {
             PostgresColumnDefinition(name: "code", dataType: "TEXT", unique: true),
             .text(name: "email")
         ])
-        try await client.admin.addUniqueConstraint(table: table, columns: ["email"], constraintName: "uq_\(table)_email")
+        try await client.constraints.addUniqueConstraint(table: table, columns: ["email"], constraintName: "uq_\(table)_email")
 
         let constraints = try await meta.uniqueConstraints(using: client, schema: "public", table: table)
         XCTAssertGreaterThanOrEqual(constraints.count, 2, "Should have at least 2 unique constraints (code + email)")

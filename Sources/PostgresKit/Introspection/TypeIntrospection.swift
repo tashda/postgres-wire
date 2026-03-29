@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// User-defined type discovery.
-public extension PostgresIntrospectionClient {
+public extension PostgresTypeClient {
     /// List user-defined types (enums, composites, ranges, domains) in a schema.
     func listTypes(schema: String) async throws -> [PostgresTypeInfo] {
         let sql = """

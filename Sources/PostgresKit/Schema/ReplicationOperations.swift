@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// Logical replication DDL operations.
-public extension PostgresAdminClient {
+public extension PostgresReplicationClient {
 
     // MARK: - Publication Operations
 

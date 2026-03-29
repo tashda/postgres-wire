@@ -2,7 +2,7 @@ import Foundation
 import PostgresWire
 
 /// Introspection for advanced PostgreSQL object types.
-public extension PostgresIntrospectionClient {
+public extension PostgresMetadataClient {
 
     // MARK: - Foreign Data Wrappers
 

@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// High-level Type Data Definition Language (DDL) operations.
-public extension PostgresAdminClient {
+public extension PostgresTypeClient {
     /// Create a new enum type.
     @discardableResult
     func createEnum(name: String, values: [String], ifNotExists: Bool = false) async throws -> Int {

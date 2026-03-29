@@ -2,7 +2,7 @@ import Foundation
 import PostgresWire
 
 /// High-level table property and column detail introspection.
-public extension PostgresIntrospectionClient {
+public extension PostgresMetadataClient {
     /// Fetch comprehensive table properties including storage parameters, owner, tablespace, etc.
     func fetchTableDetails(schema: String, table: String) async throws -> PostgresTableDetails {
         let sql = """

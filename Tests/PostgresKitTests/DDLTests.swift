@@ -83,7 +83,7 @@ final class DDLTests: PostgresKitTestCase {
         )
 
         // Verify table was created successfully by querying it
-        let result = try await client.connection.simpleQuery("""
+        let result = try await client.simpleQuery("""
             SELECT column_name, data_type, character_maximum_length
             FROM information_schema.columns
             WHERE table_name = 'all_types_test'
@@ -103,7 +103,7 @@ final class DDLTests: PostgresKitTestCase {
         // Test data insertion using API with raw SQL for complex types
         let testUUID = UUID(uuidString: "550e8400-e29b-41d4-a716-446655440000")!
 
-        _ = try await client.connection.insert(
+        _ = try await client.bulk.insert(
             into: "all_types_test",
             columns: ["text_col", "varchar_col", "integer_col", "bigint_col", "boolean_col", "uuid_col", "jsonb_col", "array_col"],
             values: [[
@@ -139,14 +139,14 @@ final class DDLTests: PostgresKitTestCase {
         )
 
         // Add unique constraint to departments table
-        _ = try await client.admin.addUniqueConstraint(
+        _ = try await client.constraints.addUniqueConstraint(
             table: "departments",
             columns: ["name"],
             constraintName: "uk_departments_name"
         )
 
         // Insert test data using PostgresClient API
-        _ = try await client.connection.insert(
+        _ = try await client.bulk.insert(
             into: "departments",
             columns: ["name", "code"],
             values: [["Engineering", "ENG"], ["Sales", "SLS"]]
@@ -170,25 +170,25 @@ final class DDLTests: PostgresKitTestCase {
         )
 
         // Add constraints using PostgresClient API
-        _ = try await client.admin.addUniqueConstraint(
+        _ = try await client.constraints.addUniqueConstraint(
             table: "employees",
             columns: ["email"],
             constraintName: "uk_employees_email"
         )
 
-        _ = try await client.admin.addCheckConstraint(
+        _ = try await client.constraints.addCheckConstraint(
             table: "employees",
             condition: "age >= 18 AND age <= 100",
             constraintName: "ck_employees_age"
         )
 
-        _ = try await client.admin.addCheckConstraint(
+        _ = try await client.constraints.addCheckConstraint(
             table: "employees",
             condition: "email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'",
             constraintName: "ck_employees_email_format"
         )
 
-        _ = try await client.admin.addForeignKey(
+        _ = try await client.constraints.addForeignKey(
             table: "employees",
             column: "department_id",
             referencesTable: "departments",
@@ -198,7 +198,7 @@ final class DDLTests: PostgresKitTestCase {
 
             // Test constraint violations using PostgresClient API
         do {
-            _ = try await client.connection.insert(
+            _ = try await client.bulk.insert(
                 into: "employees",
                 columns: ["first_name", "last_name", "email", "age"],
                 values: [["John", "Doe", "invalid-email", 25]]
@@ -209,7 +209,7 @@ final class DDLTests: PostgresKitTestCase {
         }
 
         do {
-            _ = try await client.connection.insert(
+            _ = try await client.bulk.insert(
                 into: "employees",
                 columns: ["first_name", "last_name", "email", "age"],
                 values: [["Jane", "Doe", "jane@example.com", 15]]
@@ -220,7 +220,7 @@ final class DDLTests: PostgresKitTestCase {
         }
 
         // Test valid insert
-        _ = try await client.connection.insert(
+        _ = try await client.bulk.insert(
             into: "employees",
             columns: ["first_name", "last_name", "email", "age", "department_id"],
             values: [["John", "Doe", "john@example.com", 30, 1]]
@@ -228,7 +228,7 @@ final class DDLTests: PostgresKitTestCase {
 
         // Test unique constraint
         do {
-            _ = try await client.connection.insert(
+            _ = try await client.bulk.insert(
                 into: "employees",
                 columns: ["first_name", "last_name", "email", "age"],
                 values: [["John", "Smith", "john@example.com", 35]]
@@ -239,7 +239,7 @@ final class DDLTests: PostgresKitTestCase {
         }
 
         // Count employees using PostgresClient API
-        let countRows = try await client.connection.simpleQuery("SELECT COUNT(*)::text FROM employees")
+        let countRows = try await client.simpleQuery("SELECT COUNT(*)::text FROM employees")
         var count = 0
         for try await countStr in countRows.decode(String.self) {
             if let intVal = Int(countStr) {
@@ -286,20 +286,20 @@ final class DDLTests: PostgresKitTestCase {
         _ = try await client.admin.dropColumn(table: "alter_test", column: "email")
 
         // Test ADD CONSTRAINT
-        _ = try await client.admin.addCheckConstraint(table: "alter_test", condition: "length(name) > 2", constraintName: "check_name")
+        _ = try await client.constraints.addCheckConstraint(table: "alter_test", condition: "length(name) > 2", constraintName: "check_name")
 
         // Test RENAME COLUMN
         _ = try await client.admin.renameColumn(table: "alter_test", oldName: "name", newName: "full_name")
 
         // Insert test data
-        _ = try await client.connection.insert(
+        _ = try await client.bulk.insert(
             into: "alter_test",
             columns: ["full_name"],
             values: [["John Doe"]]
         )
 
         // Verify the data uses the default age
-        let rows = try await client.connection.simpleQuery("SELECT id, full_name, age FROM alter_test")
+        let rows = try await client.simpleQuery("SELECT id, full_name, age FROM alter_test")
         var results: [(Int32, String, Int32)] = []
         for try await (id, name, age) in rows.decode((Int32, String, Int32).self) {
             results.append((id, name, age))
@@ -340,28 +340,28 @@ final class DDLTests: PostgresKitTestCase {
             ])
         }
 
-        _ = try await client.connection.insert(
+        _ = try await client.bulk.insert(
             into: "index_test",
             columns: ["name", "email", "age"],
             values: testData
         )
 
         // Test CREATE INDEX using PostgresClient API
-        _ = try await client.admin.createIndex(
+        _ = try await client.indexes.createIndex(
             name: "idx_index_test_name",
             table: "index_test",
             columns: ["name"],
             unique: false
         )
 
-        _ = try await client.admin.createIndex(
+        _ = try await client.indexes.createIndex(
             name: "idx_index_test_email",
             table: "index_test",
             columns: ["email"],
             unique: false
         )
 
-        _ = try await client.admin.createIndex(
+        _ = try await client.indexes.createIndex(
             name: "idx_index_test_age",
             table: "index_test",
             columns: ["age"],
@@ -369,7 +369,7 @@ final class DDLTests: PostgresKitTestCase {
         )
 
         // Test CREATE UNIQUE INDEX using PostgresClient API
-        _ = try await client.admin.createIndex(
+        _ = try await client.indexes.createIndex(
             name: "idx_index_test_unique_name",
             table: "index_test",
             columns: ["name"],
@@ -377,7 +377,7 @@ final class DDLTests: PostgresKitTestCase {
         )
 
         // Test composite index using PostgresClient API
-        _ = try await client.admin.createIndex(
+        _ = try await client.indexes.createIndex(
             name: "idx_index_test_composite",
             table: "index_test",
             columns: ["name", "age"],
@@ -385,7 +385,7 @@ final class DDLTests: PostgresKitTestCase {
         )
 
         // Verify indexes exist using PostgresClient API
-        let indexRows = try await client.connection.simpleQuery("""
+        let indexRows = try await client.simpleQuery("""
             SELECT indexname, indexdef
             FROM pg_indexes
             WHERE tablename = 'index_test'
@@ -399,17 +399,17 @@ final class DDLTests: PostgresKitTestCase {
         }
 
         // Test index usage with EXPLAIN using PostgresClient API
-        let explainPlan = try await client.connection.explain("SELECT * FROM index_test WHERE name = 'User 42'", format: .json)
+        let explainPlan = try await client.executionPlan.explain("SELECT * FROM index_test WHERE name = 'User 42'", format: .json)
         for plan in explainPlan {
             logger.info("Query plan: \(plan)")
         }
 
         // Test DROP INDEX using PostgresClient API
-        _ = try await client.admin.dropIndex(name: "idx_index_test_name", ifExists: false)
-        _ = try await client.admin.dropIndex(name: "idx_index_test_email", ifExists: false)
-        _ = try await client.admin.dropIndex(name: "idx_index_test_age", ifExists: false)
-        _ = try await client.admin.dropIndex(name: "idx_index_test_unique_name", ifExists: false)
-        _ = try await client.admin.dropIndex(name: "idx_index_test_composite", ifExists: false)
+        _ = try await client.indexes.dropIndex(name: "idx_index_test_name", ifExists: false)
+        _ = try await client.indexes.dropIndex(name: "idx_index_test_email", ifExists: false)
+        _ = try await client.indexes.dropIndex(name: "idx_index_test_age", ifExists: false)
+        _ = try await client.indexes.dropIndex(name: "idx_index_test_unique_name", ifExists: false)
+        _ = try await client.indexes.dropIndex(name: "idx_index_test_composite", ifExists: false)
 
         XCTAssertGreaterThan(indexCount, 4) // Should have created at least 4 indexes
         logger.info("Index operations completed successfully")
@@ -434,7 +434,7 @@ final class DDLTests: PostgresKitTestCase {
                 .varchar(name: "email", length: 100)
             ]
         )
-        _ = try await client.admin.addUniqueConstraint(
+        _ = try await client.constraints.addUniqueConstraint(
             table: "authors",
             columns: ["email"],
             constraintName: "uk_authors_email"
@@ -461,7 +461,7 @@ final class DDLTests: PostgresKitTestCase {
             ]
         )
 
-        _ = try await client.admin.addForeignKey(
+        _ = try await client.constraints.addForeignKey(
             table: "books",
             column: "author_id",
             referencesTable: "authors",
@@ -470,7 +470,7 @@ final class DDLTests: PostgresKitTestCase {
             onDelete: .cascade
         )
 
-        _ = try await client.admin.addForeignKey(
+        _ = try await client.constraints.addForeignKey(
             table: "books",
             column: "publisher_id",
             referencesTable: "publishers",
@@ -479,7 +479,7 @@ final class DDLTests: PostgresKitTestCase {
             onDelete: .setNull
         )
 
-        _ = try await client.admin.addUniqueConstraint(
+        _ = try await client.constraints.addUniqueConstraint(
             table: "books",
             columns: ["isbn"],
             constraintName: "uk_books_isbn"
@@ -489,7 +489,7 @@ final class DDLTests: PostgresKitTestCase {
         _ = try await client.admin.alterColumnNullability(table: "books", column: "author_id", nullable: false)
 
         // Insert test data
-        _ = try await client.connection.insert(
+        _ = try await client.bulk.insert(
             into: "authors",
             columns: ["name", "email"],
             values: [
@@ -498,13 +498,13 @@ final class DDLTests: PostgresKitTestCase {
             ]
         )
 
-        _ = try await client.connection.insert(
+        _ = try await client.bulk.insert(
             into: "publishers",
             columns: ["name"],
             values: [["Bloomsbury"], ["Penguin Books"]]
         )
 
-        _ = try await client.connection.insert(
+        _ = try await client.bulk.insert(
             into: "books",
             columns: ["title", "author_id", "publisher_id", "isbn", "published_date"],
             values: [
@@ -515,7 +515,7 @@ final class DDLTests: PostgresKitTestCase {
 
         // Test foreign key constraint violation
         do {
-            _ = try await client.connection.insert(
+            _ = try await client.bulk.insert(
                 into: "books",
                 columns: ["title", "author_id", "publisher_id", "isbn"],
                 values: [["Invalid Book", 999, 1, "invalid-isbn"]]
@@ -526,7 +526,7 @@ final class DDLTests: PostgresKitTestCase {
         }
 
         // Verify initial state
-        let initialCountRows = try await client.connection.simpleQuery("SELECT COUNT(*)::text FROM books")
+        let initialCountRows = try await client.simpleQuery("SELECT COUNT(*)::text FROM books")
         var initialCount = 0
         for try await countStr in initialCountRows.decode(String.self) {
             if let intVal = Int(countStr) {
@@ -537,7 +537,7 @@ final class DDLTests: PostgresKitTestCase {
         logger.info("Initial books count: \(initialCount)")
 
         // Count books before delete operations
-        let beforeCountRows = try await client.connection.simpleQuery("SELECT COUNT(*)::text FROM books")
+        let beforeCountRows = try await client.simpleQuery("SELECT COUNT(*)::text FROM books")
         var beforeCount = 0
         for try await countStr in beforeCountRows.decode(String.self) {
             if let intVal = Int(countStr) {
@@ -547,13 +547,13 @@ final class DDLTests: PostgresKitTestCase {
         }
 
         // Test CASCADE delete
-        _ = try await client.connection.delete(from: "authors", whereClause: "id = 1")
+        _ = try await client.bulk.delete(from: "authors", whereClause: "id = 1")
 
         // Test SET NULL delete
-        _ = try await client.connection.delete(from: "publishers", whereClause: "id = 2")
+        _ = try await client.bulk.delete(from: "publishers", whereClause: "id = 2")
 
         // Count remaining books after both operations
-        let afterCountRows = try await client.connection.simpleQuery("SELECT COUNT(*)::text FROM books")
+        let afterCountRows = try await client.simpleQuery("SELECT COUNT(*)::text FROM books")
         var afterCount = 0
         for try await countStr in afterCountRows.decode(String.self) {
             if let intVal = Int(countStr) {
@@ -588,14 +588,14 @@ final class DDLTests: PostgresKitTestCase {
         )
 
         // Insert data
-        _ = try await client.connection.insert(
+        _ = try await client.bulk.insert(
             into: "drop_test",
             columns: ["name"],
             values: [["Test"]]
         )
 
         // Verify table exists
-        let beforeCount = try await client.connection.simpleQuery("SELECT COUNT(*)::text FROM drop_test")
+        let beforeCount = try await client.simpleQuery("SELECT COUNT(*)::text FROM drop_test")
         var before = 0
         for try await countStr in beforeCount.decode(String.self) {
             if let intVal = Int(countStr) {
@@ -609,7 +609,7 @@ final class DDLTests: PostgresKitTestCase {
 
         // Try to query dropped table (should fail)
         do {
-            _ = try await client.connection.simpleQuery("SELECT COUNT(*)::text FROM drop_test")
+            _ = try await client.simpleQuery("SELECT COUNT(*)::text FROM drop_test")
             XCTFail("Should have failed - table should not exist")
         } catch {
             logger.info("Table successfully dropped - query failed as expected: \(error)")

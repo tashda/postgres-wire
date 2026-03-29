@@ -42,33 +42,33 @@ final class AdvancedObjectAlterTests: PostgresKitTestCase {
         let name = uniqueName("dom")
         let newName = uniqueName("dom_ren")
         defer { Task { [client = self.client!] in
-            _ = try? await client.admin.dropDomain(name: newName, ifExists: true, cascade: true, schema: "app")
-            _ = try? await client.admin.dropDomain(name: newName, ifExists: true, cascade: true, schema: "public")
-            _ = try? await client.admin.dropDomain(name: name, ifExists: true, cascade: true, schema: "public")
+            _ = try? await client.types.dropDomain(name: newName, ifExists: true, cascade: true, schema: "app")
+            _ = try? await client.types.dropDomain(name: newName, ifExists: true, cascade: true, schema: "public")
+            _ = try? await client.types.dropDomain(name: name, ifExists: true, cascade: true, schema: "public")
         }}
 
         // Create
-        try await client.admin.createDomain(name: name, dataType: "text", schema: "public")
+        try await client.types.createDomain(name: name, dataType: "text", schema: "public")
 
         // Verify creation
-        var domains = try await client.introspection.listDomains(schema: "public")
+        var domains = try await client.metadata.listDomains(schema: "public")
         XCTAssertTrue(domains.contains(where: { $0.name == name }), "Domain '\(name)' should exist after creation")
 
         // Rename
-        try await client.admin.alterDomainRename(name: name, newName: newName, schema: "public")
-        domains = try await client.introspection.listDomains(schema: "public")
+        try await client.types.alterDomainRename(name: name, newName: newName, schema: "public")
+        domains = try await client.metadata.listDomains(schema: "public")
         XCTAssertTrue(domains.contains(where: { $0.name == newName }), "Domain should be renamed to '\(newName)'")
         XCTAssertFalse(domains.contains(where: { $0.name == name }), "Old domain name '\(name)' should not exist")
 
         // Change owner
-        try await client.admin.alterDomainOwner(name: newName, newOwner: "postgres", schema: "public")
+        try await client.types.alterDomainOwner(name: newName, newOwner: "postgres", schema: "public")
         // No error means success — owner change is verified by not throwing
 
         // Change schema
-        try await client.admin.alterDomainSetSchema(name: newName, newSchema: "app", schema: "public")
-        let publicDomains = try await client.introspection.listDomains(schema: "public")
+        try await client.types.alterDomainSetSchema(name: newName, newSchema: "app", schema: "public")
+        let publicDomains = try await client.metadata.listDomains(schema: "public")
         XCTAssertFalse(publicDomains.contains(where: { $0.name == newName }), "Domain should no longer be in 'public'")
-        let appDomains = try await client.introspection.listDomains(schema: "app")
+        let appDomains = try await client.metadata.listDomains(schema: "app")
         XCTAssertTrue(appDomains.contains(where: { $0.name == newName }), "Domain should now be in 'app'")
     }
 
@@ -78,36 +78,36 @@ final class AdvancedObjectAlterTests: PostgresKitTestCase {
         let name = uniqueName("comp")
         let newName = uniqueName("comp_ren")
         defer { Task { [client = self.client!] in
-            _ = try? await client.admin.dropCompositeType(name: newName, ifExists: true, cascade: true, schema: "app")
-            _ = try? await client.admin.dropCompositeType(name: newName, ifExists: true, cascade: true, schema: "public")
-            _ = try? await client.admin.dropCompositeType(name: name, ifExists: true, cascade: true, schema: "public")
+            _ = try? await client.types.dropCompositeType(name: newName, ifExists: true, cascade: true, schema: "app")
+            _ = try? await client.types.dropCompositeType(name: newName, ifExists: true, cascade: true, schema: "public")
+            _ = try? await client.types.dropCompositeType(name: name, ifExists: true, cascade: true, schema: "public")
         }}
 
         // Create
-        try await client.admin.createCompositeType(
+        try await client.types.createCompositeType(
             name: name,
             attributes: [("street", "text"), ("city", "text"), ("zip", "text")],
             schema: "public"
         )
 
         // Verify creation
-        var types = try await client.introspection.listCompositeTypes(schema: "public")
+        var types = try await client.metadata.listCompositeTypes(schema: "public")
         XCTAssertTrue(types.contains(where: { $0.name == name }), "Composite type '\(name)' should exist")
 
         // Rename
-        try await client.admin.alterTypeRename(name: name, newName: newName, schema: "public")
-        types = try await client.introspection.listCompositeTypes(schema: "public")
+        try await client.types.alterTypeRename(name: name, newName: newName, schema: "public")
+        types = try await client.metadata.listCompositeTypes(schema: "public")
         XCTAssertTrue(types.contains(where: { $0.name == newName }), "Type should be renamed to '\(newName)'")
         XCTAssertFalse(types.contains(where: { $0.name == name }), "Old type name '\(name)' should not exist")
 
         // Change owner
-        try await client.admin.alterTypeOwner(name: newName, newOwner: "postgres", schema: "public")
+        try await client.types.alterTypeOwner(name: newName, newOwner: "postgres", schema: "public")
 
         // Change schema
-        try await client.admin.alterTypeSetSchema(name: newName, newSchema: "app", schema: "public")
-        let publicTypes = try await client.introspection.listCompositeTypes(schema: "public")
+        try await client.types.alterTypeSetSchema(name: newName, newSchema: "app", schema: "public")
+        let publicTypes = try await client.metadata.listCompositeTypes(schema: "public")
         XCTAssertFalse(publicTypes.contains(where: { $0.name == newName }), "Type should no longer be in 'public'")
-        let appTypes = try await client.introspection.listCompositeTypes(schema: "app")
+        let appTypes = try await client.metadata.listCompositeTypes(schema: "app")
         XCTAssertTrue(appTypes.contains(where: { $0.name == newName }), "Type should now be in 'app'")
     }
 
@@ -117,13 +117,13 @@ final class AdvancedObjectAlterTests: PostgresKitTestCase {
         let name = uniqueName("coll")
         let newName = uniqueName("coll_ren")
         defer { Task { [client = self.client!] in
-            _ = try? await client.admin.dropCollation(name: newName, ifExists: true, cascade: true, schema: "app")
-            _ = try? await client.admin.dropCollation(name: newName, ifExists: true, cascade: true, schema: "public")
-            _ = try? await client.admin.dropCollation(name: name, ifExists: true, cascade: true, schema: "public")
+            _ = try? await client.types.dropCollation(name: newName, ifExists: true, cascade: true, schema: "app")
+            _ = try? await client.types.dropCollation(name: newName, ifExists: true, cascade: true, schema: "public")
+            _ = try? await client.types.dropCollation(name: name, ifExists: true, cascade: true, schema: "public")
         }}
 
         // Create
-        try await client.admin.createCollation(
+        try await client.types.createCollation(
             name: name,
             locale: "en_US.utf8",
             provider: "libc",
@@ -131,23 +131,23 @@ final class AdvancedObjectAlterTests: PostgresKitTestCase {
         )
 
         // Verify creation
-        var collations = try await client.introspection.listCollations(schema: "public")
+        var collations = try await client.metadata.listCollations(schema: "public")
         XCTAssertTrue(collations.contains(where: { $0.name == name }), "Collation '\(name)' should exist")
 
         // Rename
-        try await client.admin.alterCollationRename(name: name, newName: newName, schema: "public")
-        collations = try await client.introspection.listCollations(schema: "public")
+        try await client.types.alterCollationRename(name: name, newName: newName, schema: "public")
+        collations = try await client.metadata.listCollations(schema: "public")
         XCTAssertTrue(collations.contains(where: { $0.name == newName }), "Collation should be renamed to '\(newName)'")
         XCTAssertFalse(collations.contains(where: { $0.name == name }), "Old collation name '\(name)' should not exist")
 
         // Change owner
-        try await client.admin.alterCollationOwner(name: newName, newOwner: "postgres", schema: "public")
+        try await client.types.alterCollationOwner(name: newName, newOwner: "postgres", schema: "public")
 
         // Change schema
-        try await client.admin.alterCollationSetSchema(name: newName, newSchema: "app", schema: "public")
-        let publicCollations = try await client.introspection.listCollations(schema: "public")
+        try await client.types.alterCollationSetSchema(name: newName, newSchema: "app", schema: "public")
+        let publicCollations = try await client.metadata.listCollations(schema: "public")
         XCTAssertFalse(publicCollations.contains(where: { $0.name == newName }), "Collation should no longer be in 'public'")
-        let appCollations = try await client.introspection.listCollations(schema: "app")
+        let appCollations = try await client.metadata.listCollations(schema: "app")
         XCTAssertTrue(appCollations.contains(where: { $0.name == newName }), "Collation should now be in 'app'")
     }
 
@@ -164,7 +164,7 @@ final class AdvancedObjectAlterTests: PostgresKitTestCase {
         // Attempt to create a temp directory the Postgres server can access.
         // This works when running locally with a native Postgres installation.
         let tsDir = "/tmp/pgwire_test_ts_\(UInt32.random(in: 0..<UInt32.max))"
-        _ = try? await client.connection.simpleQuery("SELECT pg_catalog.pg_file_write('/dev/null', '', false)")
+        _ = try? await client.simpleQuery("SELECT pg_catalog.pg_file_write('/dev/null', '', false)")
         // Create the directory via shell — only works for local Postgres
         let fm = FileManager.default
         try fm.createDirectory(atPath: tsDir, withIntermediateDirectories: true)
@@ -190,18 +190,18 @@ final class AdvancedObjectAlterTests: PostgresKitTestCase {
         }
 
         // Verify creation
-        var tablespaces: [PostgresTablespaceInfo] = try await client.introspection.listTablespaces()
+        var tablespaces: [PostgresTablespaceInfo] = try await client.metadata.listTablespaces()
         XCTAssertTrue(tablespaces.contains(where: { $0.name == name }), "Tablespace '\(name)' should exist")
 
         // Rename
         try await client.admin.alterTablespaceRename(name: name, newName: newName)
-        tablespaces = try await client.introspection.listTablespaces()
+        tablespaces = try await client.metadata.listTablespaces()
         XCTAssertTrue(tablespaces.contains(where: { $0.name == newName }), "Tablespace should be renamed to '\(newName)'")
         XCTAssertFalse(tablespaces.contains(where: { $0.name == name }), "Old tablespace name '\(name)' should not exist")
 
         // Change owner
         try await client.admin.alterTablespaceOwner(name: newName, newOwner: "postgres")
-        tablespaces = try await client.introspection.listTablespaces()
+        tablespaces = try await client.metadata.listTablespaces()
         let ts = tablespaces.first(where: { $0.name == newName })
         XCTAssertEqual(ts?.owner, "postgres", "Tablespace owner should be 'postgres'")
     }
@@ -213,45 +213,45 @@ final class AdvancedObjectAlterTests: PostgresKitTestCase {
         let name = uniqueName("evt")
         let newName = uniqueName("evt_ren")
         defer { Task { [client = self.client!] in
-            _ = try? await client.admin.dropEventTrigger(name: newName, ifExists: true, cascade: true)
-            _ = try? await client.admin.dropEventTrigger(name: name, ifExists: true, cascade: true)
-            _ = try? await client.connection.simpleQuery("DROP FUNCTION IF EXISTS \(funcName)() CASCADE")
+            _ = try? await client.triggers.dropEventTrigger(name: newName, ifExists: true, cascade: true)
+            _ = try? await client.triggers.dropEventTrigger(name: name, ifExists: true, cascade: true)
+            _ = try? await client.simpleQuery("DROP FUNCTION IF EXISTS \(funcName)() CASCADE")
         }}
 
         // Create an event trigger function
-        _ = try await client.connection.simpleQuery("""
+        _ = try await client.simpleQuery("""
             CREATE OR REPLACE FUNCTION \(funcName)() RETURNS event_trigger
             LANGUAGE plpgsql AS $$ BEGIN RAISE NOTICE 'event trigger fired'; END; $$
             """)
 
         // Create event trigger
-        try await client.admin.createEventTrigger(name: name, event: "ddl_command_end", function: funcName)
+        try await client.triggers.createEventTrigger(name: name, event: "ddl_command_end", function: funcName)
 
         // Verify creation
-        var triggers = try await client.introspection.listEventTriggers()
+        var triggers = try await client.metadata.listEventTriggers()
         XCTAssertTrue(triggers.contains(where: { $0.name == name }), "Event trigger '\(name)' should exist")
 
         // Rename
-        try await client.admin.alterEventTriggerRename(name: name, newName: newName)
-        triggers = try await client.introspection.listEventTriggers()
+        try await client.triggers.alterEventTriggerRename(name: name, newName: newName)
+        triggers = try await client.metadata.listEventTriggers()
         XCTAssertTrue(triggers.contains(where: { $0.name == newName }), "Event trigger should be renamed to '\(newName)'")
         XCTAssertFalse(triggers.contains(where: { $0.name == name }), "Old event trigger name '\(name)' should not exist")
 
         // Change owner
-        try await client.admin.alterEventTriggerOwner(name: newName, newOwner: "postgres")
-        triggers = try await client.introspection.listEventTriggers()
+        try await client.triggers.alterEventTriggerOwner(name: newName, newOwner: "postgres")
+        triggers = try await client.metadata.listEventTriggers()
         let trigger = triggers.first(where: { $0.name == newName })
         XCTAssertEqual(trigger?.owner, "postgres", "Event trigger owner should be 'postgres'")
 
         // Disable
-        try await client.admin.alterEventTriggerEnable(name: newName, enable: false)
-        triggers = try await client.introspection.listEventTriggers()
+        try await client.triggers.alterEventTriggerEnable(name: newName, enable: false)
+        triggers = try await client.metadata.listEventTriggers()
         let disabledTrigger = triggers.first(where: { $0.name == newName })
         XCTAssertEqual(disabledTrigger?.enabled, "D", "Event trigger should be disabled (enabled = 'D')")
 
         // Enable
-        try await client.admin.alterEventTriggerEnable(name: newName, enable: true)
-        triggers = try await client.introspection.listEventTriggers()
+        try await client.triggers.alterEventTriggerEnable(name: newName, enable: true)
+        triggers = try await client.metadata.listEventTriggers()
         let enabledTrigger = triggers.first(where: { $0.name == newName })
         XCTAssertEqual(enabledTrigger?.enabled, "O", "Event trigger should be enabled (enabled = 'O')")
     }
@@ -278,12 +278,12 @@ final class AdvancedObjectAlterTests: PostgresKitTestCase {
         )
 
         // Verify creation
-        var aggregates = try await client.introspection.listAggregates(schema: "public")
+        var aggregates = try await client.metadata.listAggregates(schema: "public")
         XCTAssertTrue(aggregates.contains(where: { $0.name == name }), "Aggregate '\(name)' should exist")
 
         // Rename
         try await client.admin.alterAggregateRename(name: name, inputType: "integer", newName: newName, schema: "public")
-        aggregates = try await client.introspection.listAggregates(schema: "public")
+        aggregates = try await client.metadata.listAggregates(schema: "public")
         XCTAssertTrue(aggregates.contains(where: { $0.name == newName }), "Aggregate should be renamed to '\(newName)'")
         XCTAssertFalse(aggregates.contains(where: { $0.name == name }), "Old aggregate name '\(name)' should not exist")
 
@@ -292,9 +292,9 @@ final class AdvancedObjectAlterTests: PostgresKitTestCase {
 
         // Change schema
         try await client.admin.alterAggregateSetSchema(name: newName, inputType: "integer", newSchema: "app", schema: "public")
-        let publicAggs = try await client.introspection.listAggregates(schema: "public")
+        let publicAggs = try await client.metadata.listAggregates(schema: "public")
         XCTAssertFalse(publicAggs.contains(where: { $0.name == newName }), "Aggregate should no longer be in 'public'")
-        let appAggs = try await client.introspection.listAggregates(schema: "app")
+        let appAggs = try await client.metadata.listAggregates(schema: "app")
         XCTAssertTrue(appAggs.contains(where: { $0.name == newName }), "Aggregate should now be in 'app'")
     }
 
@@ -314,7 +314,7 @@ final class AdvancedObjectAlterTests: PostgresKitTestCase {
         // Create a trusted PL language using the plpgsql handler (a common workaround for testing).
         // This requires plpgsql to already exist (which it does by default in most PG installations).
         do {
-            _ = try await client.connection.simpleQuery("""
+            _ = try await client.simpleQuery("""
                 CREATE TRUSTED LANGUAGE \(name)
                 HANDLER plpgsql_call_handler
                 VALIDATOR plpgsql_validator
@@ -324,18 +324,18 @@ final class AdvancedObjectAlterTests: PostgresKitTestCase {
         }
 
         // Verify creation
-        var languages = try await client.introspection.listLanguages()
+        var languages = try await client.metadata.listLanguages()
         XCTAssertTrue(languages.contains(where: { $0.name == name }), "Language '\(name)' should exist")
 
         // Rename
         try await client.admin.alterLanguageRename(name: name, newName: newName)
-        languages = try await client.introspection.listLanguages()
+        languages = try await client.metadata.listLanguages()
         XCTAssertTrue(languages.contains(where: { $0.name == newName }), "Language should be renamed to '\(newName)'")
         XCTAssertFalse(languages.contains(where: { $0.name == name }), "Old language name '\(name)' should not exist")
 
         // Change owner
         try await client.admin.alterLanguageOwner(name: newName, newOwner: "postgres")
-        languages = try await client.introspection.listLanguages()
+        languages = try await client.metadata.listLanguages()
         let lang = languages.first(where: { $0.name == newName })
         XCTAssertEqual(lang?.owner, "postgres", "Language owner should be 'postgres'")
     }
@@ -355,12 +355,12 @@ final class AdvancedObjectAlterTests: PostgresKitTestCase {
         try await client.admin.createTextSearchConfiguration(name: name, copy: "english", schema: "public")
 
         // Verify creation
-        var configs = try await client.introspection.listTextSearchConfigurations(schema: "public")
+        var configs = try await client.metadata.listTextSearchConfigurations(schema: "public")
         XCTAssertTrue(configs.contains(where: { $0.name == name }), "FTS config '\(name)' should exist")
 
         // Rename
         try await client.admin.alterTextSearchConfigurationRename(name: name, newName: newName, schema: "public")
-        configs = try await client.introspection.listTextSearchConfigurations(schema: "public")
+        configs = try await client.metadata.listTextSearchConfigurations(schema: "public")
         XCTAssertTrue(configs.contains(where: { $0.name == newName }), "FTS config should be renamed to '\(newName)'")
         XCTAssertFalse(configs.contains(where: { $0.name == name }), "Old FTS config name '\(name)' should not exist")
 
@@ -369,9 +369,9 @@ final class AdvancedObjectAlterTests: PostgresKitTestCase {
 
         // Change schema
         try await client.admin.alterTextSearchConfigurationSetSchema(name: newName, newSchema: "app", schema: "public")
-        let publicConfigs = try await client.introspection.listTextSearchConfigurations(schema: "public")
+        let publicConfigs = try await client.metadata.listTextSearchConfigurations(schema: "public")
         XCTAssertFalse(publicConfigs.contains(where: { $0.name == newName }), "FTS config should no longer be in 'public'")
-        let appConfigs = try await client.introspection.listTextSearchConfigurations(schema: "app")
+        let appConfigs = try await client.metadata.listTextSearchConfigurations(schema: "app")
         XCTAssertTrue(appConfigs.contains(where: { $0.name == newName }), "FTS config should now be in 'app'")
     }
 
@@ -404,12 +404,12 @@ final class AdvancedObjectAlterTests: PostgresKitTestCase {
         )
 
         // Verify creation
-        var rules = try await client.introspection.listRules(schema: "public", table: table)
+        var rules = try await client.metadata.listRules(schema: "public", table: table)
         XCTAssertTrue(rules.contains(where: { $0.name == ruleName }), "Rule '\(ruleName)' should exist on '\(table)'")
 
         // Rename
         try await client.admin.alterRuleRename(ruleName: ruleName, tableName: table, newName: newRuleName, schema: "public")
-        rules = try await client.introspection.listRules(schema: "public", table: table)
+        rules = try await client.metadata.listRules(schema: "public", table: table)
         XCTAssertTrue(rules.contains(where: { $0.name == newRuleName }), "Rule should be renamed to '\(newRuleName)'")
         XCTAssertFalse(rules.contains(where: { $0.name == ruleName }), "Old rule name '\(ruleName)' should not exist")
     }

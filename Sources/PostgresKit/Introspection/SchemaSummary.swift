@@ -38,7 +38,7 @@ public struct SchemaSummary: Sendable {
 }
 
 /// High-level schema summary discovery.
-public extension PostgresIntrospectionClient {
+public extension PostgresMetadataClient {
     /// Generate a summary of all objects within a schema.
     func schemaSummary(
         schema: String,

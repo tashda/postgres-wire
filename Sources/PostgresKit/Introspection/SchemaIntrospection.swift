@@ -2,7 +2,7 @@ import Foundation
 import PostgresWire
 
 /// High-level schema and object discovery.
-public extension PostgresIntrospectionClient {
+public extension PostgresMetadataClient {
     /// List all databases that are not templates.
     func listDatabases() async throws -> [String] {
         var names: [String] = []

@@ -2,7 +2,7 @@ import PostgresWire
 import PostgresNIO
 
 /// High-level Trigger and Function Data Definition Language (DDL) operations.
-public extension PostgresAdminClient {
+public extension PostgresTriggerClient {
     /// Create a new SQL function.
     @discardableResult
     func createFunction(

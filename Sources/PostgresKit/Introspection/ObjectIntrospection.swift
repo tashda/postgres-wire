@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// High-level object definition and comment introspection.
-public extension PostgresIntrospectionClient {
+public extension PostgresMetadataClient {
     /// Fetch the SQL definition of a view.
     func viewDefinition(schema: String, view: String) async throws -> String? {
         let sql = "SELECT definition FROM pg_views WHERE schemaname = $1 AND viewname = $2"

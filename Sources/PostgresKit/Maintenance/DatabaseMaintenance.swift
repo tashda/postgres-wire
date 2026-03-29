@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// Database maintenance operations.
-public extension PostgresAdminClient {
+public extension PostgresMaintenanceClient {
     /// Perform a VACUUM operation.
     @discardableResult
     func vacuum(

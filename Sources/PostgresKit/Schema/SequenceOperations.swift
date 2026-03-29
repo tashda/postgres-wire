@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// High-level Sequence Data Definition Language (DDL) operations.
-public extension PostgresAdminClient {
+public extension PostgresSequenceClient {
     /// Create a new sequence.
     @discardableResult
     func createSequence(

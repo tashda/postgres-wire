@@ -37,7 +37,7 @@ final class EncodableRoundTripTests: PostgresKitTestCase {
         try ip.encode(into: &pgData)
         let encoded = pgData
 
-        let result = try await client.connection.withConnection { conn in
+        let result = try await client.withConnection { conn in
             try await conn.query("SELECT $1::inet::text AS addr", binds: [encoded])
         }
         var returned = ""
@@ -53,7 +53,7 @@ final class EncodableRoundTripTests: PostgresKitTestCase {
         try ip.encode(into: &pgData)
         let encoded = pgData
 
-        let result = try await client.connection.withConnection { conn in
+        let result = try await client.withConnection { conn in
             try await conn.query("SELECT $1::inet::text AS addr", binds: [encoded])
         }
         var returned = ""
@@ -67,7 +67,7 @@ final class EncodableRoundTripTests: PostgresKitTestCase {
         try ip.encode(into: &pgData)
         let encoded = pgData
 
-        let result = try await client.connection.withConnection { conn in
+        let result = try await client.withConnection { conn in
             try await conn.query("SELECT $1::inet::text AS addr", binds: [encoded])
         }
         var returned = ""
@@ -95,11 +95,11 @@ final class EncodableRoundTripTests: PostgresKitTestCase {
         try testIP.encode(into: &pgData)
         let insertRow: [PostgresInsertValue] = [.inet(testIP.string)]
         let insertValues = [insertRow]
-        try await client.connection.withConnection { conn in
+        try await client.withConnection { conn in
             _ = try await conn.insert(into: table, columns: ["addr"], values: insertValues)
         }
 
-        let rows = try await client.connection.simpleQuery("SELECT addr::text FROM \(table)")
+        let rows = try await client.simpleQuery("SELECT addr::text FROM \(table)")
         var addrs: [String] = []
         for try await addr in rows.decode(String.self) { addrs.append(addr) }
 
@@ -154,11 +154,11 @@ final class EncodableRoundTripTests: PostgresKitTestCase {
         try mac.encode(into: &pgData)
         let insertRow: [PostgresInsertValue] = [.macaddr(mac.string)]
         let insertValues = [insertRow]
-        try await client.connection.withConnection { conn in
+        try await client.withConnection { conn in
             _ = try await conn.insert(into: table, columns: ["addr"], values: insertValues)
         }
 
-        let rows = try await client.connection.simpleQuery("SELECT addr::text FROM \(table)")
+        let rows = try await client.simpleQuery("SELECT addr::text FROM \(table)")
         var addrs: [String] = []
         for try await addr in rows.decode(String.self) { addrs.append(addr) }
 
@@ -180,7 +180,7 @@ final class EncodableRoundTripTests: PostgresKitTestCase {
         try ip.encode(into: &ipData)
         let encodedIP = ipData
 
-        let result = try await client.connection.withConnection { conn in
+        let result = try await client.withConnection { conn in
             try await conn.query(
                 "SELECT $1::inet::text AS ip, $2::text AS name",
                 binds: [encodedIP, PGData(string: "test")]

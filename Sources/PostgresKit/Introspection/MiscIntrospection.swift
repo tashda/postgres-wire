@@ -2,7 +2,7 @@ import Foundation
 import PostgresWire
 
 /// Introspection for aggregates, operators, languages, and casts.
-public extension PostgresIntrospectionClient {
+public extension PostgresMetadataClient {
 
     // MARK: - Aggregates
 

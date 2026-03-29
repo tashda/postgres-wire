@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// High-level View Data Definition Language (DDL) operations.
-public extension PostgresAdminClient {
+public extension PostgresViewClient {
     /// Create a standard view.
     @discardableResult
     func createView(

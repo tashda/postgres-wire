@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// Stored procedure discovery.
-public extension PostgresIntrospectionClient {
+public extension PostgresMetadataClient {
     /// List stored procedures in a schema (PG 11+).
     func listProcedures(schema: String) async throws -> [String] {
         let sql = """

@@ -11,7 +11,7 @@ private actor ProgressCounter {
 /// Tests all public methods not already covered by MetadataIntegrationTests.swift.
 final class MetadataFullTests: PostgresKitTestCase {
     private var client: PostgresKit.PostgresClient!
-    private let meta = PostgresMetadata()
+    private let meta = REMOVED_LEGACY
 
     override func setUp() async throws {
         try await super.setUp()
@@ -93,8 +93,8 @@ final class MetadataFullTests: PostgresKitTestCase {
             .text(name: "name"),
             .integer(name: "score")
         ])
-        try await client.admin.createIndex(name: idx, table: table, columns: ["name"])
-        try await client.admin.createIndex(name: "\(idx)_unique", table: table, columns: ["score"], unique: true)
+        try await client.indexes.createIndex(name: idx, table: table, columns: ["name"])
+        try await client.indexes.createIndex(name: "\(idx)_unique", table: table, columns: ["score"], unique: true)
         defer {
             Task { [client = self.client!] in
                 _ = try? await client.admin.dropTable(name: table, ifExists: true)
@@ -164,7 +164,7 @@ final class MetadataFullTests: PostgresKitTestCase {
             .serial(name: "id", primaryKey: true),
             .integer(name: "parent_id")
         ])
-        try await client.admin.addForeignKey(table: child, column: "parent_id", referencesTable: parent, referencesColumn: "id")
+        try await client.constraints.addForeignKey(table: child, column: "parent_id", referencesTable: parent, referencesColumn: "id")
         defer {
             Task { [client = self.client!] in
                 _ = try? await client.admin.dropTable(name: child, ifExists: true, cascade: true)
@@ -190,7 +190,7 @@ final class MetadataFullTests: PostgresKitTestCase {
             PostgresColumnDefinition(name: "email", dataType: "TEXT", unique: true),
             .text(name: "code")
         ])
-        try await client.admin.addUniqueConstraint(table: table, columns: ["code"], constraintName: uqName)
+        try await client.constraints.addUniqueConstraint(table: table, columns: ["code"], constraintName: uqName)
         defer {
             Task { [client = self.client!] in
                 _ = try? await client.admin.dropTable(name: table, ifExists: true)
@@ -216,7 +216,7 @@ final class MetadataFullTests: PostgresKitTestCase {
             .serial(name: "id", primaryKey: true),
             .integer(name: "pid")
         ])
-        try await client.admin.addForeignKey(table: child, column: "pid", referencesTable: parent, referencesColumn: "id")
+        try await client.constraints.addForeignKey(table: child, column: "pid", referencesTable: parent, referencesColumn: "id")
         defer {
             Task { [client = self.client!] in
                 _ = try? await client.admin.dropTable(name: child, ifExists: true, cascade: true)
@@ -240,10 +240,10 @@ final class MetadataFullTests: PostgresKitTestCase {
             .serial(name: "id"),
             .text(name: "name")
         ])
-        try await client.admin.createView(name: view, query: "SELECT id, name FROM \(table) WHERE id > 0")
+        try await client.views.createView(name: view, query: "SELECT id, name FROM \(table) WHERE id > 0")
         defer {
             Task { [client = self.client!] in
-                _ = try? await client.admin.dropView(name: view, ifExists: true)
+                _ = try? await client.views.dropView(name: view, ifExists: true)
                 _ = try? await client.admin.dropTable(name: table, ifExists: true)
             }
         }
@@ -258,7 +258,7 @@ final class MetadataFullTests: PostgresKitTestCase {
 
     func testFunctionDefinition() async throws {
         let fn = "pgwire_meta_fn_\(UInt32.random(in: 0..<UInt32.max))"
-        try await client.admin.createFunction(
+        try await client.routines.createFunction(
             name: fn,
             parameters: [PostgresFunctionParameter(name: "x", dataType: "integer")],
             returnType: "integer",
@@ -268,7 +268,7 @@ final class MetadataFullTests: PostgresKitTestCase {
         )
         defer {
             Task { [client = self.client!] in
-                _ = try? await client.admin.dropFunction(name: fn, parameters: ["integer"], ifExists: true)
+                _ = try? await client.routines.dropFunction(name: fn, parameters: ["integer"], ifExists: true)
             }
         }
 
@@ -288,7 +288,7 @@ final class MetadataFullTests: PostgresKitTestCase {
             .serial(name: "id"),
             .text(name: "val")
         ])
-        try await client.admin.createFunction(
+        try await client.routines.createFunction(
             name: fn,
             parameters: [],
             returnType: "trigger",
@@ -296,7 +296,7 @@ final class MetadataFullTests: PostgresKitTestCase {
             language: .plpgsql,
             orReplace: true
         )
-        try await client.admin.createTrigger(
+        try await client.triggers.createTrigger(
             name: trig,
             table: table,
             event: .before,
@@ -305,9 +305,9 @@ final class MetadataFullTests: PostgresKitTestCase {
         )
         defer {
             Task { [client = self.client!] in
-                _ = try? await client.admin.dropTrigger(name: trig, table: table, ifExists: true)
+                _ = try? await client.triggers.dropTrigger(name: trig, table: table, ifExists: true)
                 _ = try? await client.admin.dropTable(name: table, ifExists: true)
-                _ = try? await client.admin.dropFunction(name: fn, parameters: [], ifExists: true)
+                _ = try? await client.routines.dropFunction(name: fn, parameters: [], ifExists: true)
             }
         }
 

@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// Sequence discovery.
-public extension PostgresIntrospectionClient {
+public extension PostgresMetadataClient {
     /// List all sequences in a schema.
     func listSequences(schema: String) async throws -> [PostgresSequenceInfo] {
         let sql = """

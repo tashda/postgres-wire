@@ -3,7 +3,7 @@ import PostgresWire
 import PostgresNIO
 
 /// High-level Data Manipulation Language (DML) operations.
-public extension PostgresConnectionClient {
+public extension PostgresBulkClient {
     /// Insert rows into a table.
     @discardableResult
     func insert(

@@ -39,12 +39,12 @@ final class ErrorIntegrationTests: PostgresKitTestCase {
             .bigSerial(name: "id", primaryKey: true),
             .text(name: "email", nullable: false)
         ])
-        _ = try await client.admin.addUniqueConstraint(table: table, columns: ["email"], constraintName: "\(table)_uk")
+        _ = try await client.constraints.addUniqueConstraint(table: table, columns: ["email"], constraintName: "\(table)_uk")
 
-        _ = try await client.connection.insert(into: table, columns: ["email"], values: [["test@example.com"]])
+        _ = try await client.bulk.insert(into: table, columns: ["email"], values: [["test@example.com"]])
 
         do {
-            _ = try await client.connection.insert(into: table, columns: ["email"], values: [["test@example.com"]])
+            _ = try await client.bulk.insert(into: table, columns: ["email"], values: [["test@example.com"]])
             XCTFail("Expected error for duplicate email")
         } catch {
             XCTAssertTrue(error is PostgresError, "Expected PostgresError, got \(type(of: error))")
@@ -75,14 +75,14 @@ final class ErrorIntegrationTests: PostgresKitTestCase {
             .bigInt(name: "parent_id", nullable: false),
             .text(name: "value")
         ])
-        _ = try await client.admin.addForeignKey(
+        _ = try await client.constraints.addForeignKey(
             table: child, column: "parent_id",
             referencesTable: parent, referencesColumn: "id",
             constraintName: "\(child)_fk"
         )
 
         do {
-            _ = try await client.connection.insert(into: child, columns: ["parent_id", "value"], values: [[999, "Orphan"]])
+            _ = try await client.bulk.insert(into: child, columns: ["parent_id", "value"], values: [[999, "Orphan"]])
             XCTFail("Expected foreign key violation")
         } catch {
             XCTAssertTrue(error is PostgresError, "Expected PostgresError, got \(type(of: error))")
@@ -97,7 +97,7 @@ final class ErrorIntegrationTests: PostgresKitTestCase {
     func testSyntaxErrorThrowsError() async throws {
         // simpleQuery passes through PSQLError from the wire layer (not wrapped in PostgresError)
         do {
-            _ = try await client.connection.simpleQuery("SELEKT 1")
+            _ = try await client.simpleQuery("SELEKT 1")
             XCTFail("Expected syntax error")
         } catch {
             // Verify an error was thrown — simpleQuery throws PSQLError, not PostgresError
@@ -110,7 +110,7 @@ final class ErrorIntegrationTests: PostgresKitTestCase {
     func testNonexistentTableError() async throws {
         let fakeName = uniqueName("nonexistent")
         do {
-            _ = try await client.connection.simpleQuery("SELECT * FROM \(fakeName)")
+            _ = try await client.simpleQuery("SELECT * FROM \(fakeName)")
             XCTFail("Expected error for nonexistent table")
         } catch {
             // Verify an error was thrown — simpleQuery throws PSQLError directly
@@ -128,12 +128,12 @@ final class ErrorIntegrationTests: PostgresKitTestCase {
             .text(name: "name", nullable: false),
             .text(name: "email", nullable: false)
         ])
-        _ = try await client.admin.addUniqueConstraint(table: table, columns: ["email"], constraintName: "\(table)_uk")
+        _ = try await client.constraints.addUniqueConstraint(table: table, columns: ["email"], constraintName: "\(table)_uk")
 
-        _ = try await client.connection.insert(into: table, columns: ["name", "email"], values: [["John", "john@example.com"]])
+        _ = try await client.bulk.insert(into: table, columns: ["name", "email"], values: [["John", "john@example.com"]])
 
         let result = await PostgresClient.executeWithEnhancedError {
-            try await client.connection.insert(
+            try await client.bulk.insert(
                 into: table,
                 columns: ["name", "email"],
                 values: [["Jane", "john@example.com"]]
@@ -167,14 +167,14 @@ final class ErrorIntegrationTests: PostgresKitTestCase {
             .bigInt(name: "parent_id", nullable: false),
             .text(name: "value")
         ])
-        _ = try await client.admin.addForeignKey(
+        _ = try await client.constraints.addForeignKey(
             table: child, column: "parent_id",
             referencesTable: parent, referencesColumn: "id",
             constraintName: "\(child)_fk"
         )
 
         let result = await PostgresClient.executeWithEnhancedError {
-            try await client.connection.insert(into: child, columns: ["parent_id", "value"], values: [[999, "Orphan"]])
+            try await client.bulk.insert(into: child, columns: ["parent_id", "value"], values: [[999, "Orphan"]])
         }
 
         switch result {
@@ -191,7 +191,7 @@ final class ErrorIntegrationTests: PostgresKitTestCase {
         // simpleQuery throws raw PSQLError. Verify that our @retroactive
         // LocalizedError conformance makes localizedDescription readable.
         do {
-            _ = try await client.connection.simpleQuery("SELECT * FROM nonexistent_table_\(uniqueName())")
+            _ = try await client.simpleQuery("SELECT * FROM nonexistent_table_\(uniqueName())")
             XCTFail("Expected error for nonexistent table")
         } catch let error as PSQLError {
             let description = error.localizedDescription
@@ -218,12 +218,12 @@ final class ErrorIntegrationTests: PostgresKitTestCase {
             .bigSerial(name: "id", primaryKey: true),
             .text(name: "email", nullable: false)
         ])
-        _ = try await client.admin.addUniqueConstraint(table: table, columns: ["email"], constraintName: "\(table)_uk")
+        _ = try await client.constraints.addUniqueConstraint(table: table, columns: ["email"], constraintName: "\(table)_uk")
 
-        _ = try await client.connection.insert(into: table, columns: ["email"], values: [["bob@example.com"]])
+        _ = try await client.bulk.insert(into: table, columns: ["email"], values: [["bob@example.com"]])
 
         do {
-            _ = try await client.connection.insert(into: table, columns: ["email"], values: [["bob@example.com"]])
+            _ = try await client.bulk.insert(into: table, columns: ["email"], values: [["bob@example.com"]])
             XCTFail("Expected duplicate error")
         } catch {
             let postgresError: PostgresError

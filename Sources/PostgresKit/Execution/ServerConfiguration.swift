@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// Server configuration management.
-public extension PostgresAdminClient {
+public extension PostgresServerConfigClient {
     /// Set a server configuration parameter.
     @discardableResult
     func set(_ parameter: String, value: String, local: Bool = false) async throws -> Int {

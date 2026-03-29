@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// Event trigger DDL operations.
-public extension PostgresAdminClient {
+public extension PostgresTriggerClient {
 
     /// Create an event trigger.
     ///

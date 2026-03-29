@@ -2,7 +2,7 @@ import Foundation
 import PostgresWire
 
 /// High-level database introspection and property discovery.
-public extension PostgresIntrospectionClient {
+public extension PostgresMetadataClient {
     /// Fetch comprehensive properties for a specific database.
     func fetchDatabaseProperties(name: String) async throws -> PostgresDatabaseProperties {
         // daticulocale was added in PostgreSQL 15 — try the full query first,

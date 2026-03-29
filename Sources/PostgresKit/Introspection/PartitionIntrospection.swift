@@ -2,7 +2,7 @@ import Foundation
 import PostgresWire
 
 /// Partition and inheritance introspection queries.
-public extension PostgresIntrospectionClient {
+public extension PostgresMetadataClient {
     /// Check if a table is partitioned and get partition info.
     func fetchPartitionInfo(schema: String, table: String) async throws -> PostgresPartitionInfo? {
         let sql = """

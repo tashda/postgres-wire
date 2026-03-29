@@ -2,16 +2,11 @@ import Foundation
 import Logging
 import PostgresWire
 
-public struct PostgresConnectionClient: Sendable {
+// MARK: - Core Namespace Client Types
+
+public struct PostgresMetadataClient: Sendable {
     internal let client: PostgresClient
     init(client: PostgresClient) { self.client = client }
-
-    /// Borrow a single connection for multi-step operations (e.g., transactions).
-    public func withConnection<T>(
-        _ body: @Sendable (PostgresConnection) async throws -> T
-    ) async throws -> T {
-        try await client.withConnection(body)
-    }
 }
 
 public struct PostgresAdminClient: Sendable {
@@ -19,7 +14,12 @@ public struct PostgresAdminClient: Sendable {
     init(client: PostgresClient) { self.client = client }
 }
 
-public struct PostgresAgentClient: Sendable {
+public struct PostgresSecurityClient: Sendable {
+    internal let client: PostgresClient
+    init(client: PostgresClient) { self.client = client }
+}
+
+public struct PostgresActivityClient: Sendable {
     internal let client: PostgresClient
     init(client: PostgresClient) { self.client = client }
 
@@ -36,15 +36,81 @@ public struct PostgresAgentClient: Sendable {
     }
 }
 
-public struct PostgresIntrospectionClient: Sendable {
+// MARK: - Object Namespace Client Types
+
+public struct PostgresIndexClient: Sendable {
     internal let client: PostgresClient
     init(client: PostgresClient) { self.client = client }
 }
 
-public struct PostgresSecurityClient: Sendable {
+public struct PostgresConstraintClient: Sendable {
     internal let client: PostgresClient
     init(client: PostgresClient) { self.client = client }
 }
+
+public struct PostgresRoutineClient: Sendable {
+    internal let client: PostgresClient
+    init(client: PostgresClient) { self.client = client }
+}
+
+public struct PostgresViewClient: Sendable {
+    internal let client: PostgresClient
+    init(client: PostgresClient) { self.client = client }
+}
+
+public struct PostgresTriggerClient: Sendable {
+    internal let client: PostgresClient
+    init(client: PostgresClient) { self.client = client }
+}
+
+public struct PostgresTypeClient: Sendable {
+    internal let client: PostgresClient
+    init(client: PostgresClient) { self.client = client }
+}
+
+public struct PostgresSequenceClient: Sendable {
+    internal let client: PostgresClient
+    init(client: PostgresClient) { self.client = client }
+}
+
+// MARK: - Operation Namespace Client Types
+
+public struct PostgresMaintenanceClient: Sendable {
+    internal let client: PostgresClient
+    init(client: PostgresClient) { self.client = client }
+}
+
+public struct PostgresTransactionClient: Sendable {
+    internal let client: PostgresClient
+    init(client: PostgresClient) { self.client = client }
+}
+
+public struct PostgresExecutionPlanClient: Sendable {
+    internal let client: PostgresClient
+    init(client: PostgresClient) { self.client = client }
+}
+
+public struct PostgresBulkClient: Sendable {
+    internal let client: PostgresClient
+    init(client: PostgresClient) { self.client = client }
+}
+
+public struct PostgresSessionClient: Sendable {
+    internal let client: PostgresClient
+    init(client: PostgresClient) { self.client = client }
+}
+
+public struct PostgresServerConfigClient: Sendable {
+    internal let client: PostgresClient
+    init(client: PostgresClient) { self.client = client }
+}
+
+public struct PostgresReplicationClient: Sendable {
+    internal let client: PostgresClient
+    init(client: PostgresClient) { self.client = client }
+}
+
+// MARK: - Postgres-Specific Namespace Client Types
 
 public struct PostgresNotifierClient: Sendable {
     internal let client: PostgresClient
@@ -67,11 +133,33 @@ public struct PostgresNotifierClient: Sendable {
     }
 }
 
+// MARK: - Namespace Properties
+
 extension PostgresClient {
-    public var connection: PostgresConnectionClient { .init(client: self) }
+    // Core
+    public var metadata: PostgresMetadataClient { .init(client: self) }
     public var admin: PostgresAdminClient { .init(client: self) }
-    public var agent: PostgresAgentClient { .init(client: self) }
-    public var introspection: PostgresIntrospectionClient { .init(client: self) }
     public var security: PostgresSecurityClient { .init(client: self) }
+    public var activity: PostgresActivityClient { .init(client: self) }
+
+    // Objects
+    public var indexes: PostgresIndexClient { .init(client: self) }
+    public var constraints: PostgresConstraintClient { .init(client: self) }
+    public var routines: PostgresRoutineClient { .init(client: self) }
+    public var views: PostgresViewClient { .init(client: self) }
+    public var triggers: PostgresTriggerClient { .init(client: self) }
+    public var types: PostgresTypeClient { .init(client: self) }
+    public var sequences: PostgresSequenceClient { .init(client: self) }
+
+    // Operations
+    public var maintenance: PostgresMaintenanceClient { .init(client: self) }
+    public var transactions: PostgresTransactionClient { .init(client: self) }
+    public var executionPlan: PostgresExecutionPlanClient { .init(client: self) }
+    public var bulk: PostgresBulkClient { .init(client: self) }
+    public var session: PostgresSessionClient { .init(client: self) }
+    public var serverConfig: PostgresServerConfigClient { .init(client: self) }
+    public var replication: PostgresReplicationClient { .init(client: self) }
+
+    // Postgres-specific
     public var notifier: PostgresNotifierClient { .init(client: self) }
 }

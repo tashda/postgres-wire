@@ -1,7 +1,7 @@
 import PostgresWire
 
 /// Domain, composite, and range type DDL operations.
-public extension PostgresAdminClient {
+public extension PostgresTypeClient {
 
     // MARK: - Domain Types
 

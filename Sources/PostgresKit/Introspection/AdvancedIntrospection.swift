@@ -345,7 +345,7 @@ public extension PostgresIntrospectionClient {
                 c.collname::text AS name,
                 n.nspname::text AS schema,
                 CASE c.collprovider WHEN 'c' THEN 'libc' WHEN 'i' THEN 'icu' WHEN 'd' THEN 'default' ELSE c.collprovider::text END AS provider,
-                c.colliculocale::text AS locale,
+                COALESCE(to_jsonb(c)->>'colllocale', to_jsonb(c)->>'colliculocale') AS locale,
                 c.collcollate::text AS lc_collate,
                 c.collctype::text AS lc_ctype
             FROM pg_collation c
@@ -435,25 +435,33 @@ public extension PostgresIntrospectionClient {
     func listRules(schema: String? = nil, table: String? = nil) async throws -> [PostgresRuleInfo] {
         var conditions: [String] = []
         if let schema {
-            conditions.append("schemaname = \(client.quoteLiteral(schema))")
+            conditions.append("n.nspname = \(client.quoteLiteral(schema))")
         } else {
-            conditions.append("schemaname NOT IN ('pg_catalog', 'information_schema')")
+            conditions.append("n.nspname NOT IN ('pg_catalog', 'information_schema')")
         }
         if let table {
-            conditions.append("tablename = \(client.quoteLiteral(table))")
+            conditions.append("c.relname = \(client.quoteLiteral(table))")
         }
         let whereClause = conditions.joined(separator: " AND ")
         let sql = """
             SELECT
-                rulename::text AS name,
-                tablename::text AS table_name,
-                schemaname::text AS schema,
-                ev_type::text AS event,
-                is_instead::text AS do_instead,
-                definition::text AS definition
-            FROM pg_rules
-            WHERE \(whereClause)
-            ORDER BY schemaname, tablename, rulename
+                r.rulename::text AS name,
+                c.relname::text AS table_name,
+                n.nspname::text AS schema,
+                CASE r.ev_type
+                    WHEN '1' THEN 'SELECT'
+                    WHEN '2' THEN 'UPDATE'
+                    WHEN '3' THEN 'INSERT'
+                    WHEN '4' THEN 'DELETE'
+                    ELSE r.ev_type::text
+                END AS event,
+                r.is_instead::text AS do_instead,
+                pg_get_ruledef(r.oid, true)::text AS definition
+            FROM pg_rewrite r
+            JOIN pg_class c ON c.oid = r.ev_class
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE r.rulename <> '_RETURN' AND \(whereClause)
+            ORDER BY n.nspname, c.relname, r.rulename
             """
         return try await client.withConnection { conn in
             let rows = try await conn.queryPreparedRows(sql, binds: [])

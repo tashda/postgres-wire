@@ -117,13 +117,13 @@ final class AdvancedObjectAlterTests: PostgresKitTestCase {
         let name = uniqueName("coll")
         let newName = uniqueName("coll_ren")
         defer { Task { [client = self.client!] in
-            _ = try? await client.types.dropCollation(name: newName, ifExists: true, cascade: true, schema: "app")
-            _ = try? await client.types.dropCollation(name: newName, ifExists: true, cascade: true, schema: "public")
-            _ = try? await client.types.dropCollation(name: name, ifExists: true, cascade: true, schema: "public")
+            _ = try? await client.admin.dropCollation(name: newName, ifExists: true, cascade: true, schema: "app")
+            _ = try? await client.admin.dropCollation(name: newName, ifExists: true, cascade: true, schema: "public")
+            _ = try? await client.admin.dropCollation(name: name, ifExists: true, cascade: true, schema: "public")
         }}
 
         // Create
-        try await client.types.createCollation(
+        try await client.admin.createCollation(
             name: name,
             locale: "en_US.utf8",
             provider: "libc",
@@ -135,16 +135,16 @@ final class AdvancedObjectAlterTests: PostgresKitTestCase {
         XCTAssertTrue(collations.contains(where: { $0.name == name }), "Collation '\(name)' should exist")
 
         // Rename
-        try await client.types.alterCollationRename(name: name, newName: newName, schema: "public")
+        try await client.admin.alterCollationRename(name: name, newName: newName, schema: "public")
         collations = try await client.metadata.listCollations(schema: "public")
         XCTAssertTrue(collations.contains(where: { $0.name == newName }), "Collation should be renamed to '\(newName)'")
         XCTAssertFalse(collations.contains(where: { $0.name == name }), "Old collation name '\(name)' should not exist")
 
         // Change owner
-        try await client.types.alterCollationOwner(name: newName, newOwner: "postgres", schema: "public")
+        try await client.admin.alterCollationOwner(name: newName, newOwner: "postgres", schema: "public")
 
         // Change schema
-        try await client.types.alterCollationSetSchema(name: newName, newSchema: "app", schema: "public")
+        try await client.admin.alterCollationSetSchema(name: newName, newSchema: "app", schema: "public")
         let publicCollations = try await client.metadata.listCollations(schema: "public")
         XCTAssertFalse(publicCollations.contains(where: { $0.name == newName }), "Collation should no longer be in 'public'")
         let appCollations = try await client.metadata.listCollations(schema: "app")

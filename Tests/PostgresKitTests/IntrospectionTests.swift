@@ -85,7 +85,7 @@ final class IntrospectionTests: PostgresKitTestCase {
 
         _ = try await client.simpleQuery("CREATE TYPE \(typeName) AS ENUM ('active', 'inactive', 'pending')")
 
-        let types = try await client.metadata.listTypes(schema: "public")
+        let types = try await client.types.listTypes(schema: "public")
         let match = types.first { $0.name == typeName }
         XCTAssertNotNil(match, "listTypes should include the newly created enum type '\(typeName)'")
         XCTAssertEqual(match?.kind, "enum", "Kind should be 'enum'")
@@ -100,7 +100,7 @@ final class IntrospectionTests: PostgresKitTestCase {
 
         _ = try await client.simpleQuery("CREATE TYPE \(typeName) AS (street TEXT, city TEXT, zip TEXT)")
 
-        let types = try await client.metadata.listTypes(schema: "public")
+        let types = try await client.types.listTypes(schema: "public")
         let match = types.first { $0.name == typeName }
         XCTAssertNotNil(match, "listTypes should include the composite type '\(typeName)'")
         XCTAssertEqual(match?.kind, "composite", "Kind should be 'composite'")
@@ -114,11 +114,11 @@ final class IntrospectionTests: PostgresKitTestCase {
 
         _ = try await client.simpleQuery("CREATE TYPE app.\(typeName) AS ENUM ('a', 'b')")
 
-        let publicTypes = try await client.metadata.listTypes(schema: "public")
+        let publicTypes = try await client.types.listTypes(schema: "public")
         let publicNames = publicTypes.map { $0.name }
         XCTAssertFalse(publicNames.contains(typeName), "Type in 'app' schema should not appear in 'public' listing")
 
-        let appTypes = try await client.metadata.listTypes(schema: "app")
+        let appTypes = try await client.types.listTypes(schema: "app")
         let appNames = appTypes.map { $0.name }
         XCTAssertTrue(appNames.contains(typeName), "Type should appear in 'app' schema listing")
     }

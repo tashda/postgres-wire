@@ -136,8 +136,7 @@ final class ViewAndMaterializedViewTests: PostgresKitTestCase {
     // MARK: - View Definition Introspection
 
     func testViewDefinitionIntrospection() async throws {
-        let meta = REMOVED_LEGACY
-        let def = try await meta.viewDefinition(using: client, schema: "app", view: "active_users")
+        let def = try await client.metadata.viewDefinition(schema: "app", view: "active_users")
         XCTAssertNotNil(def)
         if let def = def {
             XCTAssertTrue(def.lowercased().contains("is_active"))
@@ -145,8 +144,7 @@ final class ViewAndMaterializedViewTests: PostgresKitTestCase {
     }
 
     func testPublishedPostsViewDefinition() async throws {
-        let meta = REMOVED_LEGACY
-        let def = try await meta.viewDefinition(using: client, schema: "app", view: "published_posts")
+        let def = try await client.metadata.viewDefinition(schema: "app", view: "published_posts")
         XCTAssertNotNil(def)
         if let def = def {
             XCTAssertTrue(def.lowercased().contains("join"))

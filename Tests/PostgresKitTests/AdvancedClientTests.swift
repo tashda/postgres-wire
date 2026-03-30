@@ -40,13 +40,13 @@ final class AdvancedClientTests: PostgresKitTestCase {
         let schema = uniqueName("pgwire_schema")
         try await client.admin.createSchema(name: schema)
 
-        let schemas = try await REMOVED_LEGACY.listSchemas(using: client)
-        XCTAssertTrue(schemas.contains(schema), "Schema should appear after creation")
+        let schemas = try await client.metadata.listSchemas()
+        XCTAssertTrue(schemas.map(\.name).contains(schema), "Schema should appear after creation")
 
         try await client.admin.dropSchema(name: schema, cascade: true)
 
-        let schemasAfter = try await REMOVED_LEGACY.listSchemas(using: client)
-        XCTAssertFalse(schemasAfter.contains(schema), "Schema should be gone after drop")
+        let schemasAfter = try await client.metadata.listSchemas()
+        XCTAssertFalse(schemasAfter.map(\.name).contains(schema), "Schema should be gone after drop")
     }
 
     func testCreateSchemaIfNotExists() async throws {
@@ -61,7 +61,7 @@ final class AdvancedClientTests: PostgresKitTestCase {
 
     func testCreateAndDropEnum() async throws {
         let typeName = uniqueName("pgwire_status")
-        try await client.admin.createEnum(name: typeName, values: ["active", "inactive", "pending"])
+        try await client.types.createEnum(name: typeName, values: ["active", "inactive", "pending"])
 
         // Use the enum in a table to confirm it works
         let table = uniqueName("pgwire_enum_t")
@@ -77,12 +77,12 @@ final class AdvancedClientTests: PostgresKitTestCase {
         XCTAssertEqual(values, ["active"])
 
         try await client.admin.dropTable(name: table, ifExists: true)
-        try await client.admin.dropEnum(name: typeName, ifExists: true, cascade: true)
+        try await client.types.dropEnum(name: typeName, ifExists: true, cascade: true)
     }
 
     func testAddEnumValue() async throws {
         let typeName = uniqueName("pgwire_color")
-        try await client.admin.createEnum(name: typeName, values: ["red", "green"])
+        try await client.types.createEnum(name: typeName, values: ["red", "green"])
         try await client.types.addEnumValue(type: typeName, value: "blue")
 
         let table = uniqueName("pgwire_color_t")
@@ -98,13 +98,13 @@ final class AdvancedClientTests: PostgresKitTestCase {
         XCTAssertEqual(values, ["blue"])
 
         try await client.admin.dropTable(name: table, ifExists: true)
-        try await client.admin.dropEnum(name: typeName, ifExists: true, cascade: true)
+        try await client.types.dropEnum(name: typeName, ifExists: true, cascade: true)
     }
 
     func testRenameEnumValue() async throws {
         let typeName = uniqueName("pgwire_mood")
-        try await client.admin.createEnum(name: typeName, values: ["happy", "sad"])
-        try await client.admin.renameEnumValue(type: typeName, oldValue: "sad", newValue: "unhappy")
+        try await client.types.createEnum(name: typeName, values: ["happy", "sad"])
+        try await client.types.renameEnumValue(type: typeName, oldValue: "sad", newValue: "unhappy")
 
         let table = uniqueName("pgwire_mood_t")
         try await client.admin.createTable(name: table, columns: [
@@ -119,7 +119,7 @@ final class AdvancedClientTests: PostgresKitTestCase {
         XCTAssertEqual(values, ["unhappy"])
 
         try await client.admin.dropTable(name: table, ifExists: true)
-        try await client.admin.dropEnum(name: typeName, ifExists: true, cascade: true)
+        try await client.types.dropEnum(name: typeName, ifExists: true, cascade: true)
     }
 
     // MARK: - Column Alterations
@@ -138,13 +138,13 @@ final class AdvancedClientTests: PostgresKitTestCase {
 
         // Set default
         try await client.admin.alterColumnDefault(table: table, column: "score", defaultValue: "42")
-        let meta = try await REMOVED_LEGACY.listColumns(using: client, schema: "public", table: table)
+        let meta = try await client.metadata.listColumns(schema: "public", table: table)
         let scoreCol = meta.first { $0.name == "score" }
         XCTAssertNotNil(scoreCol?.defaultValue, "score should have a default value")
 
         // Remove default
         try await client.admin.alterColumnDefault(table: table, column: "score", defaultValue: nil)
-        let meta2 = try await REMOVED_LEGACY.listColumns(using: client, schema: "public", table: table)
+        let meta2 = try await client.metadata.listColumns(schema: "public", table: table)
         let scoreCol2 = meta2.first { $0.name == "score" }
         XCTAssertNil(scoreCol2?.defaultValue, "score should have no default after DROP DEFAULT")
     }
@@ -166,13 +166,13 @@ final class AdvancedClientTests: PostgresKitTestCase {
 
         // Make NOT NULL
         try await client.admin.alterColumnNullability(table: table, column: "label", nullable: false)
-        let meta = try await REMOVED_LEGACY.listColumns(using: client, schema: "public", table: table)
+        let meta = try await client.metadata.listColumns(schema: "public", table: table)
         let col = meta.first { $0.name == "label" }
         XCTAssertEqual(col?.isNullable, false, "Column should be NOT NULL")
 
         // Make nullable again
         try await client.admin.alterColumnNullability(table: table, column: "label", nullable: true)
-        let meta2 = try await REMOVED_LEGACY.listColumns(using: client, schema: "public", table: table)
+        let meta2 = try await client.metadata.listColumns(schema: "public", table: table)
         let col2 = meta2.first { $0.name == "label" }
         XCTAssertEqual(col2?.isNullable, true, "Column should be nullable again")
     }
@@ -191,7 +191,7 @@ final class AdvancedClientTests: PostgresKitTestCase {
 
         try await client.admin.renameColumn(table: table, oldName: "old_name", newName: "new_name")
 
-        let cols = try await REMOVED_LEGACY.listColumns(using: client, schema: "public", table: table)
+        let cols = try await client.metadata.listColumns(schema: "public", table: table)
         let names = cols.map { $0.name }
         XCTAssertTrue(names.contains("new_name"), "Renamed column should appear")
         XCTAssertFalse(names.contains("old_name"), "Old column name should not appear")
@@ -339,7 +339,7 @@ final class AdvancedClientTests: PostgresKitTestCase {
         let currentVal = try await client.serverConfig.show( "work_mem") ?? ""
         XCTAssertFalse(currentVal.isEmpty, "work_mem should be set")
 
-        try await client.admin.resetConfiguration(parameter: "work_mem")
+        try await client.serverConfig.resetConfiguration(parameter: "work_mem")
         let restoredVal = try await client.serverConfig.show( "work_mem") ?? ""
         XCTAssertEqual(restoredVal, originalVal, "work_mem should be restored to its original value")
     }

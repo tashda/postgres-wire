@@ -27,8 +27,7 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
     // MARK: - SampleData Role Existence
 
     func testSampleDataRolesExist() async throws {
-        let meta = REMOVED_LEGACY
-        let roles = try await meta.listRoles(using: client)
+        let roles = try await client.security.listRoles()
         let roleNames = roles.map { $0.name }
         XCTAssertTrue(roleNames.contains("test_readonly"), "Should have test_readonly role")
         XCTAssertTrue(roleNames.contains("test_readwrite"), "Should have test_readwrite role")
@@ -284,8 +283,7 @@ final class PermissionAndRoleTests: PostgresKitTestCase {
     // MARK: - Role Introspection
 
     func testRoleAttributeIntrospection() async throws {
-        let meta = REMOVED_LEGACY
-        let roles = try await meta.listRoles(using: client)
+        let roles = try await client.security.listRoles()
         let readwrite = roles.first { $0.name == "test_readwrite" }
         XCTAssertNotNil(readwrite, "Should find test_readwrite role")
     }

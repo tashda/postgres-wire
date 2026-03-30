@@ -242,14 +242,12 @@ final class SampleDataIntegrationTests: PostgresKitTestCase {
     // MARK: - Comments
 
     func testTableComments() async throws {
-        let meta = REMOVED_LEGACY
-        let comment = try await meta.fetchTableComment(using: client, schema: "app", table: "users")
+        let comment = try await client.metadata.fetchTableComment(schema: "app", table: "users")
         XCTAssertEqual(comment, "Core user accounts table")
     }
 
     func testColumnComments() async throws {
-        let meta = REMOVED_LEGACY
-        let comments = try await meta.fetchColumnComments(using: client, schema: "app", table: "users")
+        let comments = try await client.metadata.fetchColumnComments(schema: "app", table: "users")
         let metadataComment = comments.first { $0.column == "metadata" }
         XCTAssertNotNil(metadataComment, "metadata column should have a comment")
     }

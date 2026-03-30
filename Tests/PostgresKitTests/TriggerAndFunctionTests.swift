@@ -176,8 +176,7 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
     // MARK: - Function Introspection
 
     func testFunctionDefinitionIntrospection() async throws {
-        let meta = REMOVED_LEGACY
-        let def = try await meta.functionDefinition(using: client, schema: "app", name: "increment_login_count")
+        let def = try await client.metadata.functionDefinition(schema: "app", name: "increment_login_count")
         XCTAssertNotNil(def, "Should find function definition")
         if let def = def {
             XCTAssertTrue(def.lowercased().contains("login_count"))
@@ -264,8 +263,7 @@ final class TriggerAndFunctionTests: PostgresKitTestCase {
     // MARK: - Trigger Introspection
 
     func testTriggerDefinitionIntrospection() async throws {
-        let meta = REMOVED_LEGACY
-        let def = try await meta.triggerDefinition(using: client, schema: "app", name: "trg_users_updated_at")
+        let def = try await client.metadata.triggerDefinition(schema: "app", name: "trg_users_updated_at")
         XCTAssertNotNil(def, "Should find trigger definition")
     }
 }

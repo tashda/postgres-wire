@@ -3,6 +3,13 @@ import PostgresWire
 
 /// High-level query execution entry points.
 public extension PostgresClient {
+    /// Execute a simple query and return rows plus raw command metadata.
+    func simpleQueryResult(_ sql: String) async throws -> WireQueryResult {
+        try await wire.withConnection { connection in
+            try await connection.queryResult(sql)
+        }
+    }
+
     /// Execute a simple query and return the resulting row sequence.
     func simpleQuery(_ sql: String) async throws -> WireRowSequence {
         try await wire.query(WireQuery(sql: sql))

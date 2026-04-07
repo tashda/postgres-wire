@@ -23,6 +23,8 @@ public struct WireQuery: Sendable {
 }
 
 public typealias WireRowSequence = PostgresRowSequence
+public typealias WireQueryResult = PostgresNIO.PostgresQueryResult
+public typealias WireQueryMetadata = PostgresNIO.PostgresQueryMetadata
 
 // Re-export PostgresNIO types so higher layers can rely only on PostgresWire.
 public typealias PostgresRowSequence = PostgresNIO.PostgresRowSequence
@@ -76,6 +78,10 @@ public final class WireConnection: WireConnectionProtocol {
     public func query(_ query: WireQuery, logger: Logger?) async throws -> WireRowSequence {
         let log = logger ?? Logger(label: "postgres.wire.connection")
         return try await connection.query(query.asPostgresQuery(), logger: log)
+    }
+
+    public func queryResult(_ sql: String) async throws -> WireQueryResult {
+        try await connection.query(sql).get()
     }
 
     /// Experimental overload that accepts execution options. For now, it forwards to simple execution.

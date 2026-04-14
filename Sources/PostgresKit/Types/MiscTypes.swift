@@ -1,7 +1,7 @@
 import Foundation
 
 /// Information about an aggregate function.
-public struct PostgresAggregateInfo: Sendable {
+public struct PostgresAggregateInfo: Sendable, Identifiable {
     public let name: String
     public let schema: String
     public let inputType: String
@@ -17,10 +17,12 @@ public struct PostgresAggregateInfo: Sendable {
         self.stateFunction = stateFunction
         self.initialValue = initialValue
     }
+
+    public var id: String { "\(schema).\(name)(\(inputType))" }
 }
 
 /// Information about an operator.
-public struct PostgresOperatorInfo: Sendable {
+public struct PostgresOperatorInfo: Sendable, Identifiable {
     public let name: String
     public let schema: String
     public let leftType: String?
@@ -36,6 +38,8 @@ public struct PostgresOperatorInfo: Sendable {
         self.resultType = resultType
         self.procedure = procedure
     }
+
+    public var id: String { "\(schema).\(name)(\(leftType ?? "*"),\(rightType ?? "*"))" }
 }
 
 /// Information about a procedural language.
@@ -54,7 +58,7 @@ public struct PostgresLanguageInfo: Sendable {
 }
 
 /// Information about a type cast.
-public struct PostgresCastInfo: Sendable {
+public struct PostgresCastInfo: Sendable, Identifiable {
     public let sourceType: String
     public let targetType: String
     public let function: String?
@@ -66,4 +70,6 @@ public struct PostgresCastInfo: Sendable {
         self.function = function
         self.context = context
     }
+
+    public var id: String { "\(sourceType)->\(targetType)" }
 }

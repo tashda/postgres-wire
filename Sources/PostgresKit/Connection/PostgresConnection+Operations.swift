@@ -1,3 +1,4 @@
+import PostgresNIO
 
 public extension PostgresConnection {
     @discardableResult
@@ -47,14 +48,19 @@ internal extension PostgresConnection {
         PostgresQuoting.quoteQualifiedIdentifier(identifier)
     }
 
-    func bind(_ value: Any) throws -> PostgresBind {
-        guard let encodable = value as? any PostgresEncodable else { throw PostgresError.encodingError(type: type(of: value)) }
-        return try encodable.postgresBind()
+    func toPGData(value: any PostgresEncodable) throws -> PGData {
+        var data = PGData(type: value.pgDataType)
+        try value.encode(into: &data)
+        return data
     }
 
-    /// Runs a statement and returns the number of rows it returned.
     @discardableResult
     func executeDDL(_ sql: String) async throws -> Int {
-        try await queryResult(sql).rows.count
+        let rows = try await simpleQuery(sql)
+        var count = 0
+        for try await _ in rows.decode((String?).self) {
+            count += 1
+        }
+        return count
     }
 }

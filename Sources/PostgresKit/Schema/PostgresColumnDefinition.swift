@@ -1,3 +1,4 @@
+import PostgresWire
 import Foundation
 
 /// Defines a column within a PostgreSQL table.

@@ -1,4 +1,5 @@
 import Foundation
+import PostgresWire
 
 /// High-level table property and column detail introspection.
 public extension PostgresMetadataClient {
@@ -33,7 +34,7 @@ public extension PostgresMetadataClient {
             WHERE n.nspname = $1 AND c.relname = $2
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             guard let row = rows.first else {
                 throw PostgresError.objectNotFound("Table \(schema).\(table) not found")
             }
@@ -138,7 +139,7 @@ public extension PostgresMetadataClient {
             ORDER BY a.attnum
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var out: [PostgresColumnDetails] = []
             for row in rows {
                 let (
@@ -190,7 +191,7 @@ public extension PostgresMetadataClient {
             WHERE n.nspname = $1 AND c.relname = $2
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             guard let row = rows.first else {
                 throw PostgresError.objectNotFound("Table \(schema).\(table) not found")
             }
@@ -236,7 +237,7 @@ public extension PostgresMetadataClient {
             ORDER BY t.tgname
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var out: [PostgresTriggerInfo] = []
             for row in rows {
                 let (name, timing, manipulation, orientation, functionName, isEnabledStr, definition) = try row.decode((String, String, String, String, String, String, String?).self)

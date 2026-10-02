@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// Collation DDL operations.
 public extension PostgresAdminClient {

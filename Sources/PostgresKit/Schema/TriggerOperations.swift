@@ -1,3 +1,5 @@
+import PostgresWire
+import PostgresNIO
 
 /// High-level Trigger Data Definition Language (DDL) operations.
 public extension PostgresTriggerClient {

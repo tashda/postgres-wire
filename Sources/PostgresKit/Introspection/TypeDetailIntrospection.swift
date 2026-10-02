@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// Detailed type introspection for the type editor.
 public extension PostgresMetadataClient {
@@ -14,8 +15,8 @@ public extension PostgresMetadataClient {
             """
         return try await client.withConnection { conn in
             let rows = try await conn.queryPreparedRows(sql, binds: [
-                client.bind(schema),
-                client.bind(name)
+                client.toPGData(value: schema),
+                client.toPGData(value: name)
             ])
             return try rows.map { try $0.decode(String.self) }
         }
@@ -32,8 +33,8 @@ public extension PostgresMetadataClient {
             """
         return try await client.withConnection { conn in
             let rows = try await conn.queryPreparedRows(sql, binds: [
-                client.bind(schema),
-                client.bind(name)
+                client.toPGData(value: schema),
+                client.toPGData(value: name)
             ])
             for row in rows { return try row.decode(String?.self) }
             return nil
@@ -51,8 +52,8 @@ public extension PostgresMetadataClient {
             """
         return try await client.withConnection { conn in
             let rows = try await conn.queryPreparedRows(sql, binds: [
-                client.bind(schema),
-                client.bind(name)
+                client.toPGData(value: schema),
+                client.toPGData(value: name)
             ])
             for row in rows { return try row.decode(String?.self) }
             return nil

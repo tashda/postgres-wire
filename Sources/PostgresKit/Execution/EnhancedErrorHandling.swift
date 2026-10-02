@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// Error handling extensions for PostgresClient.
 public extension PostgresClient {

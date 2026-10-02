@@ -24,7 +24,7 @@ public actor PostgresNotifier {
         static func == (lhs: StreamEntry, rhs: StreamEntry) -> Bool { lhs.id == rhs.id }
     }
     private var streams: [String: [StreamEntry]] = [:]
-    private var channels: Set<String> = []
+    private var listenTokens: [String: [WireConnection.WireListenToken]] = [:]
 
     public init(client: PostgresClient, logger: Logger) {
         self.client = client
@@ -44,39 +44,46 @@ public actor PostgresNotifier {
         } else {
             sql = "NOTIFY \(quoteIdent(channel))"
         }
-        _ = try await client.executeDDL(sql)
+        _ = try await client.simpleQuery(sql)
     }
 
-    /// Listens on `channels` on a connection of its own, which waits on its socket while idle and
-    /// listens again after a reconnect.
     public func listen(channels: [String]) async throws {
+        // Cancel previous listening task and tokens
         listeningTask?.cancel()
         listeningTask = nil
-        self.channels = Set(channels.map { $0.lowercased() })
+        // Normalize keys
+        let normalized = channels.map { $0.lowercased() }
         let client = try requireClient()
-        let pool = client.pool
-        let listened = Array(self.channels)
-        listeningTask = Task(name: "postgres-notifier") { [weak self, logger] in
+        // Start a supervisor task that re-establishes LISTEN after reconnects
+        listeningTask = Task { [weak self, client, logger] in
+            guard let self else { return }
             while !Task.isCancelled {
-                var lease: PostgresLease?
                 do {
-                    let opened = try await pool.open()
-                    lease = opened
-                    for channel in listened {
-                        _ = try await opened.connection.execute("LISTEN \(Self.quote(channel))")
-                    }
-                    while !Task.isCancelled {
-                        for note in try await opened.connection.waitWhileIdle() {
-                            await self?.deliver(channel: note.channel, payload: note.payload, pid: note.pid)
+                    try await client.withConnection { conn in
+                        // Register listeners per channel and issue LISTEN
+                        for channel in normalized {
+                            // stop and clear any existing tokens for this channel
+                            if let tokens = await self.listenTokens[channel] {
+                                tokens.forEach { $0.stop() }
+                                await self.setTokens([], for: channel)
+                            }
+                            // Register a listener that fans-out to handlers & streams
+                            let token = conn.addNotificationListener(channel: channel) { [weak self] note in
+                                guard let self else { return }
+                                Task { await self.deliver(channel: note.channel, payload: note.payload, pid: note.pid) }
+                            }
+                            await self.appendToken(token, for: channel)
+                            // LISTEN on the server
+                            _ = try await conn.simpleQuery("LISTEN \(quoteIdent(channel))")
                         }
+                        // Suspend until the connection closes or task is cancelled
+                        await conn.waitForClose()
                     }
-                } catch is CancellationError {
-                    // stopped
                 } catch {
-                    logger.warning("Listen loop error on channels \(listened): \(String(describing: error))")
+                    logger.warning("Listen loop error on channels \(normalized): \(String(describing: error))")
                 }
-                await lease?.connection.close()
-                try? await Task.sleep(for: .milliseconds(500))
+                // Small backoff before retrying
+                try? await Task.sleep(nanoseconds: 500_000_000)
             }
         }
     }
@@ -97,13 +104,18 @@ public actor PostgresNotifier {
 
     public func unlisten(channel: String) async throws {
         let key = channel.lowercased()
-        channels.remove(key)
+        // stop local tokens
+        if let tokens = listenTokens.removeValue(forKey: key) {
+            tokens.forEach { $0.stop() }
+        }
+        // issue UNLISTEN on a temp connection
+        try await requireClient().withConnection { conn in
+            _ = try await conn.simpleQuery("UNLISTEN \(quoteIdent(key))")
+        }
         handlers[key] = []
         if let list = streams.removeValue(forKey: key) {
             list.forEach { $0.continuation.finish() }
         }
-        // Listen again on the remaining channels (a new LISTEN connection).
-        if channels.isEmpty { stop() } else { try await listen(channels: Array(channels)) }
     }
 
     // Subscribe to notifications for a given channel as an AsyncStream
@@ -136,9 +148,16 @@ public actor PostgresNotifier {
         streams[key] = list
     }
 
-    private func quoteIdent(_ s: String) -> String { Self.quote(s) }
+    private func quoteIdent(_ s: String) -> String {
+        let escaped = s.replacingOccurrences(of: "\"", with: "\"\"")
+        return "\"\(escaped)\""
+    }
 
-    static func quote(_ s: String) -> String {
-        "\"" + s.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+    private func setTokens(_ tokens: [WireConnection.WireListenToken], for channel: String) {
+        listenTokens[channel] = tokens
+    }
+
+    private func appendToken(_ token: WireConnection.WireListenToken, for channel: String) {
+        listenTokens[channel, default: []].append(token)
     }
 }

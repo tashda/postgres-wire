@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// High-level Sequence Data Definition Language (DDL) operations.
 public extension PostgresSequenceClient {

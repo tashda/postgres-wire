@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// Logical replication DDL operations.
 public extension PostgresReplicationClient {

@@ -1,4 +1,5 @@
 import Foundation
+import PostgresWire
 
 /// Logical replication introspection.
 public extension PostgresMetadataClient {

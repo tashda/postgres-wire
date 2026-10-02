@@ -1,4 +1,5 @@
 import Foundation
+import PostgresWire
 
 /// Introspection for aggregates, operators, languages, and casts.
 public extension PostgresMetadataClient {

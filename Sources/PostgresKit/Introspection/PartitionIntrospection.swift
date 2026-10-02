@@ -1,4 +1,5 @@
 import Foundation
+import PostgresWire
 
 /// Partition and inheritance introspection queries.
 public extension PostgresMetadataClient {
@@ -19,7 +20,7 @@ public extension PostgresMetadataClient {
             WHERE n.nspname = $1 AND c.relname = $2
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             guard let row = rows.first else { return nil }
             let (strategyStr, partitionKey, partitionCountStr) = try row.decode((String, String, String).self)
             guard let strategy = PartitionStrategy(rawValue: strategyStr) else { return nil }
@@ -51,7 +52,7 @@ public extension PostgresMetadataClient {
             ORDER BY cn.nspname, cc.relname
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var out: [PostgresPartitionDetail] = []
             for row in rows {
                 let (schemaName, partitionName, boundSpec, sizeBytesStr, estimatedRowsStr) = try row.decode((String, String, String, String, String).self)
@@ -83,7 +84,7 @@ public extension PostgresMetadataClient {
             ORDER BY pn.nspname, pc.relname
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var out: [PostgresInheritanceInfo] = []
             for row in rows {
                 let (schemaName, tableName) = try row.decode((String, String).self)
@@ -109,7 +110,7 @@ public extension PostgresMetadataClient {
             ORDER BY cn.nspname, cc.relname
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var out: [PostgresInheritanceInfo] = []
             for row in rows {
                 let (schemaName, tableName) = try row.decode((String, String).self)

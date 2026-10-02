@@ -1,3 +1,4 @@
+import PostgresWire
 import Foundation
 
 /// Structured insert values for cases that cannot be represented as plain bind parameters.

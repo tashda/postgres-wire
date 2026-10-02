@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// Full-text search configuration and dictionary DDL operations.
 public extension PostgresAdminClient {

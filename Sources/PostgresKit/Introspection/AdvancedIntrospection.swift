@@ -1,4 +1,5 @@
 import Foundation
+import PostgresWire
 
 /// Introspection for advanced PostgreSQL object types.
 public extension PostgresMetadataClient {

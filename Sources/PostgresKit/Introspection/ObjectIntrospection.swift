@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// High-level object definition and comment introspection.
 public extension PostgresMetadataClient {
@@ -5,7 +6,7 @@ public extension PostgresMetadataClient {
     func viewDefinition(schema: String, view: String) async throws -> String? {
         let sql = "SELECT definition FROM pg_views WHERE schemaname = $1 AND viewname = $2"
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(view)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: view)])
             for row in rows { return try row.decode(String?.self) }
             return nil
         }
@@ -21,7 +22,7 @@ public extension PostgresMetadataClient {
             ORDER BY p.oid LIMIT 1
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(name)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: name)])
             for row in rows { return try row.decode(String?.self) }
             return nil
         }
@@ -38,7 +39,7 @@ public extension PostgresMetadataClient {
             ORDER BY t.oid LIMIT 1
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(name)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: name)])
             for row in rows { return try row.decode(String?.self) }
             return nil
         }
@@ -48,7 +49,7 @@ public extension PostgresMetadataClient {
     func fetchTableComment(schema: String, table: String) async throws -> String? {
         let sql = "SELECT obj_description(format('%I.%I', $1::text, $2::text)::regclass, 'pg_class')"
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             for row in rows { return try row.decode(String?.self) }
             return nil
         }
@@ -65,7 +66,7 @@ public extension PostgresMetadataClient {
             ORDER BY a.attnum
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var out: [PostgresColumnComment] = []
             for row in rows {
                 let (name, comment) = try row.decode((String, String?).self)
@@ -85,7 +86,7 @@ public extension PostgresMetadataClient {
             ORDER BY p.oid LIMIT 1
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(name)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: name)])
             for row in rows { return try row.decode(String?.self) }
             return nil
         }
@@ -102,7 +103,7 @@ public extension PostgresMetadataClient {
             ORDER BY t.oid LIMIT 1
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(name)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: name)])
             for row in rows { return try row.decode(String?.self) }
             return nil
         }

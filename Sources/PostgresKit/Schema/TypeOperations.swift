@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// High-level Type Data Definition Language (DDL) operations.
 public extension PostgresTypeClient {

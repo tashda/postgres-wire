@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// High-level COMMENT operations for database objects.
 public extension PostgresAdminClient {

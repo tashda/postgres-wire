@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// High-level table inheritance operations.
 public extension PostgresAdminClient {

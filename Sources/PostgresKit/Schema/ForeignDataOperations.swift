@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// Foreign Data Wrapper, Foreign Server, User Mapping, and Foreign Table DDL operations.
 public extension PostgresAdminClient {

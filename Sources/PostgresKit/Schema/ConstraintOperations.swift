@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// High-level Constraint Data Definition Language (DDL) operations.
 public extension PostgresConstraintClient {

@@ -1,4 +1,5 @@
 import Foundation
+import PostgresWire
 
 /// Internal parser for the `COPY` statements accepted by ``PostgresBulkCopy``.
 ///

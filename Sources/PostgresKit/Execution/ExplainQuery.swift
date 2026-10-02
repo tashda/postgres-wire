@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// Query plan analysis operations.
 public extension PostgresExecutionPlanClient {

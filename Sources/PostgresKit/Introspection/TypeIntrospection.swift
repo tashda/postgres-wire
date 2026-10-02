@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// User-defined type discovery.
 public extension PostgresTypeClient {
@@ -20,7 +21,7 @@ public extension PostgresTypeClient {
             ORDER BY t.typname
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema)])
             return try rows.map { row in
                 let (name, kind) = try row.decode((String, String).self)
                 return PostgresTypeInfo(name: name, schema: schema, kind: kind)

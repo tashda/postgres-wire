@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// Event trigger DDL operations.
 public extension PostgresTriggerClient {

@@ -1,4 +1,5 @@
 import Foundation
+import PostgresWire
 
 /// Domains, composite and range types, collations and text search objects.
 public extension PostgresMetadataClient {

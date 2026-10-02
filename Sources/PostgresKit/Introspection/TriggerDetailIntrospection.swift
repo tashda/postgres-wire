@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// Detailed trigger introspection for the trigger editor.
 public extension PostgresMetadataClient {
@@ -23,9 +24,9 @@ public extension PostgresMetadataClient {
             """
         return try await client.withConnection { conn in
             let rows = try await conn.queryPreparedRows(sql, binds: [
-                client.bind(schema),
-                client.bind(table),
-                client.bind(name)
+                client.toPGData(value: schema),
+                client.toPGData(value: table),
+                client.toPGData(value: name)
             ])
             for row in rows {
                 let (triggerName, definition, enabledFlag, funcName, funcSchema, comment)

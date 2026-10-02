@@ -1,4 +1,5 @@
 import Foundation
+import PostgresWire
 
 /// High-level database introspection and property discovery.
 public extension PostgresMetadataClient {

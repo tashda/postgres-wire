@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// Stored procedure discovery.
 public extension PostgresMetadataClient {
@@ -11,7 +12,7 @@ public extension PostgresMetadataClient {
             ORDER BY p.proname
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema)])
             return try rows.map { try $0.decode(String.self) }
         }
     }

@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// Detailed function introspection for the function editor.
 public extension PostgresMetadataClient {
@@ -26,8 +27,8 @@ public extension PostgresMetadataClient {
             """
         return try await client.withConnection { conn in
             let rows = try await conn.queryPreparedRows(sql, binds: [
-                client.bind(schema),
-                client.bind(name)
+                client.toPGData(value: schema),
+                client.toPGData(value: name)
             ])
             for row in rows {
                 let (proname, returnType, language, source, volatile, parallel, secdef, strict, cost, estRows, arguments, comment)

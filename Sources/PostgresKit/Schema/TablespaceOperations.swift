@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// Tablespace DDL operations.
 public extension PostgresAdminClient {

@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// Detailed sequence introspection for the sequence editor.
 public extension PostgresMetadataClient {
@@ -25,8 +26,8 @@ public extension PostgresMetadataClient {
             """
         return try await client.withConnection { conn in
             let rows = try await conn.queryPreparedRows(sql, binds: [
-                client.bind(schema),
-                client.bind(name)
+                client.toPGData(value: schema),
+                client.toPGData(value: name)
             ])
             for row in rows {
                 let (startValue, increment, minValue, maxValue, cache, cycleStr, lastValue, owner, comment)
@@ -59,8 +60,8 @@ public extension PostgresMetadataClient {
             """
         return try await client.withConnection { conn in
             let rows = try await conn.queryPreparedRows(sql, binds: [
-                client.bind(schema),
-                client.bind(name)
+                client.toPGData(value: schema),
+                client.toPGData(value: name)
             ])
             for row in rows { return try row.decode(String?.self) }
             return nil

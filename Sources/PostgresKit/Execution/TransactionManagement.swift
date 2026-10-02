@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// Transaction lifecycle management on the pooled client.
 ///

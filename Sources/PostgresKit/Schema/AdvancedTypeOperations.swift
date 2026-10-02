@@ -1,3 +1,4 @@
+import PostgresWire
 
 /// Domain, composite, and range type DDL operations.
 public extension PostgresTypeClient {

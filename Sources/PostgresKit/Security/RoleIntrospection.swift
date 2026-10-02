@@ -1,4 +1,5 @@
 import Foundation
+import PostgresWire
 
 /// High-level role introspection.
 public extension PostgresSecurityClient {

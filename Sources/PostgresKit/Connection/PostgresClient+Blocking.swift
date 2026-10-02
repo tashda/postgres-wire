@@ -1,4 +1,5 @@
 import Foundation
+import PostgresNIO
 
 /// A session that holds a lock another session is waiting for.
 public struct PostgresBlockingSession: Sendable, Equatable {
@@ -17,6 +18,8 @@ extension PostgresClient {
     /// The sessions blocking the backend `pid` (`pg_blocking_pids`); empty when it is not waiting
     /// for a lock. Runs on a pooled connection, so it works while `pid` is busy; one short query.
     public func blockingSessions(of pid: Int32) async throws -> [PostgresBlockingSession] {
+        var binds = PostgresBindings()
+        binds.append(pid)
         let sql = """
             SELECT a.pid, a.usename::text, a.application_name, left(a.query, 200), a.state,
                    extract(epoch FROM a.xact_start)::float8
@@ -25,7 +28,7 @@ extension PostgresClient {
             ORDER BY a.xact_start NULLS LAST
             """
         do {
-            let rows = try await query(sql, binds: [.int32(pid)])
+            let rows = try await wire.query(WireQuery(sql: sql, binds: binds))
             var sessions: [PostgresBlockingSession] = []
             for try await row in rows.decode((Int32, String?, String?, String?, String?, Double?).self) {
                 sessions.append(PostgresBlockingSession(

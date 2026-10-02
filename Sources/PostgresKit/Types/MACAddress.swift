@@ -1,6 +1,9 @@
 import Foundation
+import PostgresNIO
+import NIO
+import NIOCore
 
-public struct MACAddress: Equatable, Hashable, Codable, Sendable {
+public struct MACAddress: Equatable, Hashable, Codable {
     public let string: String
 
     public init(string: String) {
@@ -9,11 +12,30 @@ public struct MACAddress: Equatable, Hashable, Codable, Sendable {
 }
 
 extension MACAddress: PostgresEncodable {
-    /// Sent as text; the server parses every MAC format it knows (`08:00:2b:01:02:03`,
-    /// `08-00-2b-01-02-03`, `0800.2b01.0203` …) and rejects the rest.
-    public func postgresBind() -> PostgresBind { .text(string, typeOID: 829) }
-}
+    public var pgDataType: PostgresDataType { .macaddr }
 
-extension MACAddress: PostgresTextDecodable {
-    public static func decode(text: String) throws -> MACAddress { MACAddress(string: text) }
+    public func encode(into: inout PGData) throws {
+        // MAC addresses are typically 6 bytes.
+        // We need to parse the string into a byte buffer.
+        // For simplicity, assuming the string is always in the format "XX:XX:XX:XX:XX:XX"
+        let components = self.string.split(separator: ":").map { String($0) }
+        guard components.count == 6 else {
+            throw PostgresError.encodingError(
+                message: "Invalid MAC address format: \(self.string)",
+                type: MACAddress.self
+            )
+        }
+
+        var buffer = ByteBufferAllocator().buffer(capacity: 6)
+        for component in components {
+            guard let byte = UInt8(component, radix: 16) else {
+                throw PostgresError.encodingError(
+                    message: "Invalid MAC address component: \(component) in \(self.string)",
+                    type: MACAddress.self
+                )
+            }
+            buffer.writeInteger(byte)
+        }
+        into = PGData(type: .macaddr, value: buffer)
+    }
 }

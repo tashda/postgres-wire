@@ -1,4 +1,5 @@
 import Foundation
+import PostgresWire
 
 /// Monitoring and statistics introspection.
 public extension PostgresMetadataClient {

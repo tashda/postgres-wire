@@ -1,4 +1,5 @@
 import Foundation
+import PostgresWire
 
 /// High-level constraint and dependency introspection.
 public extension PostgresMetadataClient {
@@ -21,7 +22,7 @@ public extension PostgresMetadataClient {
             ORDER BY u.ord
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var name: String?
             var cols: [String] = []
             var isDeferrable = false
@@ -75,7 +76,7 @@ public extension PostgresMetadataClient {
             ORDER BY c.conname, u.ord
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var fks: [String: [Row]] = [:]
             for row in rows {
                 let (name, column, refSchema, refTable, refColumn, onUpdate, onDelete, posStr, deferrableStr, deferredStr) = try row.decode((String, String, String, String, String, String?, String?, String, String?, String?).self)
@@ -110,7 +111,7 @@ public extension PostgresMetadataClient {
             ORDER BY c.conname, u.ord
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             struct Entry { var columns: [String] = []; var isDeferrable = false; var isDeferred = false }
             var map: [String: Entry] = [:]
             for row in rows {
@@ -142,7 +143,7 @@ public extension PostgresMetadataClient {
             ORDER BY tc.constraint_name, kcu.ordinal_position
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             struct Row { let name: String; let srcSchema: String; let srcTable: String; let srcColumn: String; let tgtColumn: String; let onUpdate: String?; let onDelete: String?; let pos: Int }
             var map: [String: [Row]] = [:]
             for row in rows {
@@ -184,7 +185,7 @@ public extension PostgresMetadataClient {
         ORDER BY idx.relname, ord.position
         """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var acc: [String: (unique: Bool, cols: [PostgresIndexInfo.Column], predicate: String?, indexType: String?, numKeyColumns: Int)] = [:]
             var invalid: Set<String> = []
             for row in rows {
@@ -223,7 +224,7 @@ public extension PostgresMetadataClient {
             WHERE n.nspname = $1 AND c.relname = $2
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var fillfactor: Int?
             var toastTupleTarget: Int?
             var autovacuumEnabled: Bool?
@@ -269,7 +270,7 @@ public extension PostgresMetadataClient {
             ORDER BY c.conname
             """
         return try await client.withConnection { conn in
-            let rows = try await conn.queryPreparedRows(sql, binds: [client.bind(schema), client.bind(table)])
+            let rows = try await conn.queryPreparedRows(sql, binds: [client.toPGData(value: schema), client.toPGData(value: table)])
             var out: [PostgresCheckConstraintInfo] = []
             for row in rows {
                 let (name, def) = try row.decode((String, String).self)
